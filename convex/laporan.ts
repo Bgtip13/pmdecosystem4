@@ -1,6 +1,10 @@
-import { action } from "./_generated/server";
-import { api } from "./_generated/api";
+import { action, mutation, internalQuery } from "./_generated/server";
+import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { api, internal } from "./_generated/api";
 
+// Kunci unik baris pengiriman (dipakai quick-edit supervisor/PPIC)
+const eksKey = (r: any) => [r.tanggal, r.jam, r.armada, r.store].join("||");
 const PCP_BULANAN_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGlsTx4NinTEqLvG3W7BjDBmlSKY3WqDpUVGxHR4-o5QCaOFrljy92iXGx8sV5tIkPTRy5KeRlGnS4/pub?gid=137493638&single=true&output=csv";
 
@@ -42,7 +46,7 @@ export const fetchPcpBulanan = action({
     const viewer = await ctx.runQuery(api.users.viewer);
     if (!viewer) throw new Error("Belum login.");
     const role = (viewer as any).role;
-    if (role !== "supervisor" && role !== "field" && role !== "telemarketing") {
+    if (role !== "supervisor" && role !== "field" && role !== "telemarketing" && role !== "owner") {
       throw new Error("Tidak diizinkan.");
     }
 
@@ -71,8 +75,7 @@ export const fetchPcpBulanan = action({
       kejar: toInt(c[14]),
     }));
 
-    // Non-supervisor hanya melihat area-nya sendiri
-    if (role !== "supervisor") {
+    if (role !== "supervisor" && role !== "owner") {
       const myArea = (viewer as any).area;
       rows = rows.filter((r: any) => r.area === myArea);
     }
@@ -80,6 +83,8 @@ export const fetchPcpBulanan = action({
     return { fetchedAt: Date.now(), rows };
   },
 });
+
+
 
 const EKSPEDISI_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSv4YvcmiT6ThR4FS4F6znSo7GSWOJ5hN4radzDrqMyikF2yisZybIMYSng9vgi6TAPUbD5mbKGXMJL/pub?gid=794983242&single=true&output=csv";
@@ -89,63 +94,87 @@ export const fetchEkspedisi = action({
     const viewer = await ctx.runQuery(api.users.viewer);
     if (!viewer) throw new Error("Belum login.");
     const role = (viewer as any).role;
-    if (role !== "supervisor" && role !== "field" && role !== "telemarketing") {
+    if (role !== "supervisor" && role !== "field" && role !== "telemarketing" && role !== "owner" && role !== "ppic") {
       throw new Error("Tidak diizinkan.");
     }
 
     const res = await fetch(EKSPEDISI_URL);
     if (!res.ok) throw new Error("Gagal menarik data (" + res.status + ").");
     const text = await res.text();
-
     const grid = parseCsv(text);
     if (grid.length < 2) throw new Error("Data kosong / belum siap.");
 
-    const rows: any[] = grid.slice(1).map((c) => {
+    const allRows: any[] = grid.slice(1).map((c) => {
       const num = (s?: string) => {
         if (!s || !s.trim()) return 0;
         const n = parseInt(s.replace(/[^\d]/g, ""), 10);
         return isNaN(n) ? 0 : n;
       };
+      const tgl = c[0]?.trim() ?? "";
+      const jam = c[1]?.trim() ?? "";
+      const armada = c[6]?.trim() || "Tanpa Armada";
       return {
-        tanggal: c[0]?.trim() ?? "",
-        jam: c[1]?.trim() ?? "",
+        tanggal: tgl,
+        jam,
         kategori: c[2]?.trim() ?? "",
         store: c[3]?.trim() ?? "",
         driver: c[4]?.trim() ?? "",
         helper: c[5]?.trim() ?? "",
-        armada: c[6]?.trim() || "Tanpa Armada",
+        armada,
         bayar: c[7]?.trim() ?? "",
         typeByr: c[8]?.trim() ?? "",
         tunai: num(c[9]),
         transfer: num(c[10]),
-        fotoUang: c[11]?.trim() ?? "",
         pod: c[12]?.trim() ?? "",
-        retur: c[13]?.trim() ?? "",
         ket: c[14]?.trim() ?? "",
         gps: c[15]?.trim() ?? "",
+        checked: false,
       };
     });
 
-    const totalTunai = rows.reduce((s, r) => s + (r.tunai || 0), 0);
-    const totalTransfer = rows.reduce((s, r) => s + (r.transfer || 0), 0);
+    // Terapkan quick-edit (Dicek & nominal Tunai) — supervisor & PPIC
+    const edits = (await ctx.runQuery(internal.laporan.listEkspedisiEditsInternal, {})) as any[];
+    const editMap = new Map((edits ?? []).map((e: any) => [e.key, e]));
+    for (const r of allRows) {
+      const e = editMap.get(eksKey(r));
+      if (!e) continue;
+      if (e.checked) r.checked = true;
+      if (typeof e.tunai === "number") r.tunai = e.tunai;
+    }
+
+    const totalTunai = allRows.reduce((s, r) => s + (r.tunai || 0), 0);
+    const totalTransfer = allRows.reduce((s, r) => s + (r.transfer || 0), 0);
 
     const perKategori: Record<string, number> = {};
     const perArmadaMap: Record<string, any> = {};
-    for (const r of rows) {
+    for (const r of allRows) {
       perKategori[r.kategori || "Lain"] = (perKategori[r.kategori || "Lain"] || 0) + (r.tunai || 0);
-      if (!perArmadaMap[r.armada]) perArmadaMap[r.armada] = { armada: r.armada, prima: 0, ecer: 0, total: 0 };
-      perArmadaMap[r.armada].total += r.tunai || 0;
-      if ((r.kategori || "").toLowerCase().includes("prima")) perArmadaMap[r.armada].prima += r.tunai || 0;
-      else perArmadaMap[r.armada].ecer += r.tunai || 0;
+      if (!perArmadaMap[r.armada]) perArmadaMap[r.armada] = { armada: r.armada, prima: 0, ecer: 0, total: 0, count: 0 };
+      const a = perArmadaMap[r.armada];
+      a.total += r.tunai || 0;
+      a.count++;
+      if ((r.kategori || "").toLowerCase().includes("prima")) a.prima += r.tunai || 0;
+      else a.ecer += r.tunai || 0;
     }
-
     const armadas = Object.keys(perArmadaMap).sort((a, b) => a.localeCompare(b));
     const perArmadaList = armadas.map((a) => perArmadaMap[a]);
-    const detail = armadas.map((a) => ({ armada: a, rows: rows.filter((r) => r.armada === a) }));
 
-    return { fetchedAt: Date.now(), totalTunai, totalTransfer, totalCount: rows.length, perKategori, perArmadaList, detail };
+    // Detail selalu dikirim — sheet dijaga ≤ 60 baris oleh admin
+    const detail = armadas.map((a) => ({ armada: a, rows: allRows.filter((r) => r.armada === a) }));
+
+    return {
+      fetchedAt: Date.now(),
+      totalTunai,
+      totalTransfer,
+      totalCount: allRows.length,
+      dicekCount: allRows.filter((r) => r.checked).length,
+      perKategori,
+      perArmadaList,
+      detail,
+    };
   },
 });
+
 const PCP_MINGGUAN_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGlsTx4NinTEqLvG3W7BjDBmlSKY3WqDpUVGxHR4-o5QCaOFrljy92iXGx8sV5tIkPTRy5KeRlGnS4/pub?gid=389169579&single=true&output=csv";
 
@@ -154,7 +183,7 @@ export const fetchPcpMingguan = action({
     const viewer = await ctx.runQuery(api.users.viewer);
     if (!viewer) throw new Error("Belum login.");
     const role = (viewer as any).role;
-    if (role !== "supervisor" && role !== "field" && role !== "telemarketing") throw new Error("Tidak diizinkan.");
+    if (role !== "supervisor" && role !== "field" && role !== "telemarketing" && role !== "owner") throw new Error("Tidak diizinkan.");
 
     const res = await fetch(PCP_MINGGUAN_URL);
     if (!res.ok) throw new Error("Gagal menarik data (" + res.status + ").");
@@ -163,11 +192,27 @@ export const fetchPcpMingguan = action({
     if (grid.length < 2) throw new Error("Data kosong / belum siap.");
 
     const header = grid[0];
+
+    // ===== Label minggu dijamin M1..M5 (fallback kalau header kosong/aneh) =====
+    const weekLabels: string[] = [];
+    for (let i = 5; i + 1 < header.length && weekLabels.length < 5; i += 2) {
+      const raw = (header[i] || "").replace(/\bACT\b/i, "").trim();
+      const mm = raw.match(/m\s*([1-5])/i);
+      weekLabels.push(mm ? "M" + mm[1] : raw || "M" + (weekLabels.length + 1));
+    }
+    if (weekLabels.length === 0) {
+      for (let i = 1; i <= 5; i++) weekLabels.push("M" + i);
+    }
+
     let rows: any[] = grid.slice(1).map((c) => {
       const weeks: any[] = [];
-      for (let i = 5; i + 1 < header.length; i += 2) {
-        const mLabel = (header[i] || "").replace(/ACT\s*/i, "").trim() || "M" + (Math.floor((i - 3) / 2));
-        weeks.push({ m: mLabel, act: toInt(c[i]), pct: toPct(c[i + 1]) });
+      const mRow: any = {};
+      for (let wi = 0; wi < weekLabels.length; wi++) {
+        const i = 5 + wi * 2;
+        const p = toPct(c[i + 1]);
+        weeks.push({ m: weekLabels[wi], act: toInt(c[i]), pct: p });
+        const mm = weekLabels[wi].match(/m\s*([1-5])/i);
+        if (mm) mRow["m" + mm[1]] = p ?? undefined;
       }
       return {
         no: c[0]?.trim() ?? "",
@@ -176,15 +221,15 @@ export const fetchPcpMingguan = action({
         sdm: c[3]?.trim() ?? "",
         tgtMgg: toInt(c[4]),
         weeks,
+        ...mRow,
       };
     });
 
-    if (role !== "supervisor") {
+    if (role !== "supervisor" && role !== "owner") {
       const myArea = (viewer as any).area;
       rows = rows.filter((r: any) => r.area === myArea);
     }
 
-    const weekLabels: string[] = rows.length ? rows[0].weeks.map((w: any) => w.m) : [];
     return { fetchedAt: Date.now(), rows, weekLabels };
   },
 });
@@ -198,7 +243,7 @@ export const fetchDap = action({
     const viewer = await ctx.runQuery(api.users.viewer);
     if (!viewer) throw new Error("Belum login.");
     const role = (viewer as any).role;
-    if (role !== "supervisor" && role !== "field" && role !== "telemarketing") throw new Error("Tidak diizinkan.");
+    if (role !== "supervisor" && role !== "field" && role !== "telemarketing" && role !== "owner") throw new Error("Tidak diizinkan.");
 
     const res = await fetch(DAP_URL);
     if (!res.ok) throw new Error("Gagal menarik data (" + res.status + ").");
@@ -217,7 +262,7 @@ export const fetchDap = action({
     // Baris data dimulai setelah 2 baris judul (indeks 5 dst), filter yang punya pelanggan
     let dataRows = grid.slice(5).filter((c: any) => (c[5] || "").trim().length > 0 && (c[1] || "").trim().length > 0);
 
-    if (role !== "supervisor") {
+    if (role !== "supervisor" && role !== "owner") {
       const myArea = (viewer as any).area;
       dataRows = dataRows.filter((c: any) => (c[1] || "").trim().toUpperCase() === myArea);
     }
@@ -253,5 +298,48 @@ export const fetchDap = action({
       monthTotals,
       rows,
     };
+  },
+});
+
+// ===== QUICK-EDIT EKSPEDISI (supervisor & PPIC; tersimpan di database app) =====
+export const listEkspedisiEditsInternal = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return (await ctx.db.query("ekspedisi_edits" as any).collect()) as any;
+  },
+});
+
+export const saveEkspedisiEdit = mutation({
+  args: {
+    key: v.string(),
+    checked: v.optional(v.boolean()),
+    tunai: v.optional(v.number()),
+  },
+  handler: async (ctx, { key, checked, tunai }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Belum login.");
+    const me = await ctx.db.get(userId);
+    const r = (me as any)?.role;
+    if (r !== "supervisor" && r !== "ppic") throw new Error("Khusus supervisor / PPIC.");
+
+    const all = (await ctx.db.query("ekspedisi_edits" as any).collect()) as any[];
+    const existing = all.find((d: any) => d.key === key);
+
+    const patch: any = { updatedBy: userId, updatedAt: Date.now() };
+    if (checked !== undefined) patch.checked = checked;
+    if (tunai !== undefined) patch.tunai = tunai;
+
+    if (existing) {
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert("ekspedisi_edits" as any, {
+        key,
+        checked: checked ?? false,
+        tunai: tunai ?? null,
+        updatedBy: userId,
+        updatedAt: Date.now(),
+      });
+    }
+    return { ok: true };
   },
 });

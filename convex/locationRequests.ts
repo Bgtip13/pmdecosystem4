@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { logAudit } from "./lib/audit";   // ← BARU
 
 // ===== SALES: USUL PERBARUI LOKASI =====
 export const requestLocationUpdate = mutation({
@@ -32,6 +33,40 @@ export const requestLocationUpdate = mutation({
       status: "pending",
       createdAt: Date.now(),
     });
+
+    // ===== Beri tahu semua supervisor → muncul di layar Notifikasi =====
+    const fromName = (user as any)?.name ?? "Sales";
+    const supers = (await ctx.db.query("users").collect()).filter(
+      (u: any) => u.role === "supervisor" && String(u._id) !== String(userId)
+    );
+    if (supers.length > 0) {
+      const t = Date.now();
+      for (const s of supers) {
+        await ctx.db.insert("notifications", {
+          userId: s._id,
+          fromUserId: userId,
+          fromName,
+          title: "📍 Usulan perbarui lokasi",
+          body: `${fromName} mengusulkan koordinat baru untuk toko ${store.name}. Buka Menu SPV → Persetujuan Lokasi.`,
+          kind: "approval_lokasi",
+          link: "/spv-approval",
+          createdAt: t,
+        });
+      }
+    }
+
+    // ← BARU: catat pengajuan ke audit trail
+    await logAudit(ctx, {
+      actorId: userId,
+      action: "location.request",
+      entityType: "store",
+      entityId: storeId,
+      area: store.area,
+      summary: `Mengusulkan perbarui lokasi ${store.name}.`,
+      before: { lat: store.lat ?? null, lng: store.lng ?? null },
+      after: { lat, lng },
+    });
+
     return { ok: true };
   },
 });
@@ -82,6 +117,9 @@ export const approveRequest = mutation({
     const req = await ctx.db.get(requestId);
     if (!req || req.status !== "pending") throw new Error("Permintaan tidak ditemukan.");
 
+    const store = await ctx.db.get(req.storeId);
+    const storeName = (store as any)?.name ?? "toko";
+
     await ctx.db.patch(req.storeId, {
       lat: req.proposedLat,
       lng: req.proposedLng,
@@ -89,6 +127,31 @@ export const approveRequest = mutation({
       updatedAt: Date.now(),
     });
     await ctx.db.patch(requestId, { status: "approved", approvedBy: userId, approvedAt: Date.now() });
+
+    // Kabari sales yang mengusulkan
+    await ctx.db.insert("notifications", {
+      userId: req.requestedBy,
+      fromUserId: userId,
+      fromName: (me as any)?.name ?? "Supervisor",
+      title: "✅ Koordinat toko disetujui",
+      body: `Usulan lokasi untuk ${storeName} disetujui. Koordinat toko sudah diperbarui.`,
+      kind: "approval_result",
+      link: `/store/${req.storeId}`,
+      createdAt: Date.now(),
+    });
+
+    // ← BARU: catat persetujuan ke audit trail
+    await logAudit(ctx, {
+      actorId: userId,
+      action: "location.approve",
+      entityType: "store_location_request",
+      entityId: requestId,
+      area: (req as any).area,
+      summary: `Menyetujui perbarui lokasi ${storeName}.`,
+      before: { lat: (req as any).oldLat ?? null, lng: (req as any).oldLng ?? null },
+      after: { lat: req.proposedLat, lng: req.proposedLng },
+    });
+
     return { ok: true };
   },
 });
@@ -105,12 +168,41 @@ export const rejectRequest = mutation({
     const req = await ctx.db.get(requestId);
     if (!req || req.status !== "pending") throw new Error("Permintaan tidak ditemukan.");
 
+    const store = await ctx.db.get(req.storeId);
+    const storeName = (store as any)?.name ?? "toko";
+    const cleanReason = reason?.trim() || "";
+
     await ctx.db.patch(requestId, {
       status: "rejected",
       approvedBy: userId,
       approvedAt: Date.now(),
-      rejectReason: reason?.trim() || undefined,
+      rejectReason: cleanReason || undefined,
     });
+
+    // Kabari sales yang mengusulkan
+    await ctx.db.insert("notifications", {
+      userId: req.requestedBy,
+      fromUserId: userId,
+      fromName: (me as any)?.name ?? "Supervisor",
+      title: "❌ Usulan koordinat ditolak",
+      body: `Usulan lokasi untuk ${storeName} ditolak${cleanReason ? `: ${cleanReason}` : "."}`,
+      kind: "approval_result",
+      link: `/store/${req.storeId}`,
+      createdAt: Date.now(),
+    });
+
+    // ← BARU: catat penolakan ke audit trail
+    await logAudit(ctx, {
+      actorId: userId,
+      action: "location.reject",
+      entityType: "store_location_request",
+      entityId: requestId,
+      area: (req as any).area,
+      summary: `Menolak usulan lokasi ${storeName}${cleanReason ? ` — alasan: ${cleanReason}` : "."}`,
+      before: { status: "pending" },
+      after: { status: "rejected", reason: cleanReason || null },
+    });
+
     return { ok: true };
   },
 });

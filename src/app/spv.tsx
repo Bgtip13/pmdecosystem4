@@ -1,13 +1,24 @@
-import { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import TabBar from "../components/TabBar";
+import AppIcon from "../components/AppIcon";
+import { theme } from "../lib/theme";
+import { TOP_PAD } from "../lib/layout";
 
-const RED = "#D92D20";
-const GREEN = "#067647";
-const GRAY = "#667085";
+const { colors: C, radius: R } = theme;
+
+const SHADOW = {
+  shadowColor: "#101828",
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 3 },
+  elevation: 2,
+};
+
+const RED = C.primary;
+const GRAY = C.inkMuted;
 
 export default function SpvHub() {
   const router = useRouter();
@@ -31,6 +42,22 @@ export default function SpvHub() {
 
   const pendingCount = pending === undefined ? null : pending.length;
 
+  const MenuCard = ({ icon, color, bg, label, desc, to, count }: any) => (
+    <TouchableOpacity style={styles.menuCard} activeOpacity={0.85} onPress={() => router.push(to)}>
+      <View style={[styles.iconBox, { backgroundColor: bg }]}>
+        <AppIcon name={icon} size={20} color={color} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.menuLabel}>{label}</Text>
+        <Text style={styles.menuDesc} numberOfLines={2}>{desc}</Text>
+      </View>
+      {count ? (
+        <View style={styles.badgeSmall}><Text style={styles.badgeSmallText}>{count}</Text></View>
+      ) : null}
+      <AppIcon name="chevron" size={18} color={C.inkFaint} style={{ marginLeft: 6 }} />
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.screen}>
       <View style={styles.topbar}>
@@ -42,71 +69,33 @@ export default function SpvHub() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
-        <TouchableOpacity style={styles.banner} onPress={() => router.push("/spv-approval")}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>📍 Persetujuan Lokasi</Text>
-            <Text style={styles.bannerText}>
-              {pendingCount === null
-                ? "Memuat..."
-                : pendingCount === 0
-                ? "Tidak ada usulan menunggu — semuanya beres."
-                : pendingCount + " usulan lokasi toko menunggu keputusanmu."}
-            </Text>
-          </View>
-          {pendingCount !== null && pendingCount > 0 ? (
-            <View style={styles.badge}><Text style={styles.badgeText}>{pendingCount}</Text></View>
-          ) : null}
-          <Text style={styles.bannerArrow}>›</Text>
-        </TouchableOpacity>
-
         <Text style={styles.section}>Pantau</Text>
-        <TouchableOpacity style={styles.menuCard} onPress={() => router.push("/live")}>
-          <View style={[styles.iconBox, { backgroundColor: "#E0F2FE" }]}>
-            <Text style={styles.iconText}>📡</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.menuLabel}>Live Monitor</Text>
-            <Text style={styles.menuDesc}>Status sales lapangan real-time (kunjungan, durasi, toko)</Text>
-          </View>
-          <Text style={styles.arrow}>›</Text>
-        </TouchableOpacity>
+        <MenuCard
+          icon="clock" color={C.chip.purple.fg} bg={C.chip.purple.bg}
+          label="Audit Aktivitas" desc="Siapa mengubah / menghapus / menyetujui apa, kapan"
+          to="/audit"
+        />
 
         <Text style={styles.section}>Persetujuan</Text>
-        <TouchableOpacity style={styles.menuCard} onPress={() => router.push("/spv-approval")}>
-          <View style={[styles.iconBox, { backgroundColor: "#FEE4E2" }]}>
-            <Text style={styles.iconText}>📍</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.menuLabel}>Approval Lokasi Toko</Text>
-            <Text style={styles.menuDesc}>Setujui / tolak usulan perbarui koordinat dari sales</Text>
-          </View>
-          {pendingCount !== null && pendingCount > 0 ? (
-            <View style={styles.badgeSmall}><Text style={styles.badgeSmallText}>{pendingCount}</Text></View>
-          ) : null}
-          <Text style={styles.arrow}>›</Text>
-        </TouchableOpacity>
+        <MenuCard
+          icon="location" color={C.chip.danger.fg} bg={C.chip.danger.bg}
+          label="Approval Lokasi Toko" desc="Setujui / tolak usulan perbarui koordinat dari sales"
+          to="/spv-approval"
+          count={pendingCount && pendingCount > 0 ? pendingCount : null}
+        />
 
         <Text style={styles.section}>Kelola</Text>
-        <TouchableOpacity style={styles.menuCard} onPress={() => router.push("/kelola-toko")}>
-          <View style={[styles.iconBox, { backgroundColor: "#FEE4E2" }]}>
-            <Text style={styles.iconText}>🏪</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.menuLabel}>Kelola Toko</Text>
-            <Text style={styles.menuDesc}>Cari, edit data & nonaktifkan toko</Text>
-          </View>
-          <Text style={styles.arrow}>›</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuCard} onPress={() => router.push("/kelola-akun")}>
-          <View style={[styles.iconBox, { backgroundColor: "#E0F2FE" }]}>
-            <Text style={styles.iconText}>🔑</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.menuLabel}>Kelola Akun Sales</Text>
-            <Text style={styles.menuDesc}>Ubah peran / area, reset password</Text>
-          </View>
-          <Text style={styles.arrow}>›</Text>
-        </TouchableOpacity>
+        <MenuCard
+          icon="calendar" color="#6D28D9" bg="#EDE9FE"
+          label="Izin Sales" desc="Tandai sales tidak masuk / tidak keliling (bebas target harian)"
+          to="/izin"
+        />
+        <MenuCard
+          icon="key" color={C.chip.purple.fg} bg={C.chip.purple.bg}
+          label="Kelola Akun Sales" desc="Ubah peran / area, reset password"
+          to="/kelola-akun"
+        />
+        <Text style={styles.note}>Kelola Toko sekarang ada di Beranda → Akses Cepat.</Text>
       </ScrollView>
 
       <TabBar active="spv" />
@@ -115,29 +104,22 @@ export default function SpvHub() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#F8F9FB" },
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
-  topbar: { backgroundColor: "#fff", paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "#EEF0F3" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
+  topbar: { backgroundColor: C.surfaceTint, paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "#F2DAD5" },
   backBtn: { alignSelf: "flex-start" },
   backText: { color: RED, fontSize: 16, fontWeight: "700" },
-  title: { fontSize: 20, fontWeight: "800", color: "#111", marginTop: 4 },
+  title: { fontSize: 20, fontWeight: "800", color: C.ink, marginTop: 4 },
   meta: { fontSize: 13, color: GRAY, marginTop: 2 },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#333" },
-  banner: { flexDirection: "row", alignItems: "center", backgroundColor: "#FFF1F0", borderWidth: 1, borderColor: "#FECDCA", borderRadius: 16, padding: 16, marginTop: 4 },
-  bannerTitle: { fontSize: 15, fontWeight: "800", color: "#111" },
-  bannerText: { fontSize: 13, color: "#B54708", marginTop: 4, lineHeight: 18 },
-  bannerArrow: { fontSize: 22, color: RED, marginLeft: 8, fontWeight: "700" },
-  badge: { backgroundColor: RED, borderRadius: 14, minWidth: 28, height: 28, justifyContent: "center", alignItems: "center", paddingHorizontal: 8, marginLeft: 8 },
-  badgeText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  note: { fontSize: 12, color: GRAY, marginTop: 2, paddingHorizontal: 4, fontStyle: "italic" },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: C.ink },
   badgeSmall: { backgroundColor: RED, borderRadius: 12, minWidth: 22, height: 22, justifyContent: "center", alignItems: "center", paddingHorizontal: 6, marginRight: 6 },
   badgeSmallText: { color: "#fff", fontWeight: "800", fontSize: 11 },
-  section: { fontSize: 13, fontWeight: "800", color: GRAY, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 22, marginBottom: 8, paddingHorizontal: 4 },
-  menuCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#EEF0F3" },
-  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: "center", alignItems: "center", marginRight: 12 },
-  iconText: { fontSize: 20 },
-  menuLabel: { fontSize: 15, fontWeight: "800", color: "#111" },
-  menuDesc: { fontSize: 12, color: GRAY, marginTop: 3, lineHeight: 16 },
-  arrow: { fontSize: 22, color: "#98A2B3", fontWeight: "700", marginLeft: 6 },
-  btnOutline: { borderWidth: 1, borderColor: RED, borderRadius: 12, padding: 14, paddingHorizontal: 30, marginTop: 14 },
+  section: { fontSize: 12, fontWeight: "800", color: C.inkMuted, textTransform: "uppercase", letterSpacing: 0.6, marginTop: 22, marginBottom: 8, paddingHorizontal: 4 },
+  menuCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: R.lg, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.border, ...SHADOW },
+  iconBox: { width: 44, height: 44, borderRadius: R.md, justifyContent: "center", alignItems: "center", marginRight: 12 },
+  menuLabel: { fontSize: 15, fontWeight: "800", color: C.ink },
+  menuDesc: { fontSize: 12, color: GRAY, marginTop: 3, lineHeight: 16, flexShrink: 1 },
+  btnOutline: { borderWidth: 1, borderColor: RED, borderRadius: R.md, padding: 14, paddingHorizontal: 30, marginTop: 14 },
   btnOutlineText: { color: RED, fontWeight: "800", fontSize: 15 },
 });

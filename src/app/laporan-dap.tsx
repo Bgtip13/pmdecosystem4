@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { TOP_PAD } from "../lib/layout";
 
 const RED = "#D92D20";
 const GRAY = "#667085";
@@ -21,6 +22,7 @@ export default function LaporanDap() {
   const [loading, setLoading] = useState(false);
   const [mi, setMi] = useState(8); // index bulan (default dari data)
   const [area, setArea] = useState("ALL");
+  const [q, setQ] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -40,10 +42,20 @@ export default function LaporanDap() {
 
   const rows: any[] = data?.rows ?? [];
   const areas = ["ALL", ...Array.from(new Set(rows.map((r: any) => r.area)))];
-  const shown = area === "ALL" ? rows : rows.filter((r: any) => r.area === area);
+  const kw = q.trim().toLowerCase();
+  const shown = rows
+    .filter((r: any) => area === "ALL" || r.area === area)
+    .filter((r: any) =>
+      !kw ||
+      (r.pelanggan || "").toLowerCase().includes(kw) ||
+      (r.kab || "").toLowerCase().includes(kw) ||
+      (r.kec || "").toLowerCase().includes(kw)
+    );
   const mName = data?.months?.[mi] ?? "SEP";
   const totalAct = shown.reduce((s, r) => s + (r.months[mi] || 0), 0);
-  const totalTarget = data?.targetGlobal ?? 0;
+  const totalTarget = area === "ALL"
+    ? (data?.targetGlobal ?? 0)
+    : shown.reduce((s, r) => s + (r.targetToko || 0), 0);
   const pencapaian = totalTarget > 0 ? (totalAct / totalTarget) * 100 : 0;
   const maxMonth = Math.max(1, ...(data?.monthTotals ?? []).slice(0, mi + 1));
 
@@ -87,6 +99,10 @@ export default function LaporanDap() {
         <TouchableOpacity style={[styles.chip, { marginLeft: "auto" }]} onPress={load} disabled={loading}>
           <Text style={styles.chipText}>{loading ? "..." : "🔄"}</Text>
         </TouchableOpacity>
+      </View>
+      <View style={styles.searchBox}>
+        <TextInput style={styles.searchInput} placeholder="🔍 Cari nama toko / kecamatan..."
+          value={q} onChangeText={setQ} />
       </View>
 
       {loading && !data ? (
@@ -171,8 +187,8 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
-  topbar: { backgroundColor: "#fff", paddingTop: 60, paddingHorizontal: 20, paddingBottom: 12 },
+  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+  topbar: { backgroundColor: "#FFF7F5", paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 12 },
   backText: { color: RED, fontSize: 16, fontWeight: "700" },
   title: { fontSize: 20, fontWeight: "800", color: "#111", marginTop: 4 },
   sub: { fontSize: 12, color: GRAY, marginTop: 2 },
@@ -181,6 +197,8 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: RED, borderColor: RED },
   chipText: { fontSize: 11, color: "#344054", fontWeight: "700" },
   chipTextOn: { color: "#fff" },
+  searchBox: { marginHorizontal: 16, marginTop: 10, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#D0D5DD", paddingHorizontal: 12 },
+  searchInput: { paddingVertical: 10, fontSize: 14, color: "#111" },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: "#333" },
   meta: { fontSize: 12, color: GRAY, marginTop: 2, lineHeight: 16 },

@@ -5,9 +5,13 @@ import { useQuery, useMutation } from "convex/react";
 import * as Location from "expo-location";
 import { api } from "../../convex/_generated/api";
 import { toFriendlyError } from "../lib/msg";
+import { theme } from "../lib/theme";
+import { TOP_PAD } from "../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
+const { colors: C, radius: R, shadow: SH } = theme;
+
+const RED = C.primary;
+const GRAY = C.inkMuted;
 
 export default function TokoBaru() {
   const router = useRouter();
@@ -39,14 +43,15 @@ export default function TokoBaru() {
         address: address.trim(),
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
-        area: viewer.role === "supervisor" ? area : undefined,
+        // supervisor memilih area; sales memakai area akunnya (server yang menentukan)
+        area: viewer.role === "supervisor" ? (area as "SOLO" | "DIY" | "SEMARANG") : undefined,
       });
 
       Alert.alert("Berhasil ✅", "Toko baru terdaftar.", [
         { text: "OK", onPress: () => router.replace("/beranda") },
       ]);
     } catch (e: any) {
-      Alert.alert("Gagal", e?.message ?? "Coba lagi.");
+      Alert.alert("Gagal", e?.message ?? toFriendlyError(e) ?? "Coba lagi.");
     } finally {
       setBusy(false);
     }
@@ -67,13 +72,13 @@ export default function TokoBaru() {
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <Text style={styles.label}>Nama toko *</Text>
-        <TextInput style={styles.input} placeholder="Nama toko" value={name} onChangeText={setName} />
+        <TextInput style={styles.input} placeholder="Nama toko" placeholderTextColor={C.inkFaint} value={name} onChangeText={setName} />
 
         <Text style={styles.label}>No. HP *</Text>
-        <TextInput style={styles.input} placeholder="contoh: 0812xxxx" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+        <TextInput style={styles.input} placeholder="contoh: 0812xxxx" placeholderTextColor={C.inkFaint} keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
 
         <Text style={styles.label}>Alamat *</Text>
-        <TextInput style={[styles.input, styles.multiline]} placeholder="Alamat lengkap toko" multiline value={address} onChangeText={setAddress} />
+        <TextInput style={[styles.input, styles.multiline]} placeholder="Alamat lengkap toko" placeholderTextColor={C.inkFaint} multiline value={address} onChangeText={setAddress} />
 
         {viewer.role === "supervisor" ? (
           <>
@@ -101,21 +106,35 @@ export default function TokoBaru() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#F8F9FB" },
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
-  topbar: { backgroundColor: "#fff", paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
+  topbar: {
+    backgroundColor: C.surfaceTint, paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 16,
+    borderBottomLeftRadius: R.xl, borderBottomRightRadius: R.xl,
+    shadowColor: SH.color, shadowOpacity: SH.opacity, shadowRadius: SH.radius, elevation: SH.elevation,
+  },
   backText: { color: RED, fontSize: 16, fontWeight: "700" },
-  title: { fontSize: 20, fontWeight: "800", color: "#111", marginTop: 6 },
-  label: { fontSize: 13, fontWeight: "700", color: "#344054", marginBottom: 6, marginTop: 10 },
-  input: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 10, padding: 13, fontSize: 15 },
+  title: { fontSize: 20, fontWeight: "800", color: C.ink, marginTop: 6 },
+
+  label: { fontSize: 12, fontWeight: "800", color: C.inkSoft, marginBottom: 6, marginTop: 14, letterSpacing: 0.3, textTransform: "uppercase" },
+  input: {
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: R.md,
+    padding: 13, fontSize: 15, color: C.ink,
+  },
   multiline: { minHeight: 90, textAlignVertical: "top" },
+
   chipRow: { flexDirection: "row", flexWrap: "wrap" },
-  chip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 9, marginRight: 8, backgroundColor: "#fff" },
+  chip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 18, paddingVertical: 9, marginRight: 8, backgroundColor: C.surface },
   chipActive: { backgroundColor: RED, borderColor: RED },
-  chipText: { fontSize: 14, color: "#344054", fontWeight: "700" },
+  chipText: { fontSize: 14, color: C.inkSoft, fontWeight: "700" },
   chipTextActive: { color: "#fff" },
-  noteBox: { backgroundColor: "#FFF7ED", borderRadius: 10, padding: 12, marginTop: 16 },
-  noteText: { fontSize: 13, color: "#B54708", lineHeight: 18 },
-  btnPrimary: { backgroundColor: RED, borderRadius: 14, padding: 17, alignItems: "center", marginTop: 20 },
+
+  noteBox: { backgroundColor: C.status.warning.bg, borderWidth: 1, borderColor: C.status.warning.border, borderRadius: R.md, padding: 12, marginTop: 18 },
+  noteText: { fontSize: 13, color: C.status.warning.fg, lineHeight: 18 },
+
+  btnPrimary: {
+    backgroundColor: RED, borderRadius: R.md, padding: 17, alignItems: "center", marginTop: 22,
+    shadowColor: RED, shadowOpacity: 0.25, shadowRadius: 10, elevation: 3,
+  },
   btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
 });

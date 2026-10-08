@@ -3,17 +3,33 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { toFriendlyError } from "../lib/msg";
+import { toFriendlyError } from "../../lib/msg";
+import AppIcon from "../../components/AppIcon";
+import { theme } from "../../lib/theme";
+import { TOP_PAD } from "../../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GREEN = "#067647";
+const { colors: C, radius: R } = theme;
+
+const SHADOW = {
+  shadowColor: "#101828",
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 3 },
+  elevation: 2,
+};
+
+const RED = C.primary;
+const GRAY = C.inkMuted;
+const GREEN = C.status.success.fg;
 const AREAS = ["SOLO", "DIY", "SEMARANG"];
 const ROLES = [
+  ["owner", "Owner"],
   ["field", "Sales Lapangan"],
   ["telemarketing", "Telemarketing"],
   ["supervisor", "Supervisor"],
 ];
+// Role yang tidak terikat area tertentu
+const NO_AREA_ROLES = ["supervisor", "owner"];
 
 export default function EditAkun() {
   const router = useRouter();
@@ -21,11 +37,13 @@ export default function EditAkun() {
   const viewer = useQuery(api.users.viewer) as any;
   const updateUser = useMutation(api.users.updateUserRoleArea);
   const resetPwd = useAction(api.users.adminResetPassword);
+  const deleteUser = useMutation(api.users.deleteUserByAdmin);
 
   const [role, setRole] = useState("field");
   const [area, setArea] = useState("SOLO");
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const list = useQuery(api.users.listUsersManage, {}) as any;
   const target = (list ?? []).find((u: any) => u._id === id);
@@ -42,15 +60,20 @@ export default function EditAkun() {
 
   const isSelf = viewer?._id === id;
   const username = (target.email ?? "").replace(/@pmd\.local$/i, "");
+  const noArea = NO_AREA_ROLES.includes(role);
 
   const onSave = async () => {
     setSaving(true);
     try {
-      await updateUser({ userId: id as any, role: role as any, area: role === "supervisor" ? undefined : (area as any) });
-      Alert.alert("Tersimpan ✅", "Peran & area akun diperbarui.");
+      await updateUser({
+        userId: id as any,
+        role: role as any,
+        area: noArea ? undefined : (area as any),
+      });
+      Alert.alert("Tersimpan", "Peran & area akun diperbarui.");
       router.back();
     } catch (e: any) {
-      Alert.alert("Gagal", e?.message ?? "Coba lagi.");
+      Alert.alert("Gagal", toFriendlyError(e));
     } finally {
       setSaving(false);
     }
@@ -63,9 +86,9 @@ export default function EditAkun() {
           setResetting(true);
           try {
             await resetPwd({ username, newPassword: "pmd123" });
-            Alert.alert("Berhasil ✅", "Password direset ke pmd123.");
+            Alert.alert("Berhasil", "Password direset ke pmd123.");
           } catch (e: any) {
-            Alert.alert("Gagal", e?.message ?? "Coba lagi.");
+            Alert.alert("Gagal", toFriendlyError(e));
           } finally {
             setResetting(false);
           }
@@ -73,11 +96,38 @@ export default function EditAkun() {
     ]);
   };
 
+  const onDeleteAccount = () => {
+    Alert.alert(
+      "Hapus Akun Permanen?",
+      `Akun ${target.name} akan dihapus & tidak bisa login lagi. Riwayat kunjungan lama tetap tersimpan. Lanjutkan?`,
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Ya, Hapus",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteUser({ userId: id as any });
+              Alert.alert("Terhapus", "Akun telah dihapus.");
+              router.back();
+            } catch (e: any) {
+              Alert.alert("Gagal", toFriendlyError(e));
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.topbar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>‹ Kembali</Text>
+          <AppIcon name="back" size={16} color={RED} style={{ marginRight: 4 }} />
+          <Text style={styles.backText}>Kembali</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Edit Akun</Text>
       </View>
@@ -91,7 +141,10 @@ export default function EditAkun() {
             <Text style={styles.name}>{target.name}</Text>
             <Text style={styles.email}>{target.email?.replace("@pmd.local", "") ?? "-"}</Text>
             {target.mustChangePassword ? (
-              <Text style={styles.mustText}>⚠ Sedang wajib ganti password</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                <AppIcon name="warn" size={12} color="#B54708" style={{ marginRight: 4 }} />
+                <Text style={styles.mustText}>Sedang wajib ganti password</Text>
+              </View>
             ) : null}
           </View>
         </View>
@@ -110,8 +163,12 @@ export default function EditAkun() {
         </View>
         {isSelf ? <Text style={styles.note}>Kamu tidak bisa menurunkan peranmu sendiri dari Supervisor.</Text> : null}
 
-        {role === "supervisor" ? (
-          <Text style={styles.note}>Supervisor melihat semua area — tidak terikat area tertentu.</Text>
+        {noArea ? (
+          <Text style={styles.note}>
+            {role === "owner"
+              ? "Owner adalah akun pemilik perusahaan — melihat semua data, tanpa aksi operasional, dan tidak terikat area."
+                : "Supervisor melihat semua area — tidak terikat area tertentu."}
+          </Text>
         ) : (
           <>
             <Text style={styles.label}>AREA</Text>
@@ -137,10 +194,27 @@ export default function EditAkun() {
               Kembalikan password ke <Text style={{ fontWeight: "800" }}>pmd123</Text> & wajibkan ganti saat login berikutnya.
             </Text>
             <TouchableOpacity style={[styles.btnReset, resetting && { opacity: 0.6 }]} onPress={onReset} disabled={resetting}>
-              <Text style={styles.btnResetText}>{resetting ? "Mereset..." : "🔑 Reset Password"}</Text>
+              <AppIcon name="key" size={15} color="#912018" style={{ marginRight: 6 }} />
+              <Text style={styles.btnResetText}>{resetting ? "Mereset..." : "Reset Password"}</Text>
             </TouchableOpacity>
           </View>
         )}
+
+        {!isSelf ? (
+          <>
+            <Text style={styles.label}>HAPUS AKUN</Text>
+            <View style={styles.deleteCard}>
+              <Text style={styles.resetDesc}>
+                Menghapus akun ini secara permanen beserta semua sesi loginnya.
+              </Text>
+              <TouchableOpacity style={[styles.btnDelete, deleting && { opacity: 0.6 }]}
+                onPress={onDeleteAccount} disabled={deleting}>
+                <AppIcon name="trash" size={15} color="#fff" style={{ marginRight: 6 }} />
+                <Text style={styles.btnDeleteText}>{deleting ? "Menghapus..." : "Hapus Akun Permanen"}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -153,32 +227,36 @@ export default function EditAkun() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#F8F9FB" },
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
-  topbar: { backgroundColor: "#fff", paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#EEF0F3" },
-  backBtn: { alignSelf: "flex-start" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
+  topbar: { backgroundColor: C.surface, paddingTop: TOP_PAD, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  backBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start" },
   backText: { color: RED, fontSize: 16, fontWeight: "700" },
-  title: { fontSize: 20, fontWeight: "800", color: "#111", marginTop: 4 },
+  title: { fontSize: 20, fontWeight: "800", color: C.ink, marginTop: 4 },
   label: { fontSize: 12, fontWeight: "800", color: GRAY, marginTop: 20, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
-  profileCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#EEF0F3" },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#FFE4E6", justifyContent: "center", alignItems: "center" },
+  profileCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: R.lg, padding: 16, borderWidth: 1, borderColor: C.border, ...SHADOW },
+  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: C.primarySoft, justifyContent: "center", alignItems: "center" },
   avatarText: { fontSize: 20, fontWeight: "800", color: RED },
-  name: { fontSize: 16, fontWeight: "800", color: "#111" },
+  name: { fontSize: 16, fontWeight: "800", color: C.ink },
   email: { fontSize: 13, color: GRAY, marginTop: 2 },
-  mustText: { fontSize: 12, fontWeight: "700", color: "#B54708", marginTop: 4 },
+  mustText: { fontSize: 12, fontWeight: "700", color: C.status.warning.fg },
   chipRow: { flexDirection: "row", flexWrap: "wrap" },
-  chip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 9, marginRight: 8, marginBottom: 6, backgroundColor: "#fff" },
+  chip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 9, marginRight: 8, marginBottom: 6, backgroundColor: C.surface },
   chipActive: { backgroundColor: RED, borderColor: RED },
   chipDisabled: { opacity: 0.45 },
-  chipText: { fontSize: 13, color: "#344054", fontWeight: "700" },
+  chipText: { fontSize: 13, color: C.inkSoft, fontWeight: "700" },
   chipTextActive: { color: "#fff" },
   chipTextDisabled: { color: GRAY },
   note: { fontSize: 12, color: GRAY, marginTop: 8, lineHeight: 17 },
-  resetCard: { backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FEDF89", borderRadius: 14, padding: 14 },
-  resetDesc: { fontSize: 13, color: "#B54708", lineHeight: 18 },
-  btnReset: { backgroundColor: "#FFE4E6", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 12 },
+  resetCard: { backgroundColor: C.status.warning.bg, borderWidth: 1, borderColor: C.status.warning.border, borderRadius: R.md, padding: 14 },
+  resetDesc: { fontSize: 13, color: C.status.warning.fg, lineHeight: 18 },
+  btnReset: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.chip.danger.bg, borderRadius: R.md, padding: 14, marginTop: 12 },
   btnResetText: { color: "#912018", fontWeight: "800", fontSize: 14 },
-  footer: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0F0F0" },
-  btnPrimary: { backgroundColor: RED, borderRadius: 14, padding: 17, alignItems: "center" },
+  deleteCard: { backgroundColor: C.status.danger.bg, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: R.md, padding: 14 },
+  btnDelete: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: RED, borderRadius: R.md, padding: 14, marginTop: 12 },
+  btnDeleteText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  footer: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.divider },
+  btnPrimary: { backgroundColor: RED, borderRadius: R.md, padding: 17, alignItems: "center", ...SHADOW },
   btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
 });
+

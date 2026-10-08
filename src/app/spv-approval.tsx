@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toFriendlyError } from "../lib/msg";
+import { TOP_PAD } from "../lib/layout";
 
 const RED = "#D92D20";
 const GREEN = "#067647";
@@ -118,9 +119,9 @@ export default function SpvApproval() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#F8F9FB" },
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
-  topbar: { backgroundColor: "#fff", paddingTop: 60, paddingHorizontal: 20, paddingBottom: 12 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
+  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+  topbar: { backgroundColor: "#FFF7F5", paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 12 },
   backBtn: { alignSelf: "flex-start" },
   backText: { color: RED, fontSize: 16, fontWeight: "700" },
   title: { fontSize: 20, fontWeight: "800", color: "#111", marginTop: 4 },

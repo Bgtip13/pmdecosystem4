@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useAction, useQuery } from "convex/react";
 import Svg, { Circle } from "react-native-svg";
 import { api } from "../../convex/_generated/api";
+import { TOP_PAD, webNarrow } from "../lib/layout";
 
 const RED = "#D92D20";
 const GRAY = "#667085";
@@ -189,8 +190,8 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
-  topbar: { backgroundColor: "#fff", paddingTop: 60, paddingHorizontal: 20, paddingBottom: 12 },
+  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+  topbar: { backgroundColor: "#FFF7F5", paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 12 },
   backText: { color: RED, fontSize: 16, fontWeight: "700" },
   title: { fontSize: 20, fontWeight: "800", color: "#111", marginTop: 4 },
   sub: { fontSize: 12, color: GRAY, marginTop: 2 },
@@ -208,7 +209,13 @@ const styles = StyleSheet.create({
   kpi: { width: "48.5%", backgroundColor: "#fff", borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: "#EEF0F3", borderTopWidth: 3, borderTopColor: RED },
   kpiLabel: { fontSize: 10, fontWeight: "800", color: GRAY },
   kpiValue: { fontSize: 15, fontWeight: "900", color: "#111", marginTop: 4 },
-  gaugeRow: { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 6, marginVertical: 10, borderWidth: 1, borderColor: "#EEF0F3" },
+  // Web: baris 3 gauge dibatasi lebarnya supaya tidak berjarak 300px satu sama lain
+  gaugeRow: {
+    flexDirection: "row", justifyContent: "space-between", backgroundColor: "#fff",
+    borderRadius: 14, paddingVertical: 14, paddingHorizontal: 6, marginVertical: 10,
+    borderWidth: 1, borderColor: "#EEF0F3",
+    ...webNarrow,
+  },
   gaugeCol: { flex: 1, alignItems: "center" },
   gaugeCenter: { position: "absolute", left: 0, top: 0, justifyContent: "center", alignItems: "center" },
   gaugeValue: { fontSize: 15, fontWeight: "900", textAlign: "center" },

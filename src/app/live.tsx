@@ -3,6 +3,8 @@ import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity }
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import AppIcon from "../components/AppIcon";
+import { TOP_PAD } from "../lib/layout";
 
 const RED = "#D92D20";
 const GRAY = "#667085";
@@ -42,7 +44,11 @@ export default function Live() {
     const todayMs = item.todayDoneMs + durActive;
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => router.push(`/riwayat?salesId=${item.sales._id}`)}
+        activeOpacity={0.75}
+      >
         <View style={[styles.avatar, { backgroundColor: visiting ? "#FEF0C7" : "#DCFAE6" }]}>
           <Text style={[styles.avatarText, { color: visiting ? ORANGE : GREEN }]}>{initial}</Text>
         </View>
@@ -55,13 +61,19 @@ export default function Live() {
           </View>
           {visiting ? (
             <>
-              <Text style={styles.stateVisit}>● Sedang kunjungan</Text>
+              <View style={styles.stateRow}>
+                <AppIcon name="location" size={13} color={ORANGE} style={{ marginRight: 5 }} />
+                <Text style={styles.stateVisit}>Sedang kunjungan</Text>
+              </View>
               <Text style={styles.storeName} numberOfLines={1}>{item.storeName}</Text>
               <Text style={styles.sub}>sejak {fmtClock(item.checkinAt)} • durasi {fmtDur(durActive)}</Text>
             </>
           ) : (
             <>
-              <Text style={styles.stateFree}>● Tidak ada kunjungan aktif</Text>
+              <View style={styles.stateRow}>
+                <AppIcon name="check" size={13} color={GREEN} style={{ marginRight: 5 }} />
+                <Text style={styles.stateFree}>Tidak ada kunjungan aktif</Text>
+              </View>
               <Text style={styles.sub}>
                 {item.lastDoneAt ? "Kunjungan terakhir " + fmtClock(item.lastDoneAt) : "Belum ada kunjungan hari ini"}
               </Text>
@@ -69,7 +81,8 @@ export default function Live() {
           )}
           <Text style={styles.today}>Hari ini: {todayCount} kunjungan • total {fmtDur(todayMs)}</Text>
         </View>
-      </View>
+        <AppIcon name="chevron" size={18} color="#98A2B3" style={{ marginLeft: 6 }} />
+      </TouchableOpacity>
     );
   };
 
@@ -77,11 +90,11 @@ export default function Live() {
     <View style={styles.screen}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <AppIcon name="back" size={18} color="#111" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Live Monitor</Text>
-          <Text style={styles.subtitle}>{activeCount} sales sedang di lapangan</Text>
+          <Text style={styles.subtitle}>{activeCount} sales sedang di lapangan • ketuk sales untuk riwayatnya</Text>
         </View>
       </View>
       <FlatList
@@ -96,22 +109,22 @@ export default function Live() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
+  screen: { flex: 1, backgroundColor: "#FCFAFA" },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  header: { flexDirection: "row", alignItems: "center", paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#EEF0F3" },
+  header: { flexDirection: "row", alignItems: "center", paddingTop: TOP_PAD, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F0D9D5" },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F2F4F7", justifyContent: "center", alignItems: "center", marginRight: 12 },
-  backText: { fontSize: 18, color: "#111", fontWeight: "700" },
   title: { fontSize: 18, fontWeight: "800", color: "#111" },
   subtitle: { fontSize: 12, color: GRAY, marginTop: 2 },
-  card: { flexDirection: "row", backgroundColor: "#fff", borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#EEF0F3" },
+  card: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#EEF0F3" },
   avatar: { width: 46, height: 46, borderRadius: 23, justifyContent: "center", alignItems: "center", marginRight: 12 },
   avatarText: { fontSize: 18, fontWeight: "800" },
   name: { fontSize: 15, fontWeight: "800", color: "#111", marginRight: 8, flexShrink: 1 },
   areaChip: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   areaChipText: { fontSize: 11, fontWeight: "800" },
-  stateVisit: { fontSize: 13, fontWeight: "800", color: ORANGE, marginTop: 6 },
-  stateFree: { fontSize: 13, fontWeight: "800", color: GREEN, marginTop: 6 },
-  storeName: { fontSize: 15, fontWeight: "700", color: "#111", marginTop: 2 },
+  stateRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
+  stateVisit: { fontSize: 13, fontWeight: "800", color: ORANGE },
+  stateFree: { fontSize: 13, fontWeight: "800", color: GREEN },
+  storeName: { fontSize: 15, fontWeight: "700", color: "#111", marginTop: 4 },
   sub: { fontSize: 12, color: GRAY, marginTop: 2 },
   today: { fontSize: 12, fontWeight: "700", color: "#344054", marginTop: 8 },
   empty: { textAlign: "center", color: GRAY, marginTop: 40 },

@@ -24,7 +24,8 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             <TabButton>Home</TabButton>
           </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
+          {/* /explore tidak terdaftar di typedRoutes → diarahkan ke /beranda */}
+          <TabTrigger name="explore" href="/beranda" asChild>
             <TabButton>Explore</TabButton>
           </TabTrigger>
         </CustomTabList>

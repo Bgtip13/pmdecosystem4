@@ -1,0 +1,513 @@
+import { useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import { useRouter } from "expo-router";
+import { useQuery, useAction, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import DesktopShell from "../../components/desktop/DesktopShell";
+import { Kpi, Panel, Chip } from "../../components/desktop/ui";
+import { SpkStatusBadge, normalizeWf } from "../../components/SpkWorkflow";
+import AppIcon from "../../components/AppIcon";
+import { theme } from "../../lib/theme";
+import { toFriendlyError } from "../../lib/msg";
+
+const { colors: C, radius: R } = theme;
+const RED = C.primary;
+const GRAY = C.inkMuted;
+const GREEN = C.role.owner;
+const ORANGE = C.role.telemarketing;
+const BLUE = C.status.info.fg;
+
+const AREA_BG: any = { SOLO: C.chip.danger.bg, DIY: C.chip.info.bg, SEMARANG: C.chip.success.bg };
+const AREA_TX: any = { SOLO: C.chip.danger.fg, DIY: C.chip.info.fg, SEMARANG: C.chip.success.fg };
+
+const HASIL_P: any = { janji_bayar: "Janji bayar", lunas: "Lunas", cicil: "Cicil", no_respon: "No respon" };
+const HASIL_O: any = { order_masuk: "Order masuk", order_tambah: "Order tambah", tidak_order: "Tidak order", no_respon: "No respon" };
+const REASON_LABEL: any = {
+  stok_cukup: "Stok cukup", baru_order: "Baru order trip lalu", kalah_harga: "Kalah harga",
+  harga_dipelajari: "Harga dipelajari", owner_tidak_ada: "Owner tidak ada", piutang: "Ada piutang",
+};
+
+const rupiah = (n: any) => (n == null || isNaN(n) ? "-" : "Rp" + Number(n).toLocaleString("id-ID"));
+
+type Row = { key: string; kind: "p" | "o"; id: string; t: any };
+
+export default function SpkAdminWeb() {
+  const router = useRouter();
+  const viewer = useQuery(api.users.viewer) as any;
+  const role = viewer?.role;
+  const isSuper = role === "supervisor";
+  const isTele = role === "telemarketing";
+  const isOwner = role === "owner";
+  const bolehLihat = isSuper || isTele || isOwner;
+
+  const [jenis, setJenis] = useState<"all" | "p" | "o">("all");
+  const [wfQ, setWfQ] = useState<"ALL" | "OPEN" | "INPG">("ALL");
+  const [areaQ, setAreaQ] = useState<"ALL" | "SOLO" | "DIY" | "SEMARANG">("ALL");
+  const [q, setQ] = useState("");
+  const [pilih, setPilih] = useState(false);
+  const [terpilih, setTerpilih] = useState<Set<string>>(new Set());
+  const [konfirmasi, setKonfirmasi] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [notice, setNotice] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+
+  // Area hanya dikirim supervisor (telemarketing sudah dibatasi area-nya di server)
+  const areaArg = isSuper && areaQ !== "ALL" ? { area: areaQ } : {};
+
+  const piu = useQuery(api.piutang.listActive, bolehLihat ? (areaArg as any) : "skip") as any;
+  const ord = useQuery(api.orderFollowups.listActive, bolehLihat ? (areaArg as any) : "skip") as any;
+
+  const syncPiutang = useAction(api.piutang.manualSync);
+  const ensureOrder = useMutation(api.orderFollowups.ensureToday);
+  const closePiutang = useMutation(api.piutang.supervisorCloseTask);
+  const closeOrder = useMutation(api.orderFollowups.supervisorCloseTask);
+
+  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/beranda" as any); };
+
+  if (!viewer) {
+    return <View style={sty.center}><ActivityIndicator size="large" color={RED} /></View>;
+  }
+
+  if (!bolehLihat) {
+    return (
+      <DesktopShell active="spk" title="SPK" subtitle="Antrean SPK Admin">
+        <Panel icon="clipboard" title="SPK Sales hanya tersedia di aplikasi HP">
+          <Text style={sty.muted}>
+            Layar SPK Sales (check-in toko, isi SPK, foto) dirancang untuk dipakai di HP saat di lapangan.
+            Di web ini yang tersedia adalah antrean SPK Admin untuk supervisor & telemarketing.
+          </Text>
+          <TouchableOpacity style={sty.btnGhost} onPress={() => router.replace("/beranda" as any)}>
+            <Text style={sty.btnGhostText}>Kembali ke Dashboard</Text>
+          </TouchableOpacity>
+        </Panel>
+      </DesktopShell>
+    );
+  }
+
+  const loading = piu === undefined || ord === undefined;
+
+  // ===== Gabung piutang + orderan jadi satu tabel =====
+  const allRows: Row[] = [
+    ...((piu ?? []) as any[]).map((t) => ({ key: "p:" + String(t._id), kind: "p" as const, id: String(t._id), t })),
+    ...((ord ?? []) as any[]).map((t) => ({ key: "o:" + String(t._id), kind: "o" as const, id: String(t._id), t })),
+  ];
+
+  const wfOf = (t: any) => normalizeWf(t?.workflowStatus);
+
+  const countBy = (arr: any[], wf: string) => arr.filter((t) => wfOf(t) === wf).length;
+  const kpi = {
+    total: allRows.length,
+    open: countBy(piu ?? [], "OPEN") + countBy(ord ?? [], "OPEN"),
+    inpg: countBy(piu ?? [], "INPG") + countBy(ord ?? [], "INPG"),
+    pOpen: countBy(piu ?? [], "OPEN"),
+    pInpg: countBy(piu ?? [], "INPG"),
+    oOpen: countBy(ord ?? [], "OPEN"),
+    oInpg: countBy(ord ?? [], "INPG"),
+  };
+
+  const needle = q.trim().toLowerCase();
+  const rows = allRows
+    .filter((r) => (jenis === "all" ? true : r.kind === jenis))
+    .filter((r) => (wfQ === "ALL" ? true : wfOf(r.t) === wfQ))
+    .filter((r) => (needle ? String(r.t.storeName ?? "").toLowerCase().includes(needle) : true))
+    .sort((a, b) =>
+      String(a.t.storeName ?? "").localeCompare(String(b.t.storeName ?? "")) ||
+      a.kind.localeCompare(b.kind)
+    );
+
+  // Aturan anti-campur: centang hanya aktif kalau sudah pilih Piutang atau Orderan
+  const bolehCentang = pilih && jenis !== "all";
+  const bisaDipilih = (r: Row) => bolehCentang && wfOf(r.t) === "INPG";
+  const nTerpilih = Array.from(terpilih).length;
+
+  const toggle = (r: Row) =>
+    setTerpilih((prev) => {
+      const next = new Set(prev);
+      if (next.has(r.key)) next.delete(r.key);
+      else next.add(r.key);
+      return next;
+    });
+
+  const pilihSemuaInpg = () => {
+    const next = new Set(terpilih);
+    rows.filter(canSelectInline).forEach((r) => next.add(r.key));
+    setTerpilih(next);
+  };
+  function canSelectInline(r: Row) {
+    return bolehCentang && wfOf(r.t) === "INPG";
+  }
+
+  const onSync = async () => {
+    setSyncing(true);
+    setNotice(null);
+    try {
+      const r1: any = await syncPiutang();
+      const r2: any = await ensureOrder({});
+      setNotice({
+        tone: "ok",
+        text: `Piutang: ${r1?.inserted ?? 0} tugas masuk, ${r1?.deleted ?? 0} lama diganti. Orderan: ${r2?.added ?? 0} baru, ${r2?.skipped ?? 0} dilewati (sumber kunjungan ${r2?.source ?? "-"}).`,
+      });
+    } catch (e: any) {
+      setNotice({ tone: "err", text: toFriendlyError(e) });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const tutupSatu = async (r: Row) => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      if (r.kind === "p") await closePiutang({ taskId: r.id as any });
+      else await closeOrder({ taskId: r.id as any });
+      setNotice({ tone: "ok", text: `"${r.t.storeName}" disetujui (CLSD) dan pindah ke Riwayat.` });
+    } catch (e: any) {
+      setNotice({ tone: "err", text: toFriendlyError(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const tutupMassal = async () => {
+    const keys = Array.from(terpilih).filter((k) => (jenis === "p" ? k.startsWith("p:") : k.startsWith("o:")));
+    if (keys.length === 0) return;
+    setBusy(true);
+    setKonfirmasi(false);
+    setNotice(null);
+    let ok = 0;
+    let gagal = 0;
+    for (const k of keys) {
+      const id = k.slice(2);
+      try {
+        if (jenis === "p") await closePiutang({ taskId: id as any });
+        else await closeOrder({ taskId: id as any });
+        ok++;
+      } catch {
+        gagal++;
+      }
+    }
+    setNotice({
+      tone: gagal ? "err" : "ok",
+      text: `${ok} tugas disetujui (CLSD)${gagal ? `, ${gagal} dilewati (bukan INPG / sudah CLSD).` : "."}`,
+    });
+    setTerpilih(new Set());
+    setPilih(false);
+    setBusy(false);
+  };
+
+  return (
+    <DesktopShell
+      active="spk"
+      title="SPK Admin"
+      subtitle={`Antrean follow-up piutang & orderan${isTele ? ` • area ${viewer.area ?? "-"}` : areaQ === "ALL" ? " • semua area" : ` • ${areaQ}`}`}
+      right={
+        isSuper || isTele ? (
+          <TouchableOpacity
+            style={[sty.syncBtn, syncing && { opacity: 0.6 }]}
+            onPress={onSync}
+            disabled={syncing}
+          >
+            <AppIcon name="refresh" size={15} color="#fff" />
+            <Text style={sty.syncBtnText}>{syncing ? "Menarik data…" : "Tarik Data Hari Ini"}</Text>
+          </TouchableOpacity>
+        ) : null
+      }
+    >
+      {/* ===== KPI ===== */}
+      <View style={sty.kpiRow}>
+        <Kpi label="TOTAL TUGAS" value={String(kpi.total)} hint="piutang + orderan" />
+        <Kpi label="BELUM DIKERJAKAN" value={String(kpi.open)} color={kpi.open > 0 ? ORANGE : GREEN} hint={`${kpi.pOpen} piutang · ${kpi.oOpen} orderan`} />
+        <Kpi label="MENUNGGU REVIEW" value={String(kpi.inpg)} color={kpi.inpg > 0 ? BLUE : GREEN} hint={`${kpi.pInpg} piutang · ${kpi.oInpg} orderan`} />
+        <Kpi label="DISETUJUI (CLSD)" value={String(kpi.total - kpi.open - kpi.inpg)} color={GREEN} hint="pindah ke Riwayat" />
+      </View>
+
+      {isOwner ? (
+        <Text style={sty.hint}>
+          Owner hanya bisa melihat antrean orderan. Antrean piutang dibatasi untuk supervisor & telemarketing.
+        </Text>
+      ) : null}
+
+      {notice ? (
+        <View style={[sty.notice, notice.tone === "ok" ? sty.noticeOk : sty.noticeErr]}>
+          <Text style={[sty.noticeText, { color: notice.tone === "ok" ? GREEN : RED }]}>{notice.text}</Text>
+        </View>
+      ) : null}
+
+      {/* ===== FILTER ===== */}
+      <View style={sty.toolbar}>
+        <View style={sty.chipRow}>
+          {([["all", "Semua"], ["p", "Piutang"], ["o", "Orderan"]] as any[]).map(([k, l]) => {
+            const on = jenis === k;
+            return (
+              <TouchableOpacity key={k} style={[sty.chip, on && sty.chipOn]} onPress={() => { setJenis(k); setTerpilih(new Set()); }}>
+                <Text style={[sty.chipText, on && sty.chipTextOn]}>{l}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          <View style={sty.sep} />
+          {([["ALL", "Semua status"], ["OPEN", `Belum (${kpi.open})`], ["INPG", `Menunggu review (${kpi.inpg})`]] as any[]).map(([k, l]) => {
+            const on = wfQ === k;
+            return (
+              <TouchableOpacity key={k} style={[sty.chip, on && sty.chipOn]} onPress={() => setWfQ(k)}>
+                <Text style={[sty.chipText, on && sty.chipTextOn]}>{l}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          {isSuper ? (
+            <>
+              <View style={sty.sep} />
+              {(["ALL", "SOLO", "DIY", "SEMARANG"] as any[]).map((a) => {
+                const on = areaQ === a;
+                return (
+                  <TouchableOpacity key={a} style={[sty.chip, on && sty.chipOn]} onPress={() => setAreaQ(a)}>
+                    <Text style={[sty.chipText, on && sty.chipTextOn]}>{a === "ALL" ? "Semua area" : a}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </>
+          ) : null}
+        </View>
+
+        <TextInput
+          style={sty.search}
+          placeholder="Cari nama toko…"
+          placeholderTextColor="#98A2B3"
+          value={q}
+          onChangeText={setQ}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+
+      {/* ===== BAR MODE PILIH ===== */}
+      <View style={sty.bulkBar}>
+        {jenis === "all" ? (
+          <Text style={sty.bulkHint}>Pilih filter <Text style={{ fontWeight: "900" }}>Piutang</Text> atau <Text style={{ fontWeight: "900" }}>Orderan</Text> dulu — supaya tidak tercampur dalam satu kali setujui.</Text>
+        ) : konfirmasi ? (
+          <>
+            <Text style={sty.bulkCount}>Setujui {nTerpilih} tugas jadi CLSD?</Text>
+            <TouchableOpacity style={[sty.btnGreen, busy && { opacity: 0.6 }]} onPress={tutupMassal} disabled={busy}>
+              <Text style={sty.btnGreenText}>{busy ? "Memproses…" : "Ya, setujui"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={sty.btnGhostSm} onPress={() => setKonfirmasi(false)}>
+              <Text style={sty.btnGhostSmText}>Batal</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={sty.bulkCount}>{nTerpilih} dipilih</Text>
+            <TouchableOpacity style={sty.btnGhostSm} onPress={pilihSemuaInpg}>
+              <Text style={sty.btnGhostSmText}>Pilih semua yang menunggu review</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[sty.btnGreen, (nTerpilih === 0 || busy) && { opacity: 0.45 }]}
+              onPress={() => setKonfirmasi(true)}
+              disabled={nTerpilih === 0 || busy}
+            >
+              <AppIcon name="check" size={14} color="#fff" />
+              <Text style={sty.btnGreenText}>Setujui ({nTerpilih})</Text>
+            </TouchableOpacity>
+            {pilih ? (
+              <TouchableOpacity style={sty.btnGhostSm} onPress={() => { setPilih(false); setTerpilih(new Set()); }}>
+                <Text style={sty.btnGhostSmText}>Selesai</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={sty.btnOutline} onPress={() => setPilih(true)}>
+                <Text style={sty.btnOutlineText}>Pilih</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+      </View>
+
+      {/* ===== TABEL ===== */}
+      <Panel
+        icon="clipboard"
+        title={`Daftar tugas (${rows.length})`}
+        right={<Text style={sty.panelHint}>{loading ? "memuat…" : `ditampilkan dari ${allRows.length} tugas`}</Text>}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={RED} />
+        ) : rows.length === 0 ? (
+          <View style={{ paddingVertical: 18, alignItems: "center" }}>
+            <Text style={sty.muted}>Tidak ada tugas yang cocok dengan filter ini.</Text>
+            {isSuper || isTele ? (
+              <Text style={sty.hint}>Kalau sheet baru saja diubah, tekan "Tarik Data Hari Ini" di kanan atas.</Text>
+            ) : null}
+          </View>
+        ) : (
+          <>
+            <View style={sty.thead}>
+              <View style={{ width: 40 }} />
+              <Text style={[sty.th, { width: 92 }]}>Jenis</Text>
+              <Text style={[sty.th, { flex: 1.4 }]}>Toko</Text>
+              <Text style={[sty.th, { flex: 1.2 }]}>Ringkasan</Text>
+              <Text style={[sty.th, { width: 62, textAlign: "center" }]}>Status</Text>
+              <Text style={[sty.th, { width: 150 }]}>Petugas / hasil</Text>
+              <Text style={[sty.th, { width: 210, textAlign: "right" }]}>Aksi</Text>
+            </View>
+
+            {rows.map((r, i) => {
+              const t = r.t;
+              const wf = wfOf(t);
+              const isP = r.kind === "p";
+              const checked = terpilih.has(r.key);
+              const bisa = bisaDipilih(r);
+
+              const ringkas = isP
+                ? `${rupiah(t.piutang ?? t.total)}${t.usia != null ? ` • ${t.usia} hari` : ""}${t.tanggal ? ` • tagihan ${t.tanggal}` : ""}`
+                : t.ordered
+                  ? `Order ${(t.orderItems ?? []).length ?? 0} produk`
+                  : `Tidak order${t.visitReason ? ` • ${REASON_LABEL[t.visitReason] ?? t.visitReason}` : ""}`;
+
+              const sub = isP
+                ? null
+                : `kunjungan ${t.visitDay || "H-1"} • ${t.salesName || "-"}${t.visitCount > 1 ? ` • ${t.visitCount}x` : ""}`;
+
+              const petugas = isP
+                ? (t.doneByName || (wf === "INPG" ? "-" : t.area ? "belum dikerjakan" : "-"))
+                : (t.doneByName || (wf === "INPG" ? "-" : "belum dikerjakan"));
+              const hasilLabel = wf === "INPG" ? (isP ? HASIL_P[t.hasil] : HASIL_O[t.hasil]) ?? t.hasil ?? "-" : null;
+
+              return (
+                <View key={r.key} style={[sty.trow, i === rows.length - 1 && sty.trowLast]}>
+                  <View style={{ width: 40 }}>
+                    {bolehCentang ? (
+                      <TouchableOpacity
+                        style={[sty.check, checked && sty.checkOn, !bisa && sty.checkOff]}
+                        disabled={!bisa}
+                        onPress={() => toggle(r)}
+                      >
+                        {checked ? <Text style={sty.checkMark}>✓</Text> : null}
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  <View style={{ width: 92 }}>
+                    <View style={[sty.typeChip, { backgroundColor: isP ? C.chip.danger.bg : C.chip.info.bg }]}>
+                      <Text style={[sty.typeChipText, { color: isP ? C.chip.danger.fg : C.chip.info.fg }]}>
+                        {isP ? "PIUTANG" : "ORDERAN"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flex: 1.4, paddingRight: 10 }}>
+                    <Text style={sty.tName} numberOfLines={1}>{t.storeName}</Text>
+                    {t.area ? (
+                      <View style={{ marginTop: 4 }}>
+                        <Chip text={t.area} bg={AREA_BG[t.area] ?? C.chip.neutral.bg} fg={AREA_TX[t.area] ?? C.chip.neutral.fg} />
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <View style={{ flex: 1.2, paddingRight: 10 }}>
+                    <Text style={sty.tVal} numberOfLines={1}>{ringkas}</Text>
+                    {sub ? <Text style={sty.tSub} numberOfLines={1}>{sub}</Text> : null}
+                  </View>
+
+                  <View style={{ width: 62, alignItems: "center" }}>
+                    <SpkStatusBadge status={wf} />
+                  </View>
+
+                  <View style={{ width: 150, paddingRight: 8 }}>
+                    <Text style={sty.tSub} numberOfLines={1}>{hasilLabel ? `Hasil: ${hasilLabel}` : petugas}</Text>
+                    {hasilLabel ? <Text style={sty.tSub} numberOfLines={1}>oleh {petugas}</Text> : null}
+                    {t.reviewNote ? <Text style={[sty.tSub, { color: "#5B21B6" }]} numberOfLines={1}>💬 {t.reviewNote}</Text> : null}
+                  </View>
+
+                  <View style={[sty.actCell, { width: 210 }]}>
+                    <TouchableOpacity
+                      style={sty.btnOutline}
+                      onPress={() => router.push((isP ? `/spk/${t._id}` : `/spk-detail-order/${t._id}`) as any)}
+                    >
+                      <Text style={sty.btnOutlineText}>{wf === "INPG" ? "Lihat bukti" : "Kerjakan"}</Text>
+                    </TouchableOpacity>
+                    {isSuper && wf === "INPG" ? (
+                      <TouchableOpacity
+                        style={[sty.btnGreen, busy && { opacity: 0.5 }]}
+                        onPress={() => tutupSatu(r)}
+                        disabled={busy}
+                      >
+                        <AppIcon name="check" size={13} color="#fff" />
+                        <Text style={sty.btnGreenText}>Setujui</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })}
+          </>
+        )}
+      </Panel>
+
+      <Text style={sty.footNote}>
+        Aturan: tugas yang sudah diisi petugas masuk status <Text style={{ fontWeight: "900" }}>INPG</Text> dan menunggu
+        persetujuan supervisor. Setelah disetujui jadi <Text style={{ fontWeight: "900" }}>CLSD</Text> dan pindah ke Riwayat.
+        Tugas yang belum diisi (<Text style={{ fontWeight: "900" }}>OPEN</Text>) belum bisa disetujui.
+      </Text>
+
+      <TouchableOpacity style={sty.btnGhost} onPress={back} >
+        <Text style={sty.btnGhostText}>Kembali</Text>
+      </TouchableOpacity>
+    </DesktopShell>
+  );
+}
+
+const sty = StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  muted: { fontSize: 12.5, color: GRAY },
+  hint: { fontSize: 11, color: GRAY, marginTop: 10, fontStyle: "italic" },
+  panelHint: { fontSize: 11, color: GRAY, fontWeight: "800" },
+
+  kpiRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+
+  syncBtn: { flexDirection: "row", alignItems: "center", backgroundColor: C.primary, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 10, marginLeft: 10 },
+  syncBtnText: { color: "#fff", fontWeight: "800", fontSize: 12.5, marginLeft: 6 },
+
+  notice: { borderWidth: 1, borderRadius: R.md, padding: 12, marginTop: 14 },
+  noticeOk: { backgroundColor: "#ECFDF3", borderColor: "#ABEFC6" },
+  noticeErr: { backgroundColor: "#FEF3F2", borderColor: "#FECDCA" },
+  noticeText: { fontSize: 12.5, fontWeight: "700", lineHeight: 18 },
+
+  toolbar: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginTop: 16, flexWrap: "wrap" },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", flexGrow: 1, flexBasis: 520, gap: 6 },
+  chip: { borderWidth: 1, borderColor: C.divider, backgroundColor: C.surface, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6 },
+  chipOn: { backgroundColor: C.primary, borderColor: C.primary },
+  chipText: { fontSize: 12, fontWeight: "700", color: C.inkSoft },
+  chipTextOn: { color: "#fff" },
+  sep: { width: 1, height: 22, backgroundColor: C.divider, marginHorizontal: 6 },
+  search: { flexBasis: 240, flexGrow: 1, minWidth: 200, backgroundColor: C.surface, borderWidth: 1, borderColor: C.divider, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13.5, color: C.ink },
+
+  bulkBar: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.divider, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12, flexWrap: "wrap" },
+  bulkHint: { fontSize: 12, color: GRAY, fontStyle: "italic" },
+  bulkCount: { fontSize: 13, fontWeight: "900", color: C.ink, marginRight: 4 },
+
+  btnGreen: { flexDirection: "row", alignItems: "center", backgroundColor: GREEN, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 9 },
+  btnGreenText: { color: "#fff", fontWeight: "800", fontSize: 12.5, marginLeft: 4 },
+  btnGhostSm: { backgroundColor: C.status.neutral.bg, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 9 },
+  btnGhostSmText: { color: C.status.neutral.fg, fontWeight: "800", fontSize: 12.5 },
+  btnOutline: { borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 8 },
+  btnOutlineText: { color: C.inkSoft, fontWeight: "800", fontSize: 12.5 },
+
+  thead: { flexDirection: "row", alignItems: "center", paddingBottom: 7, borderBottomWidth: 1, borderBottomColor: C.divider },
+  th: { fontSize: 10, fontWeight: "900", color: C.inkFaint, letterSpacing: 0.5 },
+  trow: { flexDirection: "row", alignItems: "center", paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.divider },
+  trowLast: { borderBottomWidth: 0 },
+  tName: { fontSize: 13.5, fontWeight: "800", color: C.ink },
+  tVal: { fontSize: 12.5, fontWeight: "700", color: C.inkSoft },
+  tSub: { fontSize: 11.5, color: GRAY, marginTop: 2 },
+
+  typeChip: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, alignSelf: "flex-start" },
+  typeChipText: { fontSize: 9.5, fontWeight: "900", letterSpacing: 0.4 },
+
+  check: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: "#98A2B3", backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  checkOn: { backgroundColor: GREEN, borderColor: GREEN },
+  checkOff: { opacity: 0.35 },
+  checkMark: { color: "#fff", fontSize: 12, fontWeight: "900", lineHeight: 14 },
+
+  actCell: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
+
+  btnGhost: { backgroundColor: C.status.neutral.bg, borderRadius: R.md, paddingVertical: 11, alignItems: "center", marginTop: 18 },
+  btnGhostText: { color: C.status.neutral.fg, fontWeight: "800", fontSize: 12.5 },
+  footNote: { fontSize: 11.5, color: GRAY, lineHeight: 18, marginTop: 14 },
+});

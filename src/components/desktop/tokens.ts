@@ -1,8 +1,14 @@
 // Palet khusus tampilan WEB. Tidak dipakai oleh APK/native.
 // Tema merah-putih mengikuti aplikasi HP: merah PMD sebagai aksen utama,
 // permukaan putih bersih, dan netral hangat (bukan abu kebiruan).
+// Tipografi WEB (tidak dipakai APK/native) — gaya Samsung One / iOS:
+// 1. Samsung One  → langsung terpakai di perangkat Samsung yang menyediakannya
+// 2. -apple-system / SF Pro → font asli iOS & macOS pada perangkat Apple
+// 3. Inter        → dimuat dari Google Fonts di +html.tsx, jadi Windows/Linux/Android
+//                   tetap dapat bentuk huruf yang sama (Inter paling dekat dengan SF Pro)
+// 4. system-ui    → cadangan terakhir kalau webfont gagal dimuat
 export const FONT =
-  '"Plus Jakarta Sans", "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
+  '"Samsung One", "SamsungOne", "Samsung One UI", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif';
 
 export const A = {
   // Aksen merek

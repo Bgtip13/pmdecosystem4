@@ -51,6 +51,38 @@ export function Bar({ pct, color = A.brand, height = 4 }: any) {
   );
 }
 
+// Baris label → nilai untuk panel detail (dipakai layar detail web).
+export function Field({ label, value, strong }: any) {
+  const empty = value === null || value === undefined || value === "";
+  return (
+    <View style={s.field}>
+      <Text style={s.fieldLabel} numberOfLines={1}>{label}</Text>
+      <Text
+        style={[s.fieldValue, strong && s.fieldValueStrong, empty && s.fieldValueEmpty]}
+        numberOfLines={4}
+      >
+        {empty ? "-" : value}
+      </Text>
+    </View>
+  );
+}
+
+// Kotak saran/review supervisor versi desktop (ReviewNoteBox native terlalu kecil di web).
+export function NoteBox({ note, author, title = "Saran SPV" }: any) {
+  if (!note) return null;
+  return (
+    <View style={s.note}>
+      <View style={s.noteHead}>
+        <AppIcon name="chat" size={13} color={A.purple} />
+        <Text style={s.noteTitle}>
+          {title}{author ? ` • ${author}` : ""}
+        </Text>
+      </View>
+      <Text style={s.noteText}>{note}</Text>
+    </View>
+  );
+}
+
 export function Chip({ text, bg, fg }: any) {
   return (
     <View style={[s.chip, { backgroundColor: bg }]}>
@@ -117,6 +149,29 @@ const s = StyleSheet.create({
     letterSpacing: 0.6, textTransform: "uppercase", fontFamily: FONT,
   },
   panelBody: { padding: 13 },
+
+  field: {
+    flexDirection: "row", alignItems: "flex-start",
+    paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: A.borderSoft,
+  },
+  fieldLabel: { fontSize: 11, color: A.muted, flex: 1, paddingRight: 12, fontFamily: FONT },
+  fieldValue: {
+    fontSize: 11.5, color: A.inkSoft, fontWeight: "600",
+    flex: 1.15, textAlign: "right", fontFamily: FONT,
+  },
+  fieldValueStrong: { color: A.ink, fontWeight: "800" },
+  fieldValueEmpty: { color: A.mutedSoft, fontWeight: "500" },
+
+  note: {
+    backgroundColor: A.purpleSoft, borderWidth: 1, borderColor: "#DDD6FE",
+    borderRadius: 9, padding: 12,
+  },
+  noteHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 5 },
+  noteTitle: {
+    fontSize: 10, fontWeight: "800", color: A.purple,
+    letterSpacing: 0.6, textTransform: "uppercase", fontFamily: FONT,
+  },
+  noteText: { fontSize: 11.5, color: A.inkSoft, lineHeight: 18, fontFamily: FONT },
 
   barBg: { borderRadius: 3, backgroundColor: "#F0E9E5", overflow: "hidden", marginTop: 5 },
   barFill: { borderRadius: 3 },

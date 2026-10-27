@@ -2,16 +2,24 @@ import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import { Stack, router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { Platform, LogBox } from "react-native";
+import { Platform, LogBox, View } from "react-native";
 import { useEffect } from "react";
 import { initNotifications, setNotificationTapHandler } from "../lib/notif";
 import WebFrame from "../components/WebFrame";
+import LaunchSplash from "../components/LaunchSplash";
 
 // Bungkam peringatan sementara dari expo-router saat redirect pertama (dev only)
 LogBox.ignoreLogs(["Can't perform a React state update on a component that hasn't mounted yet"]);
 
 const IS_WEB = Platform.OS === "web";
+
+// Tahan splash native di APK sampai animasi pembuka (LaunchSplash) siap.
+// Tanpa ini splash langsung hilang sebelum frame pertama React tampil.
+if (!IS_WEB) {
+  SplashScreen.preventAutoHideAsync().catch(() => {});
+}
 
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
   unsavedChangesWarning: false,
@@ -65,12 +73,17 @@ export default function RootLayout() {
       {/* Bingkai web: membatasi lebar + latar netral di desktop.
           Di HP komponen ini hanya meneruskan children apa adanya. */}
       <WebFrame>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: "#FCFAFA" },
-          }}
-        />
+        <View style={{ flex: 1 }}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: "#FCFAFA" },
+            }}
+          />
+
+          {/* Animasi pembuka APK:logo menyusut, ring berdenyut, lalu fade ke aplikasi */}
+          <LaunchSplash />
+        </View>
       </WebFrame>
     </ConvexAuthProvider>
   );

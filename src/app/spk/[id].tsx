@@ -58,6 +58,10 @@ export default function FollowUp() {
 
   const rupiah = (n: any) => (n == null || isNaN(n) ? "-" : "Rp" + n.toLocaleString("id-ID"));
 
+  // Bukti yang sudah diupload petugas (status INPG) — tetap ditampilkan saat tugas dibuka ulang.
+  const existingUrl: string | null = task.photoUrl ?? null;
+  const existingShotId: string = task.screenshot ?? "";
+
   const takeShot = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -89,7 +93,7 @@ export default function FollowUp() {
     if (hasil === "janji_bayar" && !promiseDate) { Alert.alert("Janji Bayar", "Pilih tanggal janji bayar."); return; }
     if ((hasil === "lunas" || hasil === "cicil") && !payMethod) { Alert.alert("Metode", "Pilih Tunai / Transfer."); return; }
     // Screenshot WA WAJIB untuk semua hasil
-    if (!shot && !shotId) { Alert.alert("Screenshot WA", "Lampirkan screenshot WhatsApp dulu — wajib untuk semua hasil."); return; }
+    if (!shot && !shotId && !existingUrl) { Alert.alert("Screenshot WA", "Lampirkan screenshot WhatsApp dulu — wajib untuk semua hasil."); return; }
     setBusy(true);
     try {
       let screenshot: string | undefined;
@@ -103,7 +107,7 @@ export default function FollowUp() {
         promiseDate: hasil === "janji_bayar" ? promiseDate : undefined,
         payMethod: (hasil === "lunas" || hasil === "cicil") ? (payMethod as any) : undefined,
         notes: notes || undefined,
-        screenshot: screenshot || shotId || undefined,
+        screenshot: screenshot || shotId || existingShotId || undefined,
       });
       if (r?.sheetOk === false) {
         Alert.alert("Tersimpan ⚠️", "Tersimpan di aplikasi, tapi belum masuk Google Sheets. Cek koneksi / web app.");
@@ -229,16 +233,20 @@ export default function FollowUp() {
 
           <Text style={styles.label}>SCREENSHOT WHATSAPP *</Text>
           <Text style={styles.shotHint}>Wajib dilampirkan untuk semua hasil (bukti percakapan WA).</Text>
-          {shot ? (
+          {shot || existingUrl ? (
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
-              <Image source={{ uri: shot.uri }} style={styles.shotThumb} />
-              <TouchableOpacity style={styles.shotRemove} onPress={() => { setShot(null); setShotId(""); }}>
-                <Text style={styles.shotRemoveText}>✕ Hapus</Text>
-              </TouchableOpacity>
+              <Image source={{ uri: (shot?.uri ?? existingUrl) as string }} style={styles.shotThumb} />
+              {shot ? (
+                <TouchableOpacity style={styles.shotRemove} onPress={() => { setShot(null); setShotId(""); }}>
+                  <Text style={styles.shotRemoveText}>✕ Hapus</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.shotOk}>✓ Bukti dari petugas sudah terlampir</Text>
+              )}
             </View>
           ) : null}
           <TouchableOpacity
-            style={[styles.shotBtn, !shot && !shotId && styles.shotBtnRequired]}
+            style={[styles.shotBtn, !shot && !shotId && !existingUrl && styles.shotBtnRequired]}
             onPress={takeShot}
           >
             <Text style={styles.shotBtnText}>
@@ -258,13 +266,25 @@ export default function FollowUp() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
+  screen: { flex: 1, backgroundColor: "#FCFAFA" },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  topbar: { backgroundColor: "#fff", paddingTop: TOP_PAD, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#EEF0F3" },
+  topbar: {
+    backgroundColor: "#FFF7F5",
+    paddingTop: TOP_PAD,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#101828",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: RED, fontSize: 16, fontWeight: "700" },
-  title: { fontSize: 20, fontWeight: "800", color: "#111", marginTop: 4 },
-  meta: { fontSize: 13, color: GRAY, marginTop: 2 },
+  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
   label: { fontSize: 12, fontWeight: "800", color: GRAY, marginTop: 18, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
   shotHint: { fontSize: 12, color: "#B42318", fontWeight: "600", marginTop: -4, marginBottom: 8 },
   summaryCard: { backgroundColor: "#FFF1F0", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#FECDCA" },
@@ -295,6 +315,7 @@ const styles = StyleSheet.create({
   shotThumb: { width: 84, height: 84, borderRadius: 12 },
   shotRemove: { marginLeft: 12 },
   shotRemoveText: { color: RED, fontWeight: "700", fontSize: 13 },
+  shotOk: { marginLeft: 12, color: "#067647", fontWeight: "700", fontSize: 13, flexShrink: 1 },
   shotBtn: { backgroundColor: "#FFF1F0", borderWidth: 1, borderColor: "#FECDCA", borderRadius: 12, padding: 14, alignItems: "center" },
   shotBtnRequired: { borderColor: RED, borderWidth: 1.5 },
   shotBtnText: { color: "#912018", fontWeight: "800", fontSize: 14 },

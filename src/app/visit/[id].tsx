@@ -527,12 +527,18 @@ export default function VisitScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#F8F9FB" },
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
-  header: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "#F0F0F0" },
-  backText: { fontSize: 30, color: RED, fontWeight: "700", marginTop: -4 },
-  storeName: { fontSize: 17, fontWeight: "800", color: "#111" },
-  timer: { fontSize: 15, color: GREEN, fontWeight: "800", marginTop: 2 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
+  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+  header: {
+    flexDirection: "row", alignItems: "center", backgroundColor: "#FFF7F5",
+    paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 16,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
+    shadowColor: "#101828", shadowOpacity: 0.06, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, elevation: 3,
+  },
+  backText: { fontSize: 28, color: RED, fontWeight: "700", marginTop: -4 },
+  storeName: { fontSize: 19, fontWeight: "800", color: "#101828", letterSpacing: -0.2 },
+  timer: { fontSize: 14, color: GREEN, fontWeight: "800", marginTop: 2 },
   timerWarn: { color: "#B54708" },
   overdueNote: { fontSize: 12, color: "#B54708", fontWeight: "700", marginTop: 3 },
   section: { fontSize: 14, fontWeight: "800", color: "#111", marginTop: 18, marginBottom: 8 },

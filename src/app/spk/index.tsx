@@ -389,10 +389,12 @@ export default function Spk() {
   const groupMap = new Map<string, any>();
   for (const t of (active ?? [])) {
     const k = `${t.area}::${nk(t.storeName)}`;
-    const g = groupMap.get(k) ?? { key: k, area: t.area, storeName: t.storeName, piutang: null, order: null };
-    if (!g.piutang || (t.usia ?? 0) > (g.piutang.usia ?? 0)) g.piutang = t;
+    const g = groupMap.get(k) ?? { key: k, area: t.area, storeName: t.storeName, piutang: [] as any[], order: null };
+    g.piutang.push(t);
     groupMap.set(k, g);
   }
+  // Satu pelanggan bisa punya banyak piutang — simpan SEMUANYA, urut paling lama di atas.
+  for (const g of groupMap.values()) g.piutang.sort((a: any, b: any) => (b.usia ?? 0) - (a.usia ?? 0));
   for (const o of (orderActive ?? [])) {
     const k = `${o.area}::${o.nameKey || nk(o.storeName)}`;
     let g = groupMap.get(k);
@@ -400,27 +402,35 @@ export default function Spk() {
       // Pass 2: cari yang namanya saling mengandung (mis. "WN Petshop" vs "WN Petshop Solo")
       const short = nk(o.storeName);
       const cand = Array.from(groupMap.values()).filter(
-        (x: any) => x.area === o.area && x.piutang && !x.order &&
+        (x: any) => x.area === o.area && x.piutang.length > 0 && !x.order &&
           (x.key.endsWith("::" + short) || x.key.includes(short + " ") || short.includes(x.key.split("::")[1]))
       );
       if (cand.length === 1) g = cand[0];
     }
     if (!g) {
-      g = { key: k, area: o.area, storeName: o.storeName, piutang: null, order: null };
+      g = { key: k, area: o.area, storeName: o.storeName, piutang: [] as any[], order: null };
       groupMap.set(k, g);
     }
     if (!g.order || (o.visitedAt ?? 0) > (g.order.visitedAt ?? 0)) g.order = o;
   }
+  const oldest = (g: any) => (g.piutang?.length ? (g.piutang[0].usia ?? 0) : -1);
   const grouped = Array.from(groupMap.values()).sort((a: any, b: any) => {
-    const pa = a.piutang ? 1 : 0, pb = b.piutang ? 1 : 0;
+    const pa = a.piutang.length > 0 ? 1 : 0, pb = b.piutang.length > 0 ? 1 : 0;
     if (pa !== pb) return pb - pa;                                // kartu ber-piutang naik ke atas
-    if (a.piutang && b.piutang) return (b.piutang.usia ?? 0) - (a.piutang.usia ?? 0);
+    if (pa === 1) return oldest(b) - oldest(a);                   // piutang paling lama di atas
     return (a.storeName || "").localeCompare(b.storeName || "");   // orderan saja: urut nama toko
   });
   const orderPending = orderActive !== undefined ? orderActive.length : (oCount?.count ?? 0);
   const adminCount = piutangPending + orderPending;
+  // Angka pada chip harus = jumlah kartu yang tampil. Satu pelanggan bisa punya
+  // banyak piutang, jadi jumlah tagihan (adminCount) selalu >= jumlah kartu.
+  const adminLoaded = active !== undefined && orderActive !== undefined;
+  const cardPiutang = adminLoaded ? grouped.filter((g: any) => g.piutang.length > 0).length : piutangPending;
+  const cardOrder = adminLoaded ? grouped.filter((g: any) => !!g.order).length : orderPending;
+  const adminCards = cardPiutang + cardOrder;
+
   const adminShown = grouped.filter((g: any) =>
-    adminFilter === "all" ? true : adminFilter === "piutang" ? !!g.piutang : !!g.order
+    adminFilter === "all" ? true : adminFilter === "piutang" ? g.piutang.length > 0 : !!g.order
   );
 
   const onSync = async () => {
@@ -631,11 +641,18 @@ export default function Spk() {
 
   // ===== Kartu SPK Admin: 1 toko = 1 kartu (piutang + orderan) — ringkas → rinci =====
   const renderAdminGroup = ({ item: g }: any) => {
-    const p = g.piutang;
+    const ps: any[] = Array.isArray(g.piutang) ? g.piutang : [];   // SEMUA piutang pelanggan ini
+    const p = ps[0];                                               // paling lama — untuk badge usia
+    const psInpg = ps.filter((x: any) => x.workflowStatus === "INPG");
     const od = g.order;
     const open = admOpen === g.key;
-    const st = (p as any)?.workflowStatus ?? (od as any)?.workflowStatus ?? "OPEN";
-    const jenisWf = bulkJenis === "p" ? (p as any)?.workflowStatus : (od as any)?.workflowStatus;
+    // Status gabungan semua tagihan (INPG > OPEN > CLSD)
+    const wfs = [...ps.map((x: any) => x.workflowStatus), od?.workflowStatus].filter(Boolean) as string[];
+    const st = wfs.includes("INPG") ? "INPG" : wfs.includes("OPEN") ? "OPEN" : wfs.includes("CLSD") ? "CLSD" : "OPEN";
+    const jenisWf =
+      bulkJenis === "p"
+        ? psInpg.length > 0 ? "INPG" : ps[0]?.workflowStatus
+        : od?.workflowStatus;
     const bisaPilih = bulk.pilih && !!bulkJenis && jenisWf === "INPG";
 
     return (
@@ -650,9 +667,11 @@ export default function Spk() {
               <Text style={styles.cardName} numberOfLines={2}>{g.storeName}</Text>
 
               <View style={styles.admBadgeRow}>
-                {p ? (
+                {ps.length > 0 ? (
                   <View style={[styles.admBadge, { backgroundColor: "#FFF1F0", borderColor: "#FECDCA" }]}>
-                    <Text style={[styles.admBadgeText, { color: "#B42318" }]}>PIUTANG</Text>
+                    <Text style={[styles.admBadgeText, { color: "#B42318" }]}>
+                      PIUTANG{ps.length > 1 ? ` ×${ps.length}` : ""}
+                    </Text>
                   </View>
                 ) : null}
                 {od ? (
@@ -662,7 +681,9 @@ export default function Spk() {
                 ) : null}
                 {p?.usia != null ? (
                   <View style={[styles.admBadge, { backgroundColor: p.usia >= 90 ? "#FEE4E2" : "#F2F4F7", borderColor: p.usia >= 90 ? "#FECDCA" : "#EAECF0" }]}>
-                    <Text style={[styles.admBadgeText, { color: p.usia >= 90 ? RED : GRAY }]}>{p.usia} hari</Text>
+                    <Text style={[styles.admBadgeText, { color: p.usia >= 90 ? RED : GRAY }]}>
+                      {p.usia} hari{ps.length > 1 ? " (tertua)" : ""}
+                    </Text>
                   </View>
                 ) : null}
               </View>
@@ -684,42 +705,55 @@ export default function Spk() {
 
         {open ? (
           <View style={styles.admBody}>
-            {p ? (
+            {ps.length > 0 ? (
               <View style={styles.admBodyRow}>
-                <Text style={styles.admBodyTitle}>PIUTANG</Text>
-                <Text style={styles.admBodyLine}>
-                  Sisa {rupiah(p.piutang ?? p.total)} • Total {rupiah(p.total)} • Cicil {rupiah(p.cicil)} • Retur {rupiah(p.retur)}
+                <Text style={styles.admBodyTitle}>
+                  PIUTANG{ps.length > 1 ? ` • ${ps.length} TAGIHAN` : ""}
                 </Text>
-                {p.tanggal ? <Text style={styles.admBodyLine}>Tgl tagihan: {p.tanggal}</Text> : null}
-                {p.usia != null ? <Text style={styles.admBodyLine}>Usia: {p.usia} hari</Text> : null}
-
-                {(p as any).workflowStatus === "INPG" ? (
-                  <View style={styles.reviewBox}>
-                    <Text style={styles.reviewTitle}>HASIL DIISI PETUGAS</Text>
-                    <Text style={styles.reviewLine}>Hasil: {(HASIL_LABEL as any)[p.hasil] ?? p.hasil ?? "-"}</Text>
-                    {p.hasil === "janji_bayar" && p.promiseDate ? <Text style={styles.reviewLine}>Janji bayar: {p.promiseDate}</Text> : null}
-                    {p.payMethod ? <Text style={styles.reviewLine}>Metode: {p.payMethod}</Text> : null}
-                    {p.notes ? <Text style={styles.reviewLine}>Catatan: {p.notes}</Text> : null}
-                    {p.doneByName ? <Text style={styles.reviewLine}>Diisi oleh: {p.doneByName}</Text> : null}
-                    {(p as any).photoUrl ? (
-                      <TouchableOpacity style={styles.badgeRow} onPress={() => setOdView((p as any).photoUrl)}>
-                        <Image source={{ uri: (p as any).photoUrl }} style={styles.shotThumbSm} />
-                        <Text style={[styles.cardSub, { marginLeft: 8, color: "#7A2E0E" }]}>Bukti • ketuk untuk perbesar</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={styles.reviewLine}>Bukti: tidak ada</Text>
-                    )}
-                  </View>
-                ) : (
+                {ps.length > 1 ? (
                   <Text style={styles.admBodyLine}>
-                    {(p as any).workflowStatus === "CLSD" ? "Sudah CLSD (disetujui)." : "Belum ada hasil dari petugas."}
+                    Total sisa {rupiah(ps.reduce((sum: number, x: any) => sum + (Number(x.piutang ?? x.total) || 0), 0))} — {ps.length} tagihan aktif
                   </Text>
-                )}
+                ) : null}
 
-                <TouchableOpacity style={styles.actBtn} onPress={() => router.push(`/spk/${p._id}` as any)}>
-                  <AppIcon name="edit" size={13} color="#344054" style={{ marginRight: 5 }} />
-                  <Text style={styles.actBtnText}>Buka SPK Piutang</Text>
-                </TouchableOpacity>
+                {ps.map((x: any, i: number) => (
+                  <View key={x._id} style={i > 0 ? styles.subRow : undefined}>
+                    <Text style={styles.admBodyLine}>
+                      {ps.length > 1 ? `${i + 1}. ` : ""}
+                      Sisa {rupiah(x.piutang ?? x.total)} • Total {rupiah(x.total)} • Cicil {rupiah(x.cicil)} • Retur {rupiah(x.retur)}
+                    </Text>
+                    {x.tanggal ? <Text style={styles.admBodyLine}>Tgl tagihan: {x.tanggal}</Text> : null}
+                    {x.usia != null ? <Text style={styles.admBodyLine}>Usia: {x.usia} hari</Text> : null}
+
+                    {x.workflowStatus === "INPG" ? (
+                      <View style={styles.reviewBox}>
+                        <Text style={styles.reviewTitle}>HASIL DIISI PETUGAS</Text>
+                        <Text style={styles.reviewLine}>Hasil: {(HASIL_LABEL as any)[x.hasil] ?? x.hasil ?? "-"}</Text>
+                        {x.hasil === "janji_bayar" && x.promiseDate ? <Text style={styles.reviewLine}>Janji bayar: {x.promiseDate}</Text> : null}
+                        {x.payMethod ? <Text style={styles.reviewLine}>Metode: {x.payMethod}</Text> : null}
+                        {x.notes ? <Text style={styles.reviewLine}>Catatan: {x.notes}</Text> : null}
+                        {x.doneByName ? <Text style={styles.reviewLine}>Diisi oleh: {x.doneByName}</Text> : null}
+                        {x.photoUrl ? (
+                          <TouchableOpacity style={styles.badgeRow} onPress={() => setOdView(x.photoUrl)}>
+                            <Image source={{ uri: x.photoUrl }} style={styles.shotThumbSm} />
+                            <Text style={[styles.cardSub, { marginLeft: 8, color: "#7A2E0E" }]}>Bukti • ketuk untuk perbesar</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.reviewLine}>Bukti: tidak ada</Text>
+                        )}
+                      </View>
+                    ) : (
+                      <Text style={styles.admBodyLine}>
+                        {x.workflowStatus === "CLSD" ? "Sudah CLSD (disetujui)." : "Belum ada hasil dari petugas."}
+                      </Text>
+                    )}
+
+                    <TouchableOpacity style={styles.actBtn} onPress={() => router.push(`/spk/${x._id}` as any)}>
+                      <AppIcon name="edit" size={13} color="#344054" style={{ marginRight: 5 }} />
+                      <Text style={styles.actBtnText}>Buka SPK Piutang</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
             ) : null}
 
@@ -778,14 +812,18 @@ export default function Spk() {
           </View>
         ) : null}
 
-        {!bulk.pilih && isSuper && ((p as any)?.workflowStatus === "INPG" || (od as any)?.workflowStatus === "INPG") ? (
+        {!bulk.pilih && isSuper && (psInpg.length > 0 || (od as any)?.workflowStatus === "INPG") ? (
           <View style={styles.actRow}>
-            {p && (p as any).workflowStatus === "INPG" ? (
-              <TouchableOpacity style={styles.actBtn} onPress={() => onCloseTask(p)}>
+            {psInpg.map((x: any, i: number) => (
+              <TouchableOpacity key={x._id} style={styles.actBtn} onPress={() => onCloseTask(x)}>
                 <AppIcon name="check" size={13} color="#067647" style={{ marginRight: 5 }} />
-                <Text style={[styles.actBtnText, { color: "#067647" }]}>Setujui Piutang</Text>
+                <Text style={[styles.actBtnText, { color: "#067647" }]}>
+                  {psInpg.length > 1
+                    ? `Setujui #${i + 1} • Sisa ${rupiah(x.piutang ?? x.total)}`
+                    : "Setujui Piutang"}
+                </Text>
               </TouchableOpacity>
-            ) : null}
+            ))}
             {od && (od as any).workflowStatus === "INPG" ? (
               <TouchableOpacity style={styles.actBtn} onPress={() => onCloseOrder(od)}>
                 <AppIcon name="check" size={13} color="#067647" style={{ marginRight: 5 }} />
@@ -1205,7 +1243,11 @@ export default function Spk() {
     if (!bulkJenis) return;
     const ids = adminShown
       .filter((g: any) => bulk.terpilih.has(g.key))
-      .map((g: any) => (bulkJenis === "p" ? g.piutang?._id : g.order?._id))
+      .flatMap((g: any) =>
+        bulkJenis === "p"
+          ? g.piutang.filter((x: any) => x.workflowStatus === "INPG").map((x: any) => x._id)
+          : [g.order?._id]
+      )
       .filter(Boolean) as any[];
     if (!ids.length) return;
     Alert.alert(
@@ -1296,6 +1338,7 @@ export default function Spk() {
     <View style={styles.screen}>
       {/* ================= HEADER ================= */}
       <View style={styles.topbar}>
+        <Text style={styles.brand}>PMD Ecosystem 4.0</Text>
         <View style={styles.topRow}>
           {hubOpen ? (
             <Text style={styles.topTitle}>Menu SPK</Text>
@@ -1446,7 +1489,7 @@ export default function Spk() {
             ListHeaderComponent={
               <>
                 <View style={styles.chipRow}>
-                  {([["all", `Semua (${adminCount})`], ["piutang", `Piutang (${piutangPending})`], ["order", `Orderan (${orderPending})`]] as any[]).map(([k, l]) => {
+                  {([["all", `Semua (${adminCards})`], ["piutang", `Piutang (${cardPiutang})`], ["order", `Orderan (${cardOrder})`]] as any[]).map(([k, l]) => {
                     const on = adminFilter === k;
                     return (
                       <TouchableOpacity
@@ -1463,7 +1506,9 @@ export default function Spk() {
                 {adminCount > 0 ? (
                   <View style={styles.alertBanner}>
                     <AppIcon name="warn" size={15} color="#B42318" style={{ marginRight: 6 }} />
-                    <Text style={styles.alertText}>Pengingat: {adminCount} follow-up belum dikerjakan hari ini.</Text>
+                    <Text style={styles.alertText}>
+                      Pengingat: {adminCount} follow-up (di {adminCards} kartu) belum dikerjakan hari ini.
+                    </Text>
                   </View>
                 ) : null}
 
@@ -1569,7 +1614,11 @@ export default function Spk() {
           onAll={() =>
             bulk.pilihSemua(
               adminShown
-                .filter((g: any) => (bulkJenis === "p" ? g.piutang : g.order)?.workflowStatus === "INPG")
+                .filter((g: any) =>
+                  bulkJenis === "p"
+                    ? g.piutang.some((x: any) => x.workflowStatus === "INPG")
+                    : g.order?.workflowStatus === "INPG"
+                )
                 .map((g: any) => g.key)
             )
           }
@@ -1890,14 +1939,27 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink, textAlign: "center" },
-  meta: { fontSize: 12, color: GRAY, marginTop: 3 },
+  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
 
   // ===== Header =====
-  topbar: { backgroundColor: C.surfaceTint, paddingTop: TOP_PAD, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#F2DAD5" },
+  topbar: {
+    backgroundColor: "#FFF7F5",
+    paddingTop: TOP_PAD,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#101828",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 38 },
-  backText: { color: RED, fontSize: 15, fontWeight: "800" },
-  topTitle: { fontSize: 18, fontWeight: "900", color: C.ink, letterSpacing: 0.5 },
-  title: { fontSize: 21, fontWeight: "800", color: C.ink, marginTop: 6 },
+  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
+  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
+  topTitle: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2 },
+  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
   hdrIconBtn: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center", marginLeft: 6, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border },
   areaBadge: { backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, marginRight: 4 },
   areaBadgeText: { fontSize: 11, fontWeight: "800", color: GRAY },

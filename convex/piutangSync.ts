@@ -40,6 +40,18 @@ function parseCsv(text: string): string[][] {
 const keyStore = (area: string, storeName: string) =>
   `${area}||${String(storeName ?? "").trim().toLowerCase()}`;
 
+// Identitas SATU TAGIHAN — dipakai supaya pelanggan dengan beberapa piutang
+// tetap punya beberapa tugas, tapi tagihan yang sudah dikerjakan tidak diduplikasi.
+// Utamakan tanggal tagihan; kalau sheet tidak punya tanggal, pakai isi barisnya.
+const invKey = (r: {
+  area: string; storeName: string; tanggal?: string;
+  total?: number; piutang?: number; cicil?: number; retur?: number; usia?: number;
+}) => {
+  const base = keyStore(r.area, r.storeName);
+  if (r.tanggal) return `${base}|${r.tanggal}`;
+  return [base, r.total ?? "", r.piutang ?? "", r.cicil ?? "", r.retur ?? "", r.usia ?? ""].join("|");
+};
+
 // ===== IMPORT DARI SHEETS =====
 // Aturan:
 //   1. Sinkron hanya menyetel ulang tugas yang BELUM dikerjakan (OPEN).
@@ -57,11 +69,13 @@ export const importRows = internalMutation({
       .withIndex("by_day", (q) => q.eq("day", day))
       .collect();
 
-    // Toko yang sudah dikerjakan / menunggu review / disetujui → jangan diganggu
+    // Tagihan yang sudah dikerjakan / menunggu review / disetujui → jangan diganggu.
+    // Dulu kuncinya per TOKO, jadi 1 tagihan INPG membuat semua tagihan pelanggan
+    // itu ikut terlewat. Sekarang per TAGIHAN, jadi tagihan lain tetap masuk.
     const protectedKeys = new Set<string>();
     for (const r of rows as any[]) {
       if (r.workflowStatus === "INPG" || r.workflowStatus === "CLSD" || r.status === "done") {
-        protectedKeys.add(keyStore(r.area, r.storeName));
+        protectedKeys.add(invKey(r));
       }
     }
 
@@ -96,7 +110,10 @@ export const importRows = internalMutation({
     }
 
     let inserted = 0;
-    const seen = new Set<string>(); // toko dobel dalam 1 file → 1 tugas
+    // Dulu: `seen` per TOKO → pelanggan dengan 5 piutang cuma dapat 1 tugas.
+    // Sekarang: buang hanya baris yang BENAR-BENAR identik di dalam 1 file,
+    // supaya tiap tagihan pelanggan jadi 1 tugas (digabung jadi 1 kartu di UI).
+    const seenRow = new Set<string>();
     for (let i = 1; i < grid.length; i++) {
       const c = grid[i];
       const get = (ix: number) => (ix >= 0 ? clean(c[ix] ?? "") : "");
@@ -104,20 +121,31 @@ export const importRows = internalMutation({
       const storeName = get(iName);
       if (!(AREAS as readonly string[]).includes(areaRaw) || !storeName) continue;
       const area = areaRaw as "SOLO" | "DIY" | "SEMARANG";
-      const key = keyStore(area, storeName);
-      if (seen.has(key)) continue;
-      if (protectedKeys.has(key)) continue;   // sudah dikerjakan / menunggu review
-      seen.add(key);
 
-      await ctx.db.insert("piutang_tasks", {
+      const row = {
         area,
         storeName,
         tanggal: get(iTgl) || undefined,
         total: parseMoney(get(iTotal)),
         piutang: parseMoney(get(iPiutang)),
         cicil: parseMoney(get(iCicil)),
-        retur: parseMoney(get(iRetur)),        // ← BARU: nominal apa adanya dari sheet
+        retur: parseMoney(get(iRetur)),
         usia: parseInt(get(iUsia), 10) || undefined,
+      };
+
+      // baris persis sama di file yang sama → cukup satu tugas
+      const rowKey = [
+        keyStore(area, storeName), row.tanggal ?? "", row.total ?? "",
+        row.piutang ?? "", row.cicil ?? "", row.retur ?? "", row.usia ?? "",
+      ].join("|");
+      if (seenRow.has(rowKey)) continue;
+
+      // tagihan ini sudah dikerjakan / menunggu review → jangan diduplikasi
+      if (protectedKeys.has(invKey(row))) continue;
+      seenRow.add(rowKey);
+
+      await ctx.db.insert("piutang_tasks", {
+        ...row,
         day,
         status: "pending",
         workflowStatus: "OPEN",
@@ -126,7 +154,7 @@ export const importRows = internalMutation({
       inserted++;
     }
 
-    return { inserted, deleted, total: seen.size, skippedInProgress: protectedKeys.size };
+    return { inserted, deleted, total: seenRow.size, skippedInProgress: protectedKeys.size };
   },
 });
 

@@ -64,6 +64,7 @@ export default function SpkSales() {
     <View style={styles.screen}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
+          <Text style={styles.brand}>PMD Ecosystem 4.0</Text>
           <Text style={styles.headerTitle}>SPK Sales</Text>
           <Text style={styles.headerSub}>
             {areaLabel} •{" "}
@@ -152,15 +153,18 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   screen: { flex: 1, backgroundColor: C.bg },
   header: {
-    flexDirection: "row", alignItems: "center", paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 16,
-    backgroundColor: C.surfaceTint,
-    borderBottomLeftRadius: R.xl, borderBottomRightRadius: R.xl,
-    shadowColor: SH.color, shadowOpacity: SH.opacity, shadowRadius: SH.radius, elevation: SH.elevation,
+    flexDirection: "row", alignItems: "flex-start", paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 16,
+    backgroundColor: "#FFF7F5",
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
+    shadowColor: "#101828", shadowOpacity: 0.06, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
-  headerTitle: { fontSize: 22, fontWeight: "800", color: C.ink, letterSpacing: -0.2 },
-  headerSub: { fontSize: 13, color: C.inkMuted, marginTop: 3 },
+  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase" },
+  headerTitle: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
+  headerSub: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
   headerBtn: {
     backgroundColor: RED, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 9,
+    marginTop: 18,
     shadowColor: RED, shadowOpacity: 0.25, shadowRadius: 8, elevation: 2,
   },
   headerBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },

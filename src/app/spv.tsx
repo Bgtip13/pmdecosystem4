@@ -64,6 +64,7 @@ export default function SpvHub() {
         <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/beranda"); }} style={styles.backBtn}>
           <Text style={styles.backText}>‹ Kembali</Text>
         </TouchableOpacity>
+        <Text style={styles.brand}>PMD Ecosystem 4.0</Text>
         <Text style={styles.title}>Menu Supervisor</Text>
         <Text style={styles.meta}>Halo, {viewer.name} — kelola semua aktivitas di sini</Text>
       </View>
@@ -106,11 +107,24 @@ export default function SpvHub() {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   screen: { flex: 1, backgroundColor: C.bg },
-  topbar: { backgroundColor: C.surfaceTint, paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "#F2DAD5" },
+  topbar: {
+    backgroundColor: "#FFF7F5",
+    paddingTop: TOP_PAD,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#101828",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: RED, fontSize: 16, fontWeight: "700" },
-  title: { fontSize: 20, fontWeight: "800", color: C.ink, marginTop: 4 },
-  meta: { fontSize: 13, color: GRAY, marginTop: 2 },
+  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
+  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
+  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
   note: { fontSize: 12, color: GRAY, marginTop: 2, paddingHorizontal: 4, fontStyle: "italic" },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: C.ink },
   badgeSmall: { backgroundColor: RED, borderRadius: 12, minWidth: 22, height: 22, justifyContent: "center", alignItems: "center", paddingHorizontal: 6, marginRight: 6 },

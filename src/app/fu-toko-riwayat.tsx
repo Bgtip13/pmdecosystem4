@@ -330,10 +330,22 @@ export default function FuTokoRiwayat() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  topbar: { backgroundColor: C.surfaceTint, paddingTop: TOP_PAD, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#F2DAD5" },
-  back: { color: RED, fontSize: 16, fontWeight: "800" },
-  title: { fontSize: 21, fontWeight: "800", color: C.ink, marginTop: 4 },
-  meta: { fontSize: 12, color: GRAY, marginTop: 2 },
+  topbar: {
+    backgroundColor: "#FFF7F5",
+    paddingTop: TOP_PAD,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#101828",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  back: { color: "#D92D20", fontSize: 15, fontWeight: "700", marginBottom: 8 },
+  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
 
   monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 12 },
   monthBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },

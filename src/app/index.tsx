@@ -1,13 +1,14 @@
 import { useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, KeyboardAvoidingView, Platform, Image, ScrollView,
+  KeyboardAvoidingView, Platform, Image, ScrollView,
 } from "react-native";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useAction, useQuery } from "convex/react";
 import { Redirect } from "expo-router";
 import { api } from "../../convex/_generated/api";
 import AppIcon from "../components/AppIcon";
+import LoadingScreen from "../components/LoadingScreen";
 
 const RED = "#D92D20";
 const RED_DARK = "#B42318";
@@ -22,13 +23,7 @@ export default function Index() {
   const viewer = useQuery(api.users.viewer) as any;
 
   if (isLoading || (isAuthenticated && viewer === undefined)) {
-    return (
-      <View style={styles.center}>
-        <Image source={require("../../assets/logo.png")} style={styles.loadingLogo} resizeMode="contain" />
-        <ActivityIndicator size="large" color={RED} style={{ marginTop: 18 }} />
-        <Text style={styles.loadingText}>Memuat...</Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
   if (!isAuthenticated) return <Login />;
   if (viewer?.mustChangePassword) return <ChangePassword />;
@@ -183,9 +178,6 @@ function ChangePassword() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: BG },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: BG },
-  loadingLogo: { width: 88, height: 88 },
-  loadingText: { color: GRAY, fontSize: 13, marginTop: 10, fontWeight: "600" },
 
   deco: { position: "absolute", backgroundColor: RED_SOFT, borderRadius: 999 },
   decoBig: { width: 320, height: 320, top: -130, right: -120 },

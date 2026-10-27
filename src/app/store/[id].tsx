@@ -246,11 +246,23 @@ export default function StoreDetail() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#F8F9FB" },
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
-  topbar: { backgroundColor: "#fff", paddingTop: TOP_PAD, paddingBottom: 10, paddingHorizontal: 20 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
+  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+  topbar: {
+    backgroundColor: "#FFF7F5",
+    paddingTop: TOP_PAD,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#101828",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: RED, fontSize: 16, fontWeight: "700" },
+  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
   body: { padding: 20 },
   name: { fontSize: 22, fontWeight: "800", color: "#111" },
   badge: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8, fontSize: 12, fontWeight: "800", overflow: "hidden" },

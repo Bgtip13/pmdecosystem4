@@ -176,15 +176,14 @@ export default function Akun() {
             </View>
           </View>
           <Text style={styles.desc}>
-            Aplikasi internal Prima Mandiri Distribusi untuk mendukung kegiatan sales lapangan &
-            telemarketing: kunjungan toko, SPK, piutang, dan monitoring.
+            Aplikasi resmi internal CV Prima Mandiri Distribusi untuk mendukung kegiatan sales lapangan & telemarketing: Kunjungan toko, SPK,Piutang dan Monitoring.
           </Text>
         </View>
 
         {/* Informasi */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Informasi</Text>
-          <Row label="Pengembang" value="Bagus Triawan Isa Putra" />
+          <Row label="Pengembang" value="NB Projects" />
           <Row label="Tahun Rilis" value="2026" />
           <Row label="Perusahaan" value="CV Prima Mandiri Distribusi" />
           <Row label="Platform" value="Android" last />
@@ -194,14 +193,13 @@ export default function Akun() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Lisensi & Hak Cipta</Text>
           <Text style={styles.line}>
-            © 2026 CV Prima Mandiri Distribusi. Seluruh hak cipta dilindungi undang-undang.
+            © 2026 CV Prima Mandiri Distribusi. Hak cipta dan kepemilikan kode sumber sepenuhnya milik perusahaan. Dilarang menggandakan atau mendistribusikan tanpa izin tertulis.
           </Text>
           <Text style={styles.line}>
-            PMD Ecosystem 4.0 adalah perangkat lunak internal perusahaan. Aplikasi ini tidak untuk
-            diperjualbelikan, disalin, atau didistribusikan tanpa izin tertulis dari pemilik hak cipta.
+            PMD Ecosystem 4.0 adalah perangkat lunak internal perusahaan.
           </Text>
           <Text style={styles.line}>
-            Penggunaan hanya diperuntukkan bagi karyawan/agen resmi Prima Mandiri Distribusi yang
+            Penggunaan hanya diperuntukkan bagi karyawan CV Prima Mandiri Distribusi yang
             berwenang. Seluruh data toko, kunjungan, dan piutang bersifat rahasia.
           </Text>
         </View>
@@ -238,9 +236,21 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   screen: { flex: 1, backgroundColor: C.bg },
-  topbar: { backgroundColor: C.surfaceTint, paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#F2DAD5" },
-  brand: { fontSize: 12, fontWeight: "800", color: RED },
-  title: { fontSize: 20, fontWeight: "800", color: C.ink, marginTop: 2 },
+  topbar: {
+    backgroundColor: "#FFF7F5",
+    paddingTop: TOP_PAD,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#101828",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
+  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
   body: { padding: 20, paddingBottom: 130 },
   profileCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: R.lg, padding: 16, borderWidth: 1, borderColor: C.border, ...SHADOW },
   avatar: { width: 58, height: 58, borderRadius: 29, backgroundColor: RED, alignItems: "center", justifyContent: "center" },

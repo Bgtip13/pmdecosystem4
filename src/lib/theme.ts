@@ -1,6 +1,6 @@
 export const theme = {
   colors: {
-    bg: "#F7F8FA",
+    bg: "#FCFAFA",
     surface: "#FFFEFC",
     surfaceAlt: "#F8F9FB",
     surfaceTint: "#FFF7F5",

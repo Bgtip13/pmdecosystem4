@@ -450,10 +450,14 @@ export default function Beranda() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.brand}>PMD Ecosystem 4.0</Text>
-        <Text style={styles.greet}>Halo, {viewer.name}</Text>
-        <Text style={styles.meta}>{ROLE_LABEL[role] ?? role} • {areaLabel}</Text>
-        <ChatHeaderButton />
+        <View style={styles.headerTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.brand}>PMD Ecosystem 4.0</Text>
+            <Text style={styles.greet}>Halo, {viewer.name}</Text>
+            <Text style={styles.meta}>{ROLE_LABEL[role] ?? role} • {areaLabel}</Text>
+          </View>
+          <ChatHeaderButton />
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 130 }}>
@@ -524,7 +528,8 @@ export default function Beranda() {
 
 
         {/* ===== HARI INI + PERLU TINDAKAN + IZIN HARI INI (khusus supervisor) ===== */}
-        {isSuper ? <TodayCard /> : null}
+        {isSuper || isOwner ? <TodayCard /> : null}
+
 
         {/* ===== PROGRES KUNJUNGAN SALES (supervisor/owner) ===== */}
         {isSuper || isOwner ? (
@@ -1025,15 +1030,16 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   screen: { flex: 1, backgroundColor: C.bg },
   header: {
-    paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 20,
-    backgroundColor: C.surfaceTint,
-    borderBottomLeftRadius: R.xl, borderBottomRightRadius: R.xl,
-    shadowColor: SH.color, shadowOpacity: SH.opacity, shadowRadius: SH.radius, elevation: SH.elevation,
+    paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 16,
+    backgroundColor: "#FFF7F5",
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
+    shadowColor: "#101828", shadowOpacity: 0.06, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
-  brand: { fontSize: 11, fontWeight: "800", color: C.primary, letterSpacing: 1, textTransform: "uppercase" },
-  greet: { fontSize: 23, fontWeight: "800", color: C.ink, marginTop: 4 },
-  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3 },
-  headerTop: { flexDirection: "row", alignItems: "flex-start" },
+  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase" },
+  greet: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
+  headerTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
 
   banner: { backgroundColor: C.status.danger.bg, borderRadius: R.md, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: C.status.danger.border },
   bannerTitle: { color: C.status.danger.fg, fontWeight: "800", fontSize: 14 },

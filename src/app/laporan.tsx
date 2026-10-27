@@ -77,10 +77,22 @@ export default function Laporan() {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
   screen: { flex: 1, backgroundColor: "#FCFAFA" },
-  topbar: { backgroundColor: "#FFF7F5", paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "#F0D9D5" },
-  brand: { fontSize: 12, fontWeight: "800", color: RED },
-  title: { fontSize: 22, fontWeight: "800", color: "#111", marginTop: 2 },
-  meta: { fontSize: 13, color: GRAY, marginTop: 2 },
+  topbar: {
+    backgroundColor: "#FFF7F5",
+    paddingTop: TOP_PAD,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#101828",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
+  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
   body: {
     padding: 20, paddingBottom: 120,
     // Web: menu tersusun 2 kolom

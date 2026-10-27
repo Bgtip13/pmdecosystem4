@@ -5,6 +5,7 @@ import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import DesktopShell from "../../components/desktop/DesktopShell";
 import { Kpi, Panel, Chip } from "../../components/desktop/ui";
+import { A } from "../../components/desktop/tokens";
 import { SpkStatusBadge, normalizeWf } from "../../components/SpkWorkflow";
 import AppIcon from "../../components/AppIcon";
 import { theme } from "../../lib/theme";
@@ -28,6 +29,11 @@ const REASON_LABEL: any = {
 };
 
 const rupiah = (n: any) => (n == null || isNaN(n) ? "-" : "Rp" + Number(n).toLocaleString("id-ID"));
+const tanggal = (v: any) => {
+  if (!v) return "-";
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+};
 
 type Row = { key: string; kind: "p" | "o"; id: string; t: any };
 
@@ -201,16 +207,22 @@ export default function SpkAdminWeb() {
       title="SPK Admin"
       subtitle={`Antrean follow-up piutang & orderan${isTele ? ` • area ${viewer.area ?? "-"}` : areaQ === "ALL" ? " • semua area" : ` • ${areaQ}`}`}
       right={
-        isSuper || isTele ? (
-          <TouchableOpacity
-            style={[sty.syncBtn, syncing && { opacity: 0.6 }]}
-            onPress={onSync}
-            disabled={syncing}
-          >
-            <AppIcon name="refresh" size={15} color="#fff" />
-            <Text style={sty.syncBtnText}>{syncing ? "Menarik data…" : "Tarik Data Hari Ini"}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <TouchableOpacity style={sty.btnGhostSm} onPress={() => router.push("/riwayat?tab=admin" as any)}>
+            <AppIcon name="clock" size={13} color={A.inkSoft} style={{ marginRight: 5 }} />
+            <Text style={sty.btnGhostSmText}>Riwayat</Text>
           </TouchableOpacity>
-        ) : null
+          {isSuper || isTele ? (
+            <TouchableOpacity
+              style={[sty.syncBtn, syncing && { opacity: 0.6 }]}
+              onPress={onSync}
+              disabled={syncing}
+            >
+              <AppIcon name="refresh" size={15} color="#fff" />
+              <Text style={sty.syncBtnText}>{syncing ? "Menarik data…" : "Tarik Data Hari Ini"}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       }
     >
       {/* ===== KPI ===== */}
@@ -355,7 +367,7 @@ export default function SpkAdminWeb() {
               const bisa = bisaDipilih(r);
 
               const ringkas = isP
-                ? `${rupiah(t.piutang ?? t.total)}${t.usia != null ? ` • ${t.usia} hari` : ""}${t.tanggal ? ` • tagihan ${t.tanggal}` : ""}`
+                ? `${rupiah(t.piutang ?? t.total)}${t.usia != null ? ` • ${t.usia} hari` : ""}${t.tanggal ? ` • tagihan ${tanggal(t.tanggal)}` : ""}`
                 : t.ordered
                   ? `Order ${(t.orderItems ?? []).length ?? 0} produk`
                   : `Tidak order${t.visitReason ? ` • ${REASON_LABEL[t.visitReason] ?? t.visitReason}` : ""}`;
@@ -401,7 +413,7 @@ export default function SpkAdminWeb() {
                   </View>
 
                   <View style={{ flex: 1.2, paddingRight: 10 }}>
-                    <Text style={sty.tVal} numberOfLines={1}>{ringkas}</Text>
+                    <Text style={sty.tVal} numberOfLines={2}>{ringkas}</Text>
                     {sub ? <Text style={sty.tSub} numberOfLines={1}>{sub}</Text> : null}
                   </View>
 
@@ -418,7 +430,7 @@ export default function SpkAdminWeb() {
                   <View style={[sty.actCell, { width: 210 }]}>
                     <TouchableOpacity
                       style={sty.btnOutline}
-                      onPress={() => router.push((isP ? `/spk/${t._id}` : `/spk-detail-order/${t._id}`) as any)}
+                      onPress={() => router.push((isP ? (wf === "INPG" ? `/spk-detail/${t._id}` : `/spk/${t._id}`) : `/spk-detail-order/${t._id}`) as any)}
                     >
                       <Text style={sty.btnOutlineText}>{wf === "INPG" ? "Lihat bukti" : "Kerjakan"}</Text>
                     </TouchableOpacity>
@@ -454,60 +466,90 @@ export default function SpkAdminWeb() {
 }
 
 const sty = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
-  muted: { fontSize: 12.5, color: GRAY },
-  hint: { fontSize: 11, color: GRAY, marginTop: 10, fontStyle: "italic" },
-  panelHint: { fontSize: 11, color: GRAY, fontWeight: "800" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: A.page },
+  muted: { fontSize: 11.5, color: A.muted },
+  hint: { fontSize: 10.5, color: A.muted, marginTop: 8, fontStyle: "italic" },
+  panelHint: { fontSize: 10.5, color: A.muted, fontWeight: "700" },
 
-  kpiRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  kpiRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
 
-  syncBtn: { flexDirection: "row", alignItems: "center", backgroundColor: C.primary, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 10, marginLeft: 10 },
-  syncBtnText: { color: "#fff", fontWeight: "800", fontSize: 12.5, marginLeft: 6 },
+  syncBtn: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: A.brand, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 8, marginLeft: 2,
+  },
+  syncBtnText: { color: "#fff", fontWeight: "700", fontSize: 11.5, marginLeft: 5 },
 
-  notice: { borderWidth: 1, borderRadius: R.md, padding: 12, marginTop: 14 },
-  noticeOk: { backgroundColor: "#ECFDF3", borderColor: "#ABEFC6" },
-  noticeErr: { backgroundColor: "#FEF3F2", borderColor: "#FECDCA" },
-  noticeText: { fontSize: 12.5, fontWeight: "700", lineHeight: 18 },
+  notice: { borderWidth: 1, borderRadius: 3, padding: 10, marginTop: 12 },
+  noticeOk: { backgroundColor: "#F0F8F3", borderColor: "#BFE3CD" },
+  noticeErr: { backgroundColor: "#FDF2F2", borderColor: "#F3D6D6" },
+  noticeText: { fontSize: 11.5, fontWeight: "600", lineHeight: 17 },
 
-  toolbar: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginTop: 16, flexWrap: "wrap" },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", flexGrow: 1, flexBasis: 520, gap: 6 },
-  chip: { borderWidth: 1, borderColor: C.divider, backgroundColor: C.surface, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6 },
-  chipOn: { backgroundColor: C.primary, borderColor: C.primary },
-  chipText: { fontSize: 12, fontWeight: "700", color: C.inkSoft },
+  toolbar: { flexDirection: "row", alignItems: "flex-start", gap: 10, flexWrap: "wrap" },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", flexGrow: 1, flexBasis: 600, gap: 4 },
+  chip: {
+    borderWidth: 1, borderColor: A.border, backgroundColor: A.surface,
+    borderRadius: 3, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  chipOn: { backgroundColor: A.blue, borderColor: A.blue },
+  chipText: { fontSize: 10.5, fontWeight: "600", color: A.inkSoft },
   chipTextOn: { color: "#fff" },
-  sep: { width: 1, height: 22, backgroundColor: C.divider, marginHorizontal: 6 },
-  search: { flexBasis: 240, flexGrow: 1, minWidth: 200, backgroundColor: C.surface, borderWidth: 1, borderColor: C.divider, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13.5, color: C.ink },
+  sep: { width: 1, height: 20, backgroundColor: A.border, marginHorizontal: 4 },
+  search: {
+    flexBasis: 190, flexGrow: 1, minWidth: 160,
+    backgroundColor: A.surface, borderWidth: 1, borderColor: A.border,
+    borderRadius: 3, paddingHorizontal: 10, paddingVertical: 8,
+    fontSize: 12, color: A.ink,
+  },
 
-  bulkBar: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.divider, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12, flexWrap: "wrap" },
-  bulkHint: { fontSize: 12, color: GRAY, fontStyle: "italic" },
-  bulkCount: { fontSize: 13, fontWeight: "900", color: C.ink, marginRight: 4 },
+  bulkBar: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: A.surfaceAlt, borderWidth: 1, borderColor: A.border,
+    borderRadius: 3, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10, flexWrap: "wrap",
+  },
+  bulkHint: { fontSize: 11, color: A.muted, fontStyle: "italic" },
+  bulkCount: { fontSize: 12, fontWeight: "800", color: A.ink, marginRight: 4 },
 
-  btnGreen: { flexDirection: "row", alignItems: "center", backgroundColor: GREEN, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 9 },
-  btnGreenText: { color: "#fff", fontWeight: "800", fontSize: 12.5, marginLeft: 4 },
-  btnGhostSm: { backgroundColor: C.status.neutral.bg, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 9 },
-  btnGhostSmText: { color: C.status.neutral.fg, fontWeight: "800", fontSize: 12.5 },
-  btnOutline: { borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 8 },
-  btnOutlineText: { color: C.inkSoft, fontWeight: "800", fontSize: 12.5 },
+  btnGreen: {
+    flexDirection: "row", alignItems: "center", backgroundColor: GREEN,
+    borderRadius: 3, paddingHorizontal: 11, paddingVertical: 7,
+  },
+  btnGreenText: { color: "#fff", fontWeight: "700", fontSize: 11.5, marginLeft: 4 },
+  btnGhostSm: { flexDirection: "row", alignItems: "center", backgroundColor: A.surface, borderWidth: 1, borderColor: A.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  btnGhostSmText: { color: A.inkSoft, fontWeight: "700", fontSize: 11.5 },
+  btnOutline: {
+    borderWidth: 1, borderColor: A.blueBorder, backgroundColor: A.surface,
+    borderRadius: 3, paddingHorizontal: 10, paddingVertical: 6,
+  },
+  btnOutlineText: { color: A.blue, fontWeight: "700", fontSize: 11.5 },
 
-  thead: { flexDirection: "row", alignItems: "center", paddingBottom: 7, borderBottomWidth: 1, borderBottomColor: C.divider },
-  th: { fontSize: 10, fontWeight: "900", color: C.inkFaint, letterSpacing: 0.5 },
-  trow: { flexDirection: "row", alignItems: "center", paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.divider },
+  thead: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 8, paddingVertical: 6,
+    backgroundColor: A.headerRow,
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: A.border,
+  },
+  th: { fontSize: 9.5, fontWeight: "800", color: A.inkSoft, letterSpacing: 0.3, textTransform: "uppercase" },
+  trow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: A.borderSoft },
   trowLast: { borderBottomWidth: 0 },
-  tName: { fontSize: 13.5, fontWeight: "800", color: C.ink },
-  tVal: { fontSize: 12.5, fontWeight: "700", color: C.inkSoft },
-  tSub: { fontSize: 11.5, color: GRAY, marginTop: 2 },
+  tName: { fontSize: 12, fontWeight: "700", color: A.ink },
+  tVal: { fontSize: 11.5, fontWeight: "600", color: A.inkSoft, fontVariant: ["tabular-nums"] },
+  tSub: { fontSize: 10.5, color: A.muted, marginTop: 2 },
 
-  typeChip: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, alignSelf: "flex-start" },
-  typeChipText: { fontSize: 9.5, fontWeight: "900", letterSpacing: 0.4 },
+  typeChip: { borderRadius: 2, paddingHorizontal: 6, paddingVertical: 3, alignSelf: "flex-start" },
+  typeChipText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.3 },
 
-  check: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: "#98A2B3", backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  check: { width: 16, height: 16, borderRadius: 2, borderWidth: 1.5, borderColor: "#8FA3B8", backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   checkOn: { backgroundColor: GREEN, borderColor: GREEN },
   checkOff: { opacity: 0.35 },
-  checkMark: { color: "#fff", fontSize: 12, fontWeight: "900", lineHeight: 14 },
+  checkMark: { color: "#fff", fontSize: 10, fontWeight: "900", lineHeight: 12 },
 
-  actCell: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
+  actCell: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
 
-  btnGhost: { backgroundColor: C.status.neutral.bg, borderRadius: R.md, paddingVertical: 11, alignItems: "center", marginTop: 18 },
-  btnGhostText: { color: C.status.neutral.fg, fontWeight: "800", fontSize: 12.5 },
-  footNote: { fontSize: 11.5, color: GRAY, lineHeight: 18, marginTop: 14 },
+  btnGhost: {
+    backgroundColor: A.surface, borderWidth: 1, borderColor: A.blueBorder,
+    borderRadius: 3, paddingVertical: 9, alignItems: "center", marginTop: 14,
+  },
+  btnGhostText: { color: A.blue, fontWeight: "700", fontSize: 11.5 },
+  footNote: { fontSize: 10.5, color: A.muted, lineHeight: 17, marginTop: 12 },
 });

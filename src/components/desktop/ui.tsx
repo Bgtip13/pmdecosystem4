@@ -1,15 +1,12 @@
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import AppIcon from "../AppIcon";
-import { theme } from "../../lib/theme";
+import { A, FONT, SHADOW } from "./tokens";
 
-const { colors: C, radius: R } = theme;
-const RED = C.primary;
-
-// ===== KIT UI DESKTOP (mandiri) — dipakai semua layar *.web.tsx =====
+// ===== KIT UI DESKTOP (khusus web) — dipakai semua layar *.web.tsx =====
 export function Kpi({ label, value, color, hint }: any) {
   return (
-    <View style={s.kpi}>
-      <Text style={s.kpiLabel}>{label}</Text>
+    <View style={[s.kpi, color ? { borderTopWidth: 3, borderTopColor: color } : null]}>
+      <Text style={s.kpiLabel} numberOfLines={1}>{label}</Text>
       <Text
         style={[s.kpiValue, color ? { color } : null]}
         numberOfLines={1}
@@ -29,19 +26,19 @@ export function Panel({ title, icon, right, children, basis = 0 }: any) {
       <View style={s.panelHead}>
         {icon ? (
           <View style={s.panelIcon}>
-            <AppIcon name={icon} size={15} color={RED} />
+            <AppIcon name={icon} size={13} color={A.brand} />
           </View>
         ) : null}
         <Text style={s.panelTitle} numberOfLines={1}>{title}</Text>
         <View style={{ flex: 1 }} />
         {right}
       </View>
-      <View style={{ marginTop: 10 }}>{children}</View>
+      <View style={s.panelBody}>{children}</View>
     </View>
   );
 }
 
-export function Bar({ pct, color = RED, height = 6 }: any) {
+export function Bar({ pct, color = A.brand, height = 4 }: any) {
   return (
     <View style={[s.barBg, { height }]}>
       <View
@@ -62,29 +59,76 @@ export function Chip({ text, bg, fg }: any) {
   );
 }
 
+// Tombol aksi web (dipakai di header halaman)
+export function WebButton({ label, icon, variant = "primary", onPress, disabled }: any) {
+  const ghost = variant === "ghost";
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        s.btn,
+        ghost ? s.btnGhost : s.btnPrimary,
+        disabled && { opacity: 0.55 },
+      ]}
+    >
+      {icon ? <AppIcon name={icon} size={13} color={ghost ? A.inkSoft : "#fff"} style={{ marginRight: 6 }} /> : null}
+      <Text style={[s.btnText, ghost && { color: A.inkSoft }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 const s = StyleSheet.create({
   kpi: {
-    flexBasis: 190,
+    flexBasis: 196,
     flexGrow: 1,
-    minWidth: 160,
-    backgroundColor: C.surface,
+    minWidth: 165,
+    backgroundColor: A.surface,
     borderWidth: 1,
-    borderColor: C.divider,
-    borderRadius: R.lg,
-    padding: 14,
+    borderColor: A.border,
+    borderRadius: 10,
+    padding: 13,
+    ...SHADOW,
+    shadowOpacity: 0.045,
+    shadowRadius: 10,
   },
-  kpiLabel: { fontSize: 10, fontWeight: "900", color: C.inkMuted, letterSpacing: 0.6 },
-  kpiValue: { fontSize: 26, fontWeight: "900", color: C.ink, marginTop: 6, letterSpacing: -0.5 },
-  kpiHint: { fontSize: 11.5, color: C.inkMuted, marginTop: 4, fontWeight: "600" },
+  kpiLabel: { fontSize: 9, fontWeight: "800", color: A.muted, letterSpacing: 0.7, textTransform: "uppercase", fontFamily: FONT },
+  kpiValue: { fontSize: 23, fontWeight: "800", color: A.ink, marginTop: 6, letterSpacing: -0.6, fontVariant: ["tabular-nums"], fontFamily: FONT },
+  kpiHint: { fontSize: 10, color: A.muted, marginTop: 4, fontFamily: FONT },
 
-  panel: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.divider, borderRadius: R.lg, padding: 16 },
-  panelHead: { flexDirection: "row", alignItems: "center" },
-  panelIcon: { width: 28, height: 28, borderRadius: 9, backgroundColor: C.primarySoft, alignItems: "center", justifyContent: "center", marginRight: 9 },
-  panelTitle: { fontSize: 14, fontWeight: "900", color: C.ink },
+  panel: {
+    backgroundColor: A.surface, borderWidth: 1, borderColor: A.border,
+    borderRadius: 10, overflow: "hidden", ...SHADOW, shadowOpacity: 0.045, shadowRadius: 10,
+  },
+  panelHead: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 13, paddingVertical: 10,
+    backgroundColor: A.surface,
+    borderBottomWidth: 1, borderBottomColor: A.borderSoft,
+  },
+  panelIcon: {
+    width: 24, height: 24, borderRadius: 6,
+    backgroundColor: A.brandSoft,
+    alignItems: "center", justifyContent: "center",
+  },
+  panelTitle: {
+    fontSize: 10.5, fontWeight: "800", color: A.inkSoft,
+    letterSpacing: 0.6, textTransform: "uppercase", fontFamily: FONT,
+  },
+  panelBody: { padding: 13 },
 
-  barBg: { borderRadius: R.pill, backgroundColor: "#EAECF0", overflow: "hidden", marginTop: 6 },
-  barFill: { borderRadius: R.pill },
+  barBg: { borderRadius: 3, backgroundColor: "#F0E9E5", overflow: "hidden", marginTop: 5 },
+  barFill: { borderRadius: 3 },
 
-  chip: { borderRadius: R.pill, paddingHorizontal: 9, paddingVertical: 4, alignSelf: "flex-start" },
-  chipText: { fontSize: 10.5, fontWeight: "900", letterSpacing: 0.2 },
+  chip: { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3, alignSelf: "flex-start" },
+  chipText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.3, fontFamily: FONT },
+
+  btn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8,
+  } as any,
+  btnPrimary: { backgroundColor: A.brand },
+  btnGhost: { backgroundColor: A.surface, borderWidth: 1, borderColor: A.border },
+  btnText: { color: "#fff", fontSize: 11, fontWeight: "700", fontFamily: FONT },
 });

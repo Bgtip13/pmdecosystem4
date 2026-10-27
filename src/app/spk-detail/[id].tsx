@@ -248,11 +248,23 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#F8F9FB" },
-  screen: { flex: 1, backgroundColor: "#F8F9FB" },
-  topbar: { backgroundColor: "#fff", paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 12 },
-  backText: { color: RED, fontSize: 16, fontWeight: "700" },
-  title: { fontSize: 20, fontWeight: "800", color: "#111", marginTop: 4 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
+  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+  topbar: {
+    backgroundColor: "#FFF7F5",
+    paddingTop: TOP_PAD,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#101828",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
   nameRow: { flexDirection: "row", alignItems: "flex-start", marginTop: 8 },
   storeName: { fontSize: 22, fontWeight: "800", color: "#111", flexShrink: 1 },
   meta: { fontSize: 13, color: GRAY, marginTop: 4 },

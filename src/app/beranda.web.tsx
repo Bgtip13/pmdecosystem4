@@ -7,6 +7,7 @@ import AppIcon from "../components/AppIcon";
 import TodayCard from "../components/TodayCard";
 import DesktopShell from "../components/desktop/DesktopShell";
 import { Kpi, Panel, Bar, Chip } from "../components/desktop/ui";
+import { A } from "../components/desktop/tokens";
 import { theme } from "../lib/theme";
 
 const { colors: C, radius: R } = theme;
@@ -327,6 +328,20 @@ export default function BerandaWeb() {
       active="beranda"
       title="Dashboard"
       subtitle={`${ROLE_LABEL[role] ?? role} • ${areaLabel} • ${tglPanjang}`}
+      right={
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity style={sty.headBtn} onPress={() => router.push("/riwayat?tab=kunjungan" as any)}>
+            <AppIcon name="clock" size={13} color={A.inkSoft} style={{ marginRight: 6 }} />
+            <Text style={sty.headBtnText}>Riwayat</Text>
+          </TouchableOpacity>
+          {isSuper || isOwner || isTele ? (
+            <TouchableOpacity style={sty.headBtnPrimary} onPress={() => router.push("/spk" as any)}>
+              <AppIcon name="clipboard" size={13} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={sty.headBtnPrimaryText}>SPK Admin</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      }
     >
       {/* ================= KPI ================= */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 4 }}>
@@ -657,7 +672,7 @@ export default function BerandaWeb() {
       {/* ================= PENCAPAIAN BULANAN + MINGGUAN ================= */}
       <View style={sty.grid}>
         <Panel
-          basis={480}
+          basis={620}
           icon="trend"
           title="Pencapaian Bulanan per Area"
           right={<Text style={sty.panelHint}>{pcpGroups.length} area</Text>}
@@ -766,13 +781,31 @@ export default function BerandaWeb() {
           <Text style={sty.quickLabel}>Kelola Toko</Text>
           <Text style={sty.quickDesc}>Cari & lihat data toko</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={sty.quick} onPress={() => router.push("/riwayat" as any)}>
-          <View style={[sty.quickBubble, { backgroundColor: C.chip.purple.bg }]}>
-            <AppIcon name="timer" size={18} color={C.chip.purple.fg} />
+        <TouchableOpacity style={sty.quick} onPress={() => router.push("/riwayat?tab=kunjungan" as any)}>
+          <View style={[sty.quickBubble, { backgroundColor: C.chip.purple.bg }]}> 
+            <AppIcon name="clock" size={18} color={C.chip.purple.fg} />
           </View>
-          <Text style={sty.quickLabel}>Riwayat</Text>
-          <Text style={sty.quickDesc}>Kunjungan & follow-up</Text>
+          <Text style={sty.quickLabel}>Riwayat Kunjungan</Text>
+          <Text style={sty.quickDesc}>Arsip SPK sales lapangan</Text>
         </TouchableOpacity>
+        {usesFu ? (
+          <TouchableOpacity style={sty.quick} onPress={() => router.push("/riwayat?tab=admin" as any)}>
+            <View style={[sty.quickBubble, { backgroundColor: C.chip.success.bg }]}>
+              <AppIcon name="checkDone" size={18} color={C.chip.success.fg} />
+            </View>
+            <Text style={sty.quickLabel}>Riwayat Follow-up</Text>
+            <Text style={sty.quickDesc}>Piutang & orderan CLSD</Text>
+          </TouchableOpacity>
+        ) : null}
+        {usesFu ? (
+          <TouchableOpacity style={sty.quick} onPress={() => router.push("/riwayat?tab=fu" as any)}>
+            <View style={[sty.quickBubble, { backgroundColor: C.chip.warning.bg }]}>
+              <AppIcon name="store" size={18} color={C.chip.warning.fg} />
+            </View>
+            <Text style={sty.quickLabel}>Riwayat FU Toko</Text>
+            <Text style={sty.quickDesc}>Rekap bulanan per area</Text>
+          </TouchableOpacity>
+        ) : null}
         {isOwner ? (
           <TouchableOpacity style={sty.quick} onPress={() => router.push("/laporan" as any)}>
             <View style={[sty.quickBubble, { backgroundColor: C.chip.success.bg }]}>
@@ -788,41 +821,78 @@ export default function BerandaWeb() {
 }
 
 const sty = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: A.page },
 
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 16, marginTop: 16 },
-  panelHint: { fontSize: 11, color: GRAY, fontWeight: "800" },
-  muted: { fontSize: 12.5, color: GRAY },
-  hint: { fontSize: 11, color: GRAY, marginTop: 10, fontStyle: "italic" },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
+  panelHint: { fontSize: 10.5, color: A.muted, fontWeight: "700" },
+  muted: { fontSize: 11.5, color: A.muted },
+  hint: { fontSize: 10.5, color: A.muted, marginTop: 8, fontStyle: "italic" },
 
   // ===== Tabel ringkas =====
-  thead: { flexDirection: "row", alignItems: "center", paddingBottom: 7, borderBottomWidth: 1, borderBottomColor: C.divider },
-  th: { fontSize: 10, fontWeight: "900", color: C.inkFaint, letterSpacing: 0.5 },
-  trow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.divider },
+  thead: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 8, paddingVertical: 7,
+    backgroundColor: A.headerRow,
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: A.border,
+  },
+  th: { fontSize: 9.5, fontWeight: "800", color: A.inkSoft, letterSpacing: 0.3, textTransform: "uppercase" },
+  trow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: A.borderSoft },
   trowLast: { borderBottomWidth: 0 },
-  tName: { fontSize: 13.5, fontWeight: "800", color: C.ink },
-  tProg: { fontSize: 15, fontWeight: "900" },
-  tSub: { fontSize: 11.5, color: GRAY, marginTop: 2 },
-  tVal: { fontSize: 13, fontWeight: "800", color: C.ink },
+  tName: { fontSize: 12, fontWeight: "700", color: A.ink },
+  tProg: { fontSize: 13, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  tSub: { fontSize: 10.5, color: A.muted, marginTop: 2 },
+  tVal: { fontSize: 11.5, fontWeight: "600", color: A.ink, fontVariant: ["tabular-nums"] },
   armadaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 
   // ===== Kotak kecil =====
-  miniRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  miniBox: { flexBasis: 130, flexGrow: 1, minWidth: 110, backgroundColor: C.surfaceAlt, borderRadius: R.sm, padding: 12 },
-  miniLabel: { fontSize: 9.5, fontWeight: "900", color: C.inkMuted, letterSpacing: 0.4 },
-  miniValue: { fontSize: 15, fontWeight: "900", color: C.ink, marginTop: 4 },
+  miniRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  miniBox: {
+    flexBasis: 130, flexGrow: 1, minWidth: 100,
+    backgroundColor: A.surfaceAlt, borderWidth: 1, borderColor: A.borderSoft,
+    borderRadius: 8, padding: 10,
+  },
+  miniLabel: { fontSize: 9, fontWeight: "800", color: A.muted, letterSpacing: 0.4, textTransform: "uppercase" },
+  miniValue: { fontSize: 14, fontWeight: "700", color: A.ink, marginTop: 3, fontVariant: ["tabular-nums"] },
 
   // ===== Tombol =====
-  btnGhost: { backgroundColor: C.status.neutral.bg, borderRadius: R.md, paddingVertical: 11, alignItems: "center", marginTop: 12 },
-  btnGhostText: { color: C.status.neutral.fg, fontWeight: "800", fontSize: 12.5 },
-  btnPrimary: { backgroundColor: C.primary, borderRadius: R.md, paddingVertical: 12, alignItems: "center", marginTop: 12 },
-  btnPrimaryText: { color: "#fff", fontWeight: "800", fontSize: 12.5 },
+  btnGhost: {
+    backgroundColor: A.surface, borderWidth: 1, borderColor: A.border,
+    borderRadius: 8, paddingVertical: 8, alignItems: "center", marginTop: 10,
+  },
+  btnGhostText: { color: A.blue, fontWeight: "700", fontSize: 11.5 },
+  btnPrimary: { backgroundColor: A.blue, borderRadius: 8, paddingVertical: 9, alignItems: "center", marginTop: 10 },
+  btnPrimaryText: { color: "#fff", fontWeight: "700", fontSize: 11.5 },
+
+  headBtn: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: A.surface, borderWidth: 1, borderColor: A.border,
+    borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7,
+  },
+  headBtnText: { fontSize: 10.5, fontWeight: "700", color: A.inkSoft },
+  headBtnPrimary: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: A.brand, borderRadius: 8,
+    paddingHorizontal: 11, paddingVertical: 7,
+  },
+  headBtnPrimaryText: { fontSize: 10.5, fontWeight: "700", color: "#fff" },
 
   // ===== Akses cepat =====
-  gridLabel: { fontSize: 15, fontWeight: "900", color: C.ink, marginTop: 24, marginBottom: 10 },
-  quickWrap: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  quick: { flexBasis: 210, flexGrow: 1, minWidth: 170, backgroundColor: C.surface, borderWidth: 1, borderColor: C.divider, borderRadius: R.lg, padding: 14 },
-  quickBubble: { width: 38, height: 38, borderRadius: 12, backgroundColor: C.primarySoft, alignItems: "center", justifyContent: "center", marginBottom: 10 },
-  quickLabel: { fontSize: 13.5, fontWeight: "800", color: C.ink },
-  quickDesc: { fontSize: 11.5, color: GRAY, marginTop: 2 },
+  gridLabel: {
+    fontSize: 11, fontWeight: "800", color: A.inkSoft,
+    letterSpacing: 0.6, textTransform: "uppercase",
+    marginTop: 4, marginBottom: 2,
+  },
+  quickWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  quick: {
+    flexBasis: 210, flexGrow: 1, minWidth: 170,
+    backgroundColor: A.surface, borderWidth: 1, borderColor: A.border,
+    borderRadius: 10, padding: 12,
+  },
+  quickBubble: {
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: A.blueSoft, borderWidth: 0,
+    alignItems: "center", justifyContent: "center", marginBottom: 9,
+  },
+  quickLabel: { fontSize: 12, fontWeight: "700", color: A.ink },
+  quickDesc: { fontSize: 10.5, color: A.muted, marginTop: 2 },
 });

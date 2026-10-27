@@ -19,6 +19,11 @@ const KIND: any = {
   manual: { emoji: "✉️", bg: "#FEE4E2" },
   approval: { emoji: "📍", bg: "#E0F2FE" },
   daily: { emoji: "⏰", bg: "#FEF0C7" },
+  // ===== 5 aturan notifikasi sistem =====
+  piutang_sync: { emoji: "💰", bg: "#DCFAE6" },   // piutang selesai disinkron SPV
+  spk_admin: { emoji: "📋", bg: "#FEF0C7" },      // 15.00 SPK admin masih OPEN
+  riwayat_cek: { emoji: "🕘", bg: "#E0F2FE" },    // 12.00/15.00/17.00 cek riwayat
+  field_visits: { emoji: "🧭", bg: "#EDE9FE" },   // 15.00 kunjungan < 7 toko
 };
 const kindOf = (k?: string | null) => KIND[k ?? ""] ?? { emoji: "🔔", bg: "#F2F4F7" };
 

@@ -8,7 +8,6 @@
  * @module
  */
 
-import type * as activeStoreReminders from "../activeStoreReminders.js";
 import type * as activeStoreSync from "../activeStoreSync.js";
 import type * as activeStores from "../activeStores.js";
 import type * as audit from "../audit.js";
@@ -33,7 +32,6 @@ import type * as piutang from "../piutang.js";
 import type * as piutangSync from "../piutangSync.js";
 import type * as reminderData from "../reminderData.js";
 import type * as reminders from "../reminders.js";
-import type * as spkReminders from "../spkReminders.js";
 import type * as stores from "../stores.js";
 import type * as users from "../users.js";
 import type * as visits from "../visits.js";
@@ -45,7 +43,6 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  activeStoreReminders: typeof activeStoreReminders;
   activeStoreSync: typeof activeStoreSync;
   activeStores: typeof activeStores;
   audit: typeof audit;
@@ -70,7 +67,6 @@ declare const fullApi: ApiFromModules<{
   piutangSync: typeof piutangSync;
   reminderData: typeof reminderData;
   reminders: typeof reminders;
-  spkReminders: typeof spkReminders;
   stores: typeof stores;
   users: typeof users;
   visits: typeof visits;

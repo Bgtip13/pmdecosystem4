@@ -1,10 +1,16 @@
 import { Platform } from "react-native";
 
-// ===== NOTIFIKASI =====
+// ===== NOTIFIKASI (khusus APK/native) =====
 // expo-notifications TIDAK didukung di Expo Go Android sejak SDK 53 (sekadar import = crash).
 // Strategi: deteksi Expo Go via expo-constants → kalau Expo Go, JANGAN import
 // expo-notifications sama sekali (semua fungsi no-op).
 // Begitu app di-build jadi APK asli, baru import jalan dan notifikasi aktif.
+//
+// Sejak perubahan aturan notifikasi, pengingat lokal hanya untuk 5 aturan dan
+// berjalan SENIN–SABTU (Minggu libur → tidak ada notifikasi sistem).
+// Pengingat lama (janji bayar 08.00, checkout, approval lokasi, SPK 15.00 lama,
+// kunjungan 17.00, rekap 20.00) sudah DIHENTIKAN — identitasnya dibatalkan
+// sekali lewat cancelLegacyReminders() supaya APK yang sudah terpasang berhenti.
 
 let notifModule: any = null;
 let decided = false;
@@ -45,13 +51,6 @@ async function ensureChannels(N: any) {
     await N.setNotificationChannelAsync?.("pmd-reminders", {
       name: "Pengingat PMD",
       importance: N.AndroidImportance?.HIGH ?? 4,
-    });
-    await N.setNotificationChannelAsync?.("pmd-approval", {
-      name: "Persetujuan Lokasi",
-      importance: N.AndroidImportance?.MAX ?? 5,
-      sound: "default",
-      vibrationPattern: [0, 500, 300, 500, 300, 1500],
-      enableVibrate: true,
     });
     await N.setNotificationChannelAsync?.("pmd-chat", {
       name: "Pesan Baru",
@@ -98,7 +97,7 @@ export async function initNotifications(): Promise<boolean> {
   }
 }
 
-// ===== TOKEN PUSH PERANGKAT (dipakai server utk kirim notif chat/approval) =====
+// ===== TOKEN PUSH PERANGKAT (dipakai server utk kirim notif) =====
 export async function getPushToken(): Promise<string | null> {
   const N = await getNotif();
   if (!N) return null;
@@ -112,77 +111,11 @@ export async function getPushToken(): Promise<string | null> {
   }
 }
 
-export async function scheduleCheckoutReminder(storeName?: string) {
-  const N = await getNotif();
-  if (!N) return; // Expo Go → diam
-  try {
-    await ensureChannels(N);
-    const granted = await ensurePermission(N);
-    if (!granted) return;
-    await N.cancelScheduledNotificationAsync?.("pmd-checkout");
-    await N.scheduleNotificationAsync?.({
-      identifier: "pmd-checkout",
-      content: {
-        title: "Jangan lupa check-out! ⏰",
-        body: storeName
-          ? `Kunjungan di ${storeName} sudah lama. Selesaikan & check-out ya.`
-          : "Kunjunganmu sudah lama. Selesaikan & check-out ya.",
-        sound: "default",
-      },
-      trigger: {
-        type: N.SchedulableTriggerInputTypes?.TIME_INTERVAL ?? "timeInterval",
-        seconds: 1800,
-        channelId: "pmd-reminders",
-      },
-    });
-  } catch {}
-}
+// ===== PENGINGAT HARIAN JAM TETAP — SENIN s/d SABTU (Minggu libur) =====
+// expo-notifications memakai weekday 1 = Minggu … 7 = Sabtu, jadi 2..7 = Senin..Sabtu.
+const WEEKDAYS = [2, 3, 4, 5, 6, 7];
 
-export async function cancelCheckoutReminder() {
-  const N = await getNotif();
-  if (!N) return;
-  try {
-    await N.cancelScheduledNotificationAsync?.("pmd-checkout");
-  } catch {}
-}
-
-// ===== NOTIF PERSETUJUAN LOKASI (khusus supervisor) =====
-export async function scheduleApprovalReminder(count: number) {
-  const N = await getNotif();
-  if (!N) return; // Expo Go → diam
-  if (!count || count <= 0) return;
-  try {
-    await ensureChannels(N);
-    const granted = await ensurePermission(N);
-    if (!granted) return;
-    await N.cancelScheduledNotificationAsync?.("pmd-approval");
-    await N.scheduleNotificationAsync?.({
-      identifier: "pmd-approval",
-      content: {
-        title: `📍 ${count} toko menunggu persetujuan`,
-        body: "Ada permintaan perbarui lokasi toko yang menunggu keputusanmu. Buka Menu SPV → Approval Lokasi Toko.",
-        sound: "default",
-        data: { kind: "approval" },
-      },
-      trigger: {
-        type: N.SchedulableTriggerInputTypes?.TIME_INTERVAL ?? "timeInterval",
-        seconds: 2,
-        channelId: "pmd-approval",
-      },
-    });
-  } catch {}
-}
-
-export async function cancelApprovalReminder() {
-  const N = await getNotif();
-  if (!N) return;
-  try {
-    await N.cancelScheduledNotificationAsync?.("pmd-approval");
-  } catch {}
-}
-
-// ===== PENGINGAT HARIAN JAM TETAP (diulang tiap hari, tanpa server) ← BARU =====
-export async function scheduleDailyReminder(opts: {
+export async function scheduleWeekdayReminder(opts: {
   id: string;
   hour: number;
   minute: number;
@@ -195,33 +128,67 @@ export async function scheduleDailyReminder(opts: {
   try {
     await ensureChannels(N);
     if (!(await ensurePermission(N))) return;
-    await N.cancelScheduledNotificationAsync?.(opts.id);
-    await N.scheduleNotificationAsync?.({
-      identifier: opts.id,
-      content: {
-        title: opts.title,
-        body: opts.body,
-        sound: "default",
-        data: { kind: "daily", id: opts.id },
-      },
-      trigger: {
-        type: N.SchedulableTriggerInputTypes?.DAILY ?? "daily",
-        hour: opts.hour,
-        minute: opts.minute,
-        channelId: opts.channel ?? "pmd-reminders",
-      },
-    });
+    await cancelWeekdayReminder(opts.id);
+
+    const type = N.SchedulableTriggerInputTypes?.WEEKLY ?? "weekly";
+    for (const weekday of WEEKDAYS) {
+      await N.scheduleNotificationAsync?.({
+        identifier: `${opts.id}-w${weekday}`,
+        content: {
+          title: opts.title,
+          body: opts.body,
+          sound: "default",
+          data: { kind: "daily", id: opts.id },
+        },
+        trigger: {
+          type,
+          weekday,
+          hour: opts.hour,
+          minute: opts.minute,
+          channelId: opts.channel ?? "pmd-reminders",
+        },
+      });
+    }
   } catch {}
 }
 
-export async function cancelDailyReminder(id: string) {
+export async function cancelWeekdayReminder(id: string): Promise<void> {
   const N = await getNotif();
   if (!N) return;
   try {
     await N.cancelScheduledNotificationAsync?.(id);
+    for (const weekday of WEEKDAYS) {
+      await N.cancelScheduledNotificationAsync?.(`${id}-w${weekday}`);
+    }
   } catch {}
 }
-// ===== TAP NOTIFIKASI → BUKA LAYAR TUJUAN (data.link) ← BARU =====
+
+// ===== PEMBERSIHAN PENGINGAT LAMA (dijalankan sekali tiap app dibuka) =====
+// APK yang sudah terpasang masih menyimpan jadwal notifikasi versi lama.
+// Kalau tidak dibatalkan, notifikasi yang sudah dihentikan akan terus muncul.
+const LEGACY_IDS = [
+  "pmd-checkout",              // pengingat lupa check-out
+  "pmd-approval",              // approval lokasi toko
+  "pmd-janjibayar-0800",       // janji bayar 08.00
+  "pmd-spk-admin-1500",        // versi lama: SPK admin 15.00 (dijadwalkan ulang di bawah)
+  "pmd-kunjungan-1700",        // versi lama: kunjungan 17.00
+  "pmd-rekap-2000",            // rekap harian 20.00
+];
+
+export async function cancelLegacyReminders(): Promise<void> {
+  const N = await getNotif();
+  if (!N) return;
+  try {
+    for (const id of LEGACY_IDS) {
+      await N.cancelScheduledNotificationAsync?.(id);
+      for (const weekday of WEEKDAYS) {
+        await N.cancelScheduledNotificationAsync?.(`${id}-w${weekday}`);
+      }
+    }
+  } catch {}
+}
+
+// ===== TAP NOTIFIKASI → BUKA LAYAR TUJUAN (data.link) =====
 export async function setNotificationTapHandler(onTap: (link: string) => void): Promise<void> {
   const N = await getNotif();
   if (!N) return;
@@ -232,4 +199,3 @@ export async function setNotificationTapHandler(onTap: (link: string) => void): 
     });
   } catch {}
 }
-

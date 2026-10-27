@@ -1,6 +1,7 @@
 import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 import { parseMoney } from "./lib/money";
 
 
@@ -177,6 +178,70 @@ export const startRun = internalMutation({
   },
 });
 
+// ============================================================================
+// NOTIFIKASI (1): piutang selesai disinkron oleh SPV → HANYA sales telemarketing.
+// Sekali per hari per orang (dijaga reminder_deliveries), dan dilewati hari Minggu.
+// ============================================================================
+function isSundayWIB(now = Date.now()) {
+  return new Date(now + 7 * 3600 * 1000).getUTCDay() === 0;
+}
+
+async function notifySyncDone(ctx: any, runId: any, imported: number, now: number) {
+  if (isSundayWIB(now)) return; // ATURAN 4 — Minggu tidak ada notifikasi sistem
+
+  const run: any = await ctx.db.get(runId);
+  if (!run || run.requestedByRole !== "supervisor") return; // hanya hasil sinkron SPV
+
+  const day = dayKeyWIB(now);
+  const users = await ctx.db.query("users").collect();
+  const tele = users.filter((u: any) => u.role === "telemarketing");
+  if (tele.length === 0) return;
+
+  const title = "Piutang sudah disinkron SPV";
+  const body =
+    `Data piutang hari ini sudah diperbarui${imported > 0 ? ` (${imported} tugas baru)` : ""}. ` +
+    "Buka SPK Admin untuk mengerjakan hasilnya.";
+
+  const notified: any[] = [];
+  for (const t of tele) {
+    const dedupeKey = `notif:sync-done:${day}:${t._id}`;
+    const dup = await ctx.db.query("reminder_deliveries")
+      .withIndex("by_dedupe", (q: any) => q.eq("dedupeKey", dedupeKey))
+      .first();
+    if (dup) continue;
+
+    await ctx.db.insert("notifications", {
+      userId: t._id,
+      fromName: "Sistem PMD",
+      title,
+      body,
+      kind: "piutang_sync",
+      link: "/spk",
+      createdAt: now,
+    });
+    await ctx.db.insert("reminder_deliveries", {
+      dedupeKey,
+      day,
+      kind: "piutang_sync",
+      recipientId: t._id,
+      status: "sent",
+      createdAt: now,
+      sentAt: now,
+    });
+    notified.push(t._id);
+  }
+
+  if (notified.length > 0) {
+    await ctx.scheduler.runAfter(0, internal.reminders.pushToUsers, {
+      userIds: notified,
+      title,
+      body,
+      kind: "piutang_sync",
+      link: "/spk",
+    });
+  }
+}
+
 // ===== STATUS SINKRON: SELESAIKAN RUN =====
 export const finishRun = internalMutation({
   args: {
@@ -190,6 +255,15 @@ export const finishRun = internalMutation({
   handler: async (ctx, { runId, ...rest }) => {
     const finishedAt = Date.now();
     await ctx.db.patch(runId, { ...rest, finishedAt });
+
+    // Hanya sinkron yang BERHASIL: beri tahu sales telemarketing.
+    // Dibungkus try/catch supaya kegagalan notifikasi tidak menggagalkan pencatatan run.
+    if (rest.status === "success") {
+      try {
+        await notifySyncDone(ctx, runId, rest.importedCount ?? 0, finishedAt);
+      } catch {}
+    }
+
     return { ok: true, finishedAt };
   },
 });

@@ -5,31 +5,23 @@ import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
-  scheduleCheckoutReminder,
-  cancelCheckoutReminder,
-  scheduleApprovalReminder,
-  cancelApprovalReminder,
   getPushToken,
-  scheduleDailyReminder,
-  cancelDailyReminder,
+  scheduleWeekdayReminder,
+  cancelWeekdayReminder,
+  cancelLegacyReminders,
 } from "../lib/notif";
 import AppIcon from "./AppIcon";
 
 const RED = "#D92D20";
 const GRAY = "#667085";
 
-// Hindari notif approval spam saat pindah-pindah tab (masih dalam sesi yang sama)
-let approvalNotifiedFor = 0;
-
 export default function TabBar({ active }: { active: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const viewer = useQuery(api.users.viewer) as any;
-  const ongoing = useQuery(api.visits.getMyOngoing) as any;
   const registerPush = useMutation(api.chat.registerPushToken);
-  const [schedFor, setSchedFor] = useState<string | null>(null);
   const [pushDone, setPushDone] = useState(false);
-  const [dailyFor, setDailyFor] = useState<string | null>(null);
+  const [notifSetupFor, setNotifSetupFor] = useState<string | null>(null);
 
   const role = viewer?.role;
   const isSuper = role === "supervisor";
@@ -41,7 +33,6 @@ export default function TabBar({ active }: { active: string }) {
   const needSpkBadge = withSpkBadge && (active === "spk" || active === "spk-sales" || active === "beranda");
   const pending = useQuery(api.piutang.pendingCount, needSpkBadge ? {} : "skip") as any;
   const badge = withSpkBadge && pending?.count > 0 ? pending.count : 0;
-  const approvals = useQuery(api.locationRequests.listPendingRequests, isSuper ? undefined : "skip") as any;
 
   // Daftarkan token push perangkat (sekali) supaya bisa terima notif chat
   useEffect(() => {
@@ -55,103 +46,73 @@ export default function TabBar({ active }: { active: string }) {
     })();
   }, [viewer, pushDone, registerPush]);
 
-  // Pengingat lupa check-out
-  useEffect(() => {
-    if (ongoing === undefined || !viewer) return;
-    if (ongoing?.visit) {
-      if (schedFor !== ongoing.visit._id) {
-        scheduleCheckoutReminder(ongoing.store?.name);
-        setSchedFor(ongoing.visit._id);
-      }
-    } else {
-      cancelCheckoutReminder();
-      setSchedFor(null);
-    }
-  }, [ongoing, viewer, schedFor]);
-
-  // Notif persetujuan lokasi (supervisor)
-  useEffect(() => {
-    if (!isSuper) {
-      approvalNotifiedFor = 0;
-      return;
-    }
-    const n = (approvals ?? []).length;
-    if (n === 0) {
-      approvalNotifiedFor = 0;
-      cancelApprovalReminder();
-      return;
-    }
-    if (n > approvalNotifiedFor) {
-      scheduleApprovalReminder(n);
-      approvalNotifiedFor = n;
-    }
-  }, [approvals, isSuper]);
-
-  // Pengingat harian jam tetap sesuai peran (lokal, tidak butuh server/FCM)
+  // ===== NOTIFIKASI SISTEM — hanya 5 aturan, lokal Senin–Sabtu (Minggu libur) =====
+  //  (2) 15.00 SPK Admin masih OPEN      → telemarketing
+  //  (3) 12.00 / 15.00 / 17.00 cek riwayat → supervisor & owner
+  //  (5) 15.00 kunjungan < 7 toko        → sales lapangan
+  //  (1) piutang selesai disinkron SPV   → telemarketing (dikirim server, bukan di sini)
+  //  (4) Minggu: tidak ada notifikasi
   useEffect(() => {
     const r = viewer?.role;
-    if (!r || dailyFor === r) return;
-    setDailyFor(r);
+    if (!r || notifSetupFor === r) return;
+    setNotifSetupFor(r);
 
     const isFieldRole = r === "field";
     const isTeleRole = r === "telemarketing";
-    const isSuperRole = r === "supervisor";
-    const isOwnerRole = r === "owner";
+    const cekRiwayat = r === "supervisor" || r === "owner";
 
-    // 08:00 — janji bayar jatuh tempo
-    if (isTeleRole || isSuperRole) {
-      scheduleDailyReminder({
-        id: "pmd-janjibayar-0800",
-        hour: 8, minute: 0,
-        title: "Cek janji bayar hari ini 💰",
-        body: "Ada toko yang janji bayarnya jatuh tempo. Buka SPK → Admin.",
-        channel: "pmd-reminders",
-      });
-    } else {
-      cancelDailyReminder("pmd-janjibayar-0800");
-    }
+    (async () => {
+      // Buang jadwal notifikasi versi lama sekali jalan (janji bayar 08.00, checkout,
+      // approval lokasi, SPK 15.00 lama, kunjungan 17.00, rekap 20.00).
+      await cancelLegacyReminders();
 
-    // 15:00 — SPK Admin belum beres
-    if (isTeleRole || isSuperRole) {
-      scheduleDailyReminder({
-        id: "pmd-spk-admin-1500",
-        hour: 15, minute: 0,
-        title: "Cek SPK Admin 📋",
-        body: "Pastikan follow-up piutang & orderan hari ini sudah beres semua.",
-        channel: "pmd-reminders",
-      });
-    } else {
-      cancelDailyReminder("pmd-spk-admin-1500");
-    }
+      // (3) supervisor & owner: cek riwayat kunjungan + follow-up
+      const riwayat = [
+        { id: "pmd-cek-riwayat-1200", hour: 12, body: "Cek kunjungan sales dan follow-up (SPK sales & SPK admin) hari ini." },
+        { id: "pmd-cek-riwayat-1500", hour: 15, body: "Cek kunjungan sales dan follow-up (SPK sales & SPK admin) sore ini." },
+        { id: "pmd-cek-riwayat-1700", hour: 17, body: "Cek riwayat kunjungan dan follow-up sebelum tutup hari." },
+      ];
+      for (const it of riwayat) {
+        if (cekRiwayat) {
+          await scheduleWeekdayReminder({
+            id: it.id,
+            hour: it.hour,
+            minute: 0,
+            title: `Cek riwayat (${it.hour}.00)`,
+            body: it.body,
+          });
+        } else {
+          await cancelWeekdayReminder(it.id);
+        }
+      }
 
-    // 17:00 — target kunjungan
-    if (isFieldRole || isSuperRole || isOwnerRole) {
-      scheduleDailyReminder({
-        id: "pmd-kunjungan-1700",
-        hour: 17, minute: 0,
-        title: "Target kunjungan ⏰",
-        body: isFieldRole
-          ? "Cek kunjunganmu hari ini — target minimal 7 toko."
-          : "Lihat daftar sales yang kunjungannya masih di bawah 7 toko hari ini.",
-        channel: "pmd-reminders",
-      });
-    } else {
-      cancelDailyReminder("pmd-kunjungan-1700");
-    }
+      // (2) telemarketing: SPK Admin yang masih OPEN
+      if (isTeleRole) {
+        await scheduleWeekdayReminder({
+          id: "pmd-spk-admin-1500",
+          hour: 15,
+          minute: 0,
+          title: "Cek SPK Admin 📋",
+          body: "Masih ada tugas OPEN hari ini. Kerjakan lalu kirim hasilnya ke SPV.",
+        });
+      } else {
+        await cancelWeekdayReminder("pmd-spk-admin-1500");
+      }
 
-    // 20:00 — rekap harian (supervisor saja)
-    if (isSuperRole) {
-      scheduleDailyReminder({
-        id: "pmd-rekap-2000",
-        hour: 20, minute: 0,
-        title: "Rekap harian PMD 📊",
-        body: "Rekap kunjungan, orderan & tunai ekspedisi hari ini siap dilihat.",
-        channel: "pmd-reminders",
-      });
-    } else {
-      cancelDailyReminder("pmd-rekap-2000");
-    }
-  }, [viewer, dailyFor]);
+      // (5) sales lapangan: kunjungan masih di bawah 7 toko
+      if (isFieldRole) {
+        await scheduleWeekdayReminder({
+          id: "pmd-kunjungan-1500",
+          hour: 15,
+          minute: 0,
+          title: "Cek kunjungan ⏰",
+          body: "Target minimal 7 toko/hari. Kalau masih kurang, lanjut kunjungan.",
+        });
+      } else {
+        await cancelWeekdayReminder("pmd-kunjungan-1500");
+      }
+    })();
+  }, [viewer, notifSetupFor]);
 
   // Susunan tab — Chat TIDAK lagi di sini (pindah ke ikon header via ChatHeaderButton)
   const TABS: any[] = [

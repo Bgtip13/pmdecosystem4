@@ -23,12 +23,12 @@ const SPLASH_LOGO = 220;
 const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1);
 
 /**
- * Animasi pembuka APK. Tampil menutupi router sejak frame pertama,
- * mengambil alih splash native, lalu fade ke layar aplikasi.
- * Hanya untuk iOS/Android — di web tidak dipakai.
+ * Animasi pembuka. Tampil menutupi router sejak frame pertama, mengambil alih
+ * splash native, lalu fade ke layar aplikasi.
+ * Dipakai di APK (iOS/Android) DAN di tampilan web. Waktunya sama; di web hanya
+ * pelepasan splash native yang dilewati karena browser tidak memilikinya.
  */
 export default function LaunchSplash() {
-  if (Platform.OS === "web") return null;
   return <NativeLaunchSplash />;
 }
 
@@ -85,7 +85,9 @@ function NativeLaunchSplash() {
     started.current = true;
 
     // Splash native baru dilepas setelah overlay ini siap di layar.
-    SplashScreen.hideAsync().catch(() => {});
+    // Di web tidak ada splash native — kalau tetap dipanggil, expo-splash-screen
+    // akan menolak, jadi lebih aman dilewati.
+    if (Platform.OS !== "web") SplashScreen.hideAsync().catch(() => {});
 
     const breathe = (delay: number) =>
       withDelay(
@@ -150,6 +152,16 @@ function NativeLaunchSplash() {
     );
     timers.current.push(setTimeout(() => setGone(true), 1710));
   };
+
+  // Di web onLayout bisa tidak terpanggil (mis. saat halaman masih di-hidrasi),
+  // jadi animasi dimulai lewat timer juga. start() hanya jalan sekali, dan tanpa
+  // ini overlay pembuka bisa menyangkut menutupi seluruh aplikasi.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const t = setTimeout(start, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const rootStyle = useAnimatedStyle(() => ({
     opacity: 1 - fade.value,

@@ -3,6 +3,18 @@ import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { logAudit } from "./lib/audit";
 
+function monthKeyWib(date = new Date()): string {
+  const d = new Date(date.getTime() + 7 * 3600 * 1000);
+  return d.toISOString().slice(0, 7);
+}
+
+function monthRangeWib(key: string): { start: number; end: number } {
+  const [y, m] = key.split("-").map((x) => parseInt(x, 10));
+  const start = new Date(Date.UTC(y, m - 1, 1) - 7 * 3600 * 1000).getTime();
+  const end = new Date(Date.UTC(y, m, 1) - 7 * 3600 * 1000).getTime() - 1;
+  return { start, end };
+}
+
 const RADIUS_M = 200;
 
 // Pengaman Database I/O: batas baris sekali baca + toleransi jam untuk rentang
@@ -760,5 +772,130 @@ export const supervisorAddManualVisit = mutation({
       updatedAt: Date.now(),
     } as any);
     return { visitId };
+  },
+});
+
+
+// ===== KPI KUNJUNGAN BULANAN (untuk SPV/Owner) =====
+export const monthlyKpi = query({
+  args: {
+    monthKey: v.optional(v.string()),
+    area: v.optional(v.union(v.literal("SOLO"), v.literal("DIY"), v.literal("SEMARANG"))),
+  },
+  handler: async (ctx, { monthKey, area }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) return [];
+    const me = await ctx.db.get(userId);
+    const role = (me as any)?.role;
+    if (role !== "supervisor" && role !== "owner") return [];
+
+    const mk = monthKey ?? monthKeyWib();
+    const { start, end } = monthRangeWib(mk);
+
+    const allUsers = await ctx.db.query("users").collect();
+    const salesList = allUsers.filter((u: any) => {
+      if (u.role !== "field") return false;
+      if (area && u.area !== area) return false;
+      return true;
+    });
+
+    const result: any[] = [];
+    for (const s of salesList) {
+      const visits = await ctx.db
+        .query("visits")
+        .withIndex("by_sales_checkin", (q) => q.eq("salesId", s._id).gte("checkinAt", start).lte("checkinAt", end))
+        .collect();
+
+      const done = visits.filter((v: any) => v.status === "done");
+      let durMs = 0;
+      let withKeterangan = 0;
+      let hasProductInfo = 0;
+      for (const v of done) {
+        if (v.checkoutAt && v.checkinAt) durMs += v.checkoutAt - v.checkinAt;
+        if ((v.notes || "").trim().length > 0) withKeterangan++;
+        if ((v.productTrend || "").trim().length > 0 || (v.productSearched || "").trim().length > 0) hasProductInfo++;
+      }
+
+      const count = done.length;
+      const avgMin = count > 0 ? Math.round(durMs / 60000 / count) : 0;
+      const totalMin = Math.round(durMs / 60000);
+      const ketPct = count > 0 ? Math.round((withKeterangan / count) * 100) : 0;
+      const infoPct = count > 0 ? Math.round((hasProductInfo / count) * 100) : 0;
+      const score = Math.round(ketPct * 0.4 + infoPct * 0.3 + Math.min(100, (count / 25) * 100) * 0.3);
+
+      result.push({
+        salesId: s._id,
+        salesName: s.name,
+        area: s.area,
+        monthKey: mk,
+        kunjungan: count,
+        totalMenit: totalMin,
+        rataMenit: avgMin,
+        adaKeterangan: withKeterangan,
+        adaInfoProduk: hasProductInfo,
+        ketPct,
+        infoPct,
+        skor: score,
+      });
+    }
+
+    result.sort((a, b) => b.skor - a.skor || b.kunjungan - a.kunjungan);
+    return result;
+  },
+});
+
+// ===== KPI KUNJUNGAN TELEMARKETING =====
+export const monthlyKpiTele = query({
+  args: {
+    monthKey: v.optional(v.string()),
+    area: v.optional(v.union(v.literal("SOLO"), v.literal("DIY"), v.literal("SEMARANG"))),
+  },
+  handler: async (ctx, { monthKey, area }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) return [];
+    const me = await ctx.db.get(userId);
+    const role = (me as any)?.role;
+    if (role !== "supervisor" && role !== "owner") return [];
+
+    const mk = monthKey ?? monthKeyWib();
+    const { start, end } = monthRangeWib(mk);
+
+    const allUsers = await ctx.db.query("users").collect();
+    const teleList = allUsers.filter((u: any) => {
+      if (u.role !== "telemarketing") return false;
+      if (area && u.area !== area) return false;
+      return true;
+    });
+
+    const result: any[] = [];
+    for (const t of teleList) {
+      const salesList = allUsers.filter((u: any) => u.role === "field" && u.area === t.area);
+      const salesIds = salesList.map((s: any) => s._id);
+      if (salesIds.length === 0) {
+        result.push({ teleId: t._id, teleName: t.name, area: t.area, monthKey: mk, kunjunganDibawah: 0, adaKeterangan: 0, ketPct: 0, skor: 0 });
+        continue;
+      }
+
+      let kunjunganDibawah = 0;
+      let adaKeterangan = 0;
+      for (const sid of salesIds) {
+        const visits = await ctx.db
+          .query("visits")
+          .withIndex("by_sales_checkin", (q) => q.eq("salesId", sid).gte("checkinAt", start).lte("checkinAt", end))
+          .collect();
+        for (const v of visits as any[]) {
+          if (v.status !== "done") continue;
+          kunjunganDibawah++;
+          if ((v.notes || "").trim().length > 0) adaKeterangan++;
+        }
+      }
+
+      const ketPct = kunjunganDibawah > 0 ? Math.round((adaKeterangan / kunjunganDibawah) * 100) : 0;
+      const skor = Math.round(ketPct * 0.6 + Math.min(100, (kunjunganDibawah / 60) * 100) * 0.4);
+      result.push({ teleId: t._id, teleName: t.name, area: t.area, monthKey: mk, kunjunganDibawah, adaKeterangan, ketPct, skor });
+    }
+
+    result.sort((a, b) => b.skor - a.skor);
+    return result;
   },
 });

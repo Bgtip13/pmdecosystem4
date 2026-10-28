@@ -77,6 +77,11 @@ export default function SpvHub() {
           label="Audit Aktivitas" desc="Siapa mengubah / menghapus / menyetujui apa, kapan"
           to="/audit"
         />
+        <MenuCard
+          icon="chart" color={C.chip.success.fg} bg={C.chip.success.bg}
+          label="Penilaian Sales & Telemarketing" desc="On-track/tidak per sales • kunjungan • follow-up"
+          to="/spv-penilaian"
+        />
 
         <Text style={styles.section}>Persetujuan</Text>
         <MenuCard

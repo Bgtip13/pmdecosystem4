@@ -1,11 +1,12 @@
 import IOSSpinner from "../../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Linking } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Linking, TextInput, Modal, Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import * as Location from "expo-location";
 import { api } from "../../../convex/_generated/api";
 import AppIcon from "../../components/AppIcon";
+import DatePickerModal from "../../components/DatePickerModal";
 import { theme } from "../../lib/theme";
 import { toFriendlyError } from "../../lib/msg";
 import { TOP_PAD } from "../../lib/layout";
@@ -18,6 +19,17 @@ const RADIUS_WARN_M = 200;   // harus sama dengan RADIUS_M di convex/jadwal.ts
 
 const DAYS = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const MET_LABEL: any = { owner: "Owner", karyawan: "Karyawan", pic: "PIC", keluarga: "Keluarga", toko_tutup: "Toko tutup" };
+// Alasan geser/batal yang sering dipakai — supaya supervisor tidak mengetik bebas
+// dan alasannya bisa direkap.
+const ALASAN = [
+  "Toko tutup",
+  "Owner minta hari lain",
+  "Toko ramai / antre",
+  "Akses & jalan",
+  "Sales izin / sakit",
+  "Cuaca",
+  "Lain-lain",
+];
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const fmtTime = (ms?: number | null) => (ms ? new Date(ms).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-");
@@ -37,6 +49,14 @@ function fmtTanggal(dk: string) {
   return `${hariDari(dk)}, ${tglDari(dk)}`;
 }
 
+const todayKeyWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+
+function addDayKey(dk: string, n: number) {
+  const [y, m, d] = dk.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+}
+
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
   const Rr = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -54,8 +74,25 @@ export default function JadwalKartu() {
 
   const data = useQuery(api.jadwal.getCard, { scheduleId: id as any }) as any;
   const dayList = useQuery(api.jadwal.listDay, { dateKey: dk ?? undefined } as any) as any;
+  const viewer = useQuery(api.users.viewer) as any;
   const checkIn = useMutation(api.jadwal.checkIn);
   const requestLocationUpdate = useMutation(api.locationRequests.requestLocationUpdate);
+  const moveSchedule = useMutation(api.jadwalEdit.moveSchedule);
+  const cancelSchedule = useMutation(api.jadwalEdit.cancelSchedule);
+
+  // ===== Supervisor: geser / batalkan jadwal dari app (sheet hanya untuk input) =====
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [calOpen, setCalOpen] = useState(false);
+  const [targetDate, setTargetDate] = useState("");
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const targetDay = useQuery(
+    api.jadwal.listDay,
+    moveOpen && targetDate ? ({ dateKey: targetDate } as any) : "skip"
+  ) as any;
 
   // storeId belum ada saat data dimuat → query di-skip dulu (aman, hook tetap urut)
   const storeId = (data as any)?.store?._id;
@@ -169,6 +206,75 @@ export default function JadwalKartu() {
       Alert.alert("Gagal", toFriendlyError(e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const isSuper = viewer?.role === "supervisor";
+
+  const openMove = () => {
+    const mulai = s.dateKey >= todayKeyWIB() ? addDayKey(s.dateKey, 1) : todayKeyWIB();
+    setReason("");
+    setNote("");
+    setTargetDate(mulai);
+    setMoveOpen(true);
+  };
+
+  const submitMove = async (ignoreMinimum = false) => {
+    if (!targetDate) {
+      Alert.alert("Pilih tanggal", "Tentukan tanggal tujuan dulu.");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const alasan = [reason, note.trim()].filter(Boolean).join(" — ");
+      await moveSchedule({
+        scheduleId: s._id,
+        toDateKey: targetDate,
+        reason: alasan || undefined,
+        ignoreMinimum,
+      });
+      setMoveOpen(false);
+      Alert.alert("Jadwal digeser", `${s.storeName}\n${fmtTanggal(s.dateKey)} → ${fmtTanggal(targetDate)}`);
+      back();
+    } catch (e: any) {
+      const msg = toFriendlyError(e);
+      if (!ignoreMinimum && msg.includes("di bawah minimal")) {
+        Alert.alert("Di bawah minimal harian", msg, [
+          { text: "Batal", style: "cancel" },
+          { text: "Tetap lanjutkan", style: "destructive", onPress: () => submitMove(true) },
+        ]);
+      } else {
+        Alert.alert("Gagal menggeser", msg);
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const submitCancel = async (ignoreMinimum = false) => {
+    if (!reason.trim()) {
+      Alert.alert("Alasan wajib", "Pilih alasan pembatalan dulu.");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const alasan = [reason, note.trim()].filter(Boolean).join(" — ");
+      await cancelSchedule({ scheduleId: s._id, reason: alasan, ignoreMinimum });
+      setCancelOpen(false);
+      Alert.alert("Jadwal dibatalkan", `${s.storeName} (${fmtTanggal(s.dateKey)})`);
+      back();
+    } catch (e: any) {
+      const msg = toFriendlyError(e);
+      if (!ignoreMinimum && msg.includes("di bawah minimal")) {
+        Alert.alert("Di bawah minimal harian", msg, [
+          { text: "Batal", style: "cancel" },
+          { text: "Tetap lanjutkan", style: "destructive", onPress: () => submitCancel(true) },
+        ]);
+      } else {
+        Alert.alert("Gagal membatalkan", msg);
+      }
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -344,6 +450,53 @@ export default function JadwalKartu() {
           </TouchableOpacity>
         )}
 
+        {/* ===== Kelola jadwal (supervisor) — sheet hanya untuk input ===== */}
+        {isSuper ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>KELOLA JADWAL (SUPERVISOR)</Text>
+            {status === "PLANNED" ? (
+              <>
+                <Text style={styles.editHint}>
+                  Geser atau batalkan dari sini. Sheet JADWAL tidak perlu diubah, dan tarik jadwal
+                  berikutnya tidak akan menimpa keputusan ini.
+                </Text>
+                <View style={styles.actRow}>
+                  <TouchableOpacity style={styles.smallBtn} onPress={openMove}>
+                    <Text style={[styles.smallBtnText, { color: C.status.info.fg }]}>Geser tanggal</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.smallBtn, styles.cancelBtn]}
+                    onPress={() => { setReason(""); setNote(""); setCancelOpen(true); }}
+                  >
+                    <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Batalkan</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <Text style={styles.editHint}>
+                {status === "CANCELLED"
+                  ? "Jadwal ini sudah dibatalkan supervisor."
+                  : "Jadwal yang sudah dikerjakan tidak bisa digeser atau dibatalkan."}
+              </Text>
+            )}
+          </View>
+        ) : null}
+
+        {/* Riwayat perubahan dari aplikasi */}
+        {(s as any).editedAt ? (
+          <View style={[styles.card, { backgroundColor: "#EFF8FF", borderColor: "#B2DDFF" }]}>
+            <Text style={[styles.warnTitle, { color: "#175CD3" }]}>
+              {(s as any).editKind === "cancel" ? "Dibatalkan supervisor" : "Digeser supervisor"}
+            </Text>
+            <Text style={[styles.warnText, { color: "#175CD3" }]}>
+              {(s as any).previousDateKey
+                ? `${fmtTanggal((s as any).previousDateKey)} → ${fmtTanggal(s.dateKey)}`
+                : fmtTanggal(s.dateKey)}
+              {(s as any).editReason ? `\nAlasan: ${(s as any).editReason}` : ""}
+            </Text>
+          </View>
+        ) : null}
+
         {/* ===== Pindah toko (bukan urutan wajib) ===== */}
         {rows.length > 1 ? (
           <View style={styles.navRow}>
@@ -364,6 +517,120 @@ export default function JadwalKartu() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* ===== Modal geser jadwal (supervisor) ===== */}
+      <Modal visible={moveOpen} transparent animationType="fade" onRequestClose={() => setMoveOpen(false)}>
+        <Pressable style={styles.modalBg} onPress={() => setMoveOpen(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Geser tanggal</Text>
+            <Text style={styles.modalSub} numberOfLines={3}>{s.storeName} • {s.area}</Text>
+
+            <TouchableOpacity style={styles.datePick} onPress={() => setCalOpen(true)}>
+              <Text style={styles.datePickLabel}>Tanggal tujuan</Text>
+              <Text style={styles.datePickValue}>{targetDate ? fmtTanggal(targetDate) : "Pilih tanggal"}</Text>
+            </TouchableOpacity>
+
+            {targetDay ? (
+              <Text style={styles.modalHint}>
+                {targetDay.total} toko pada {fmtTanggal(targetDate)}
+                {data.dayLoad ? `  •  hari ini ${data.dayLoad.count}/${data.dayLoad.min} toko` : ""}
+              </Text>
+            ) : null}
+
+            <Text style={styles.modalLabel}>ALASAN</Text>
+            <View style={styles.reasonRow}>
+              {ALASAN.map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.reasonChip, reason === r && styles.reasonChipOn]}
+                  onPress={() => setReason(r)}
+                >
+                  <Text style={[styles.reasonText, reason === r && styles.reasonTextOn]}>{r}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              style={styles.noteInput}
+              placeholder="Catatan tambahan (opsional)"
+              placeholderTextColor="#98A2B3"
+              value={note}
+              onChangeText={setNote}
+              multiline
+            />
+
+            <View style={styles.modalFoot}>
+              <TouchableOpacity style={styles.modalGhost} onPress={() => setMoveOpen(false)}>
+                <Text style={styles.modalGhostText}>Batal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, savingEdit && { opacity: 0.6 }]}
+                onPress={() => submitMove(false)}
+                disabled={savingEdit}
+              >
+                <Text style={styles.modalBtnText}>{savingEdit ? "Menyimpan…" : "Geser"}</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <DatePickerModal
+        visible={calOpen}
+        value={targetDate || s.dateKey}
+        minDate={todayKeyWIB()}
+        onClose={() => setCalOpen(false)}
+        onPick={(d: string) => { setTargetDate(d); setCalOpen(false); }}
+      />
+
+      {/* ===== Modal batalkan jadwal (supervisor) ===== */}
+      <Modal visible={cancelOpen} transparent animationType="fade" onRequestClose={() => setCancelOpen(false)}>
+        <Pressable style={styles.modalBg} onPress={() => setCancelOpen(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Batalkan jadwal</Text>
+            <Text style={styles.modalSub} numberOfLines={3}>{s.storeName} • {fmtTanggal(s.dateKey)}</Text>
+            <Text style={styles.editHint}>
+              Barisnya tidak dihapus — tetap tersimpan sebagai dibatalkan beserta alasannya,
+              jadi masih bisa ditelusuri kapan saja.
+            </Text>
+
+            <Text style={styles.modalLabel}>ALASAN (WAJIB)</Text>
+            <View style={styles.reasonRow}>
+              {ALASAN.map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.reasonChip, reason === r && styles.reasonChipOn]}
+                  onPress={() => setReason(r)}
+                >
+                  <Text style={[styles.reasonText, reason === r && styles.reasonTextOn]}>{r}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              style={styles.noteInput}
+              placeholder="Catatan tambahan (opsional)"
+              placeholderTextColor="#98A2B3"
+              value={note}
+              onChangeText={setNote}
+              multiline
+            />
+
+            <View style={styles.modalFoot}>
+              <TouchableOpacity style={styles.modalGhost} onPress={() => setCancelOpen(false)}>
+                <Text style={styles.modalGhostText}>Kembali</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, savingEdit && { opacity: 0.6 }]}
+                onPress={() => submitCancel(false)}
+                disabled={savingEdit}
+              >
+                <Text style={styles.modalBtnText}>{savingEdit ? "Menyimpan…" : "Batalkan"}</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -426,6 +693,31 @@ const styles = StyleSheet.create({
   navRow: { flexDirection: "row", marginTop: 14 },
   navBtn: { flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingVertical: 11, alignItems: "center", marginHorizontal: 4 },
   navBtnText: { fontSize: 13, fontWeight: "800", color: C.inkSoft },
+
+  editHint: { fontSize: 12, color: GRAY, lineHeight: 18, marginTop: 4 },
+  cancelBtn: { backgroundColor: "#FEF3F2", borderColor: "#FECDCA", marginLeft: 8 },
+
+  // ===== modal geser / batal =====
+  modalBg: { flex: 1, backgroundColor: "rgba(16,24,40,0.45)", justifyContent: "center", padding: 20 },
+  modalCard: { backgroundColor: "#fff", borderRadius: R.lg, padding: 16 },
+  modalTitle: { fontSize: 17, fontWeight: "800", color: C.ink },
+  modalSub: { fontSize: 12, color: GRAY, marginTop: 3, lineHeight: 17 },
+  datePick: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 11, marginTop: 12 },
+  datePickLabel: { fontSize: 11, fontWeight: "800", color: GRAY },
+  datePickValue: { fontSize: 13, fontWeight: "800", color: C.ink },
+  modalHint: { fontSize: 11, color: GRAY, marginTop: 6 },
+  modalLabel: { fontSize: 10.5, fontWeight: "900", color: GRAY, marginTop: 14, marginBottom: 6, letterSpacing: 0.5 },
+  reasonRow: { flexDirection: "row", flexWrap: "wrap" },
+  reasonChip: { borderWidth: 1, borderColor: C.border, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, marginRight: 6, marginBottom: 6 },
+  reasonChipOn: { backgroundColor: RED, borderColor: RED },
+  reasonText: { fontSize: 11.5, fontWeight: "700", color: GRAY },
+  reasonTextOn: { color: "#fff" },
+  noteInput: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: C.ink, marginTop: 6, minHeight: 60, textAlignVertical: "top" },
+  modalFoot: { flexDirection: "row", marginTop: 14 },
+  modalGhost: { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingVertical: 12, alignItems: "center", marginRight: 8 },
+  modalGhostText: { fontSize: 13, fontWeight: "800", color: C.inkSoft },
+  modalBtn: { flex: 1, backgroundColor: RED, borderRadius: R.md, paddingVertical: 12, alignItems: "center" },
+  modalBtnText: { fontSize: 13, fontWeight: "800", color: "#fff" },
 
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink, marginBottom: 8 },
   btnBack: { backgroundColor: RED, borderRadius: R.md, paddingHorizontal: 26, paddingVertical: 12 },

@@ -10,6 +10,39 @@ const ROLE_V = v.union(
   v.literal("telemarketing"),
 );
 
+// ===== ATURAN OPERASIONAL: 1 AREA = 1 SALES LAPANGAN =====
+// Kalau satu area dipegang dua sales, jadwal dari sheet jatuh ke orang yang
+// salah / menumpuk di satu orang. Jadi penugasan area dicegah di sini, bukan
+// cuma diingatkan.
+async function assertAreaNotTaken(ctx: any, area: string, exceptUserId?: any) {
+  const all = await ctx.db.query("users").collect();
+  const other = (all as any[]).find(
+    (u) => u.role === "field" && u.area === area && String(u._id) !== String(exceptUserId ?? "")
+  );
+  if (other) {
+    throw new Error(
+      `Area ${area} sudah dipegang ${other.name ?? "sales lain"}. ` +
+      `Aturannya 1 area = 1 sales lapangan — pilih area lain atau ubah sales lama dulu.`
+    );
+  }
+}
+
+// Dipakai action createUserByAdmin (action tidak boleh baca DB langsung)
+export const salesInArea = query({
+  args: { area: v.union(v.literal("SOLO"), v.literal("DIY"), v.literal("SEMARANG")) },
+  handler: async (ctx, { area }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) return [];
+    const me: any = await ctx.db.get(userId);
+    if (me?.role !== "supervisor") return [];
+
+    const all = await ctx.db.query("users").collect();
+    return (all as any[])
+      .filter((u) => u.role === "field" && u.area === area)
+      .map((u) => ({ _id: u._id, name: u.name ?? "" }));
+  },
+});
+
 const SEED_USERS = [
   { username: "bagus",   name: "Bagus",  role: "supervisor",    area: undefined },
   { username: "surya",   name: "Surya",  role: "field",         area: "SOLO" },
@@ -197,6 +230,10 @@ export const updateUserRoleArea = mutation({
     if ((args.role === "field" || args.role === "telemarketing") && !args.area) {
       throw new Error("Sales lapangan / telemarketing wajib punya area.");
     }
+    // ← satu area hanya boleh dipegang satu sales lapangan
+    if (args.role === "field" && args.area) {
+      await assertAreaNotTaken(ctx, args.area, args.userId);
+    }
 
     await ctx.db.patch(args.userId, {
       role: args.role,
@@ -228,6 +265,17 @@ export const createUserByAdmin = action({
     if (!cleanName) throw new Error("Nama wajib diisi.");
     if ((role === "field" || role === "telemarketing") && !area)
       throw new Error("Sales Lapangan / Telemarketing wajib pilih area.");
+
+    // ← satu area hanya boleh dipegang satu sales lapangan
+    if (role === "field") {
+      const taken: any[] = await ctx.runQuery(api.users.salesInArea, { area: area as any });
+      if (taken.length) {
+        throw new Error(
+          `Area ${area} sudah dipegang ${taken[0].name ?? "sales lain"}. ` +
+          `Aturannya 1 area = 1 sales lapangan.`
+        );
+      }
+    }
 
     const email = uname + "@pmd.local";
     const existing = await ctx.runQuery(api.users.findByEmail, { email });

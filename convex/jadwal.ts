@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { dayKeyWIB, minPerDay, noSpkOf } from "./lib/jadwalRules";
 
 // ==========================================================================
 // Modul ini = SISI BACA + AKSI LAPANGAN (check-in).
@@ -15,10 +16,6 @@ const RADIUS_M = 200;
 
 // Sistem baru mulai 1 Oktober; September tetap memakai alur lama.
 const START_DATE_KEY = "2026-10-01";
-
-function dayKeyWIB(now = Date.now()) {
-  return new Date(now + 7 * 3600 * 1000).toISOString().slice(0, 10);
-}
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
@@ -37,12 +34,6 @@ function monthRangeMs(dateKey: string) {
   const start = Date.UTC(y, m - 1, 1) - 7 * 3600 * 1000; // 00:00 WIB tgl 1
   const end = Date.UTC(y, m, 1) - 7 * 3600 * 1000;       // 00:00 WIB tgl 1 bulan berikutnya
   return { start, end };
-}
-
-function noSpkOf(s: any) {
-  const d = String(s?.dateKey ?? "").replace(/-/g, "");
-  const urut = s?.urutan != null ? String(s.urutan).padStart(2, "0") : "00";
-  return `SPK-${d}-${s?.area ?? "?"}-${urut}`;
 }
 
 // Radius check yang dipakai bersama checkIn & adHocCheckIn.
@@ -186,6 +177,9 @@ export const listDay = query({
         checkinAt,
         checkoutAt,
         noSpk: noSpkOf(r),
+        edited: r.editedAt != null,
+        editReason: r.editReason ?? null,
+        previousDateKey: r.previousDateKey ?? null,
       });
     }
 
@@ -198,6 +192,7 @@ export const listDay = query({
     return {
       dateKey: dk,
       isField,
+      minPerDay: minPerDay(dk),
       total: out.length,
       done,
       ongoing,
@@ -299,6 +294,19 @@ export const getCard = query({
       }
     }
 
+    // ---- Beban hari ini (untuk supervisor yang mau menggeser) ----
+    // Kuota harian = per area, karena 1 area dipegang 1 sales lapangan.
+    let dayLoad: any = null;
+    if (role === "supervisor" || role === "owner") {
+      const seHari = await ctx.db.query("visit_schedules")
+        .withIndex("by_date_area", (q) => q.eq("dateKey", s.dateKey).eq("area", s.area))
+        .collect();
+      dayLoad = {
+        count: (seHari as any[]).filter((x) => x.status !== "CANCELLED").length,
+        min: minPerDay(s.dateKey),
+      };
+    }
+
     return {
       // ← storeMissing + storeId yang sudah dipakai kartu ini, biar layar tahu
       //   apakah perlu menawarkan "Hubungkan ke Toko".
@@ -327,6 +335,7 @@ export const getCard = query({
       lockedThisMonth,
       canRevisit,
       lastVisit,
+      dayLoad,
       isField: role === "field",
     };
   },

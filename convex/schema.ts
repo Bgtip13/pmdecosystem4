@@ -459,7 +459,18 @@ export default defineSchema({
     ),
     visitId: v.optional(v.id("visits")),
     isAdHoc: v.optional(v.boolean()),       // true = kunjungan luar jadwal (dibuat dari app)
-    noSpk: v.optional(v.string()),          // mis. "SPK-20261005-SOLO-03"
+    noSpk: v.optional(v.string()),          // mis. "SPK-20261005-SOLO-03" — dibentuk sekali, TIDAK berubah saat digeser
+
+    // ===== Suntingan supervisor dari aplikasi (sheet hanya untuk input) =====
+    // Kalau baris pernah digeser/dibatalkan di app, sync TIDAK boleh menimpa
+    // tanggalnya atau menghapusnya walaupun isi sheet berbeda.
+    dateLocked: v.optional(v.boolean()),
+    originalDateKey: v.optional(v.string()), // tanggal pertama saat masuk dari sheet
+    previousDateKey: v.optional(v.string()), // asal geser terakhir (untuk riwayat)
+    editedAt: v.optional(v.number()),
+    editedBy: v.optional(v.id("users")),
+    editKind: v.optional(v.union(v.literal("move"), v.literal("cancel"))),
+    editReason: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   })
@@ -485,6 +496,9 @@ export default defineSchema({
     rejectedCount: v.optional(v.number()),
     unlinkedCount: v.optional(v.number()),  // nama toko tidak ketemu di master
     unlinkedNames: v.optional(v.array(v.string())), // daftar "belum terhubung"
+    dateConflictCount: v.optional(v.number()),      // sheet beda tanggal, tapi baris sudah diputuskan di app
+    keptManualCount: v.optional(v.number()),        // baris hasil edit app yang TIDAK dihapus sync
+    ambiguousAreas: v.optional(v.array(v.string())),// area dengan lebih dari 1 sales lapangan
     error: v.optional(v.string()),
   })
     .index("by_requested", ["requestedAt"])

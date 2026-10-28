@@ -193,6 +193,15 @@ export default function JadwalList() {
       Alert.alert(
         "Jadwal ditarik",
         `${r?.inserted ?? 0} baru, ${r?.updated ?? 0} diperbarui, ${dibuang} dibatalkan & dihapus.` +
+          ((r?.dateConflictCount ?? 0) > 0
+            ? `\n\n${r.dateConflictCount} baris tanggalnya sudah diubah di aplikasi — TIDAK ditimpa sheet.`
+            : "") +
+          ((r?.keptManualCount ?? 0) > 0
+            ? `\n${r.keptManualCount} baris hasil geser/batal dari aplikasi dipertahankan.`
+            : "") +
+          ((r?.ambiguousAreas?.length ?? 0) > 0
+            ? `\n\nArea dengan lebih dari 1 sales lapangan: ${r.ambiguousAreas.join(", ")}. Jadwal area itu belum ditugaskan — rapikan di Kelola Akun (1 area = 1 sales).`
+            : "") +
           ((r?.unlinkedCount ?? 0) > 0 ? `\n\n${r.unlinkedCount} nama toko belum terhubung.` : "")
       );
     } catch (e: any) {
@@ -263,6 +272,9 @@ export default function JadwalList() {
   const total = data?.total ?? 0;
   const selesai = (data?.done ?? 0) + (data?.ongoing ?? 0);
   const persen = total > 0 ? Math.round((selesai / total) * 100) : 0;
+  // Kuota MINIMAL harian: 7 toko (Sabtu 3) — dihitung per area = per sales.
+  const minHari = data?.minPerDay ?? 7;
+  const kurang = Math.max(0, minHari - total);
 
   const missingCount = rows.filter((r: any) => r.storeMissing).length;
   const shown = onlyMissing ? rows.filter((r: any) => r.storeMissing) : rows;
@@ -291,6 +303,11 @@ export default function JadwalList() {
             {item.isAdHoc ? (
               <View style={[styles.badge, { backgroundColor: "#FEF0C7", marginLeft: 6 }]}>
                 <Text style={[styles.badgeText, { color: "#B54708" }]}>Luar jadwal</Text>
+              </View>
+            ) : null}
+            {item.edited ? (
+              <View style={[styles.badge, { backgroundColor: "#EFF8FF", marginLeft: 6 }]}>
+                <Text style={[styles.badgeText, { color: "#175CD3" }]}>Digeser</Text>
               </View>
             ) : null}
             {item.storeMissing ? (
@@ -418,6 +435,11 @@ export default function JadwalList() {
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: (`${persen}%`) as any }]} />
         </View>
+        {total > 0 && kurang > 0 ? (
+          <Text style={styles.minHint}>
+            {total} toko pada tanggal ini — kurang {kurang} dari minimal {minHari} toko/hari.
+          </Text>
+        ) : null}
       </View>
 
       {/* ← BARU: sambungkan otomatis (supervisor/owner) — tanpa buka satu-satu */}
@@ -577,6 +599,7 @@ const styles = StyleSheet.create({
   progressBox: { paddingHorizontal: 16, paddingTop: 10 },
   progressTrack: { height: 6, borderRadius: 999, backgroundColor: "#F2E3E0", overflow: "hidden" },
   progressFill: { height: 6, borderRadius: 999, backgroundColor: GREEN },
+  minHint: { fontSize: 11.5, fontWeight: "700", color: "#B54708", marginTop: 6 },
 
   // ===== sambungkan otomatis =====
   autoRow: { paddingHorizontal: 16, paddingTop: 10 },

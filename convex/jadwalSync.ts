@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { api, internal } from "./_generated/api";
 import { parseMoney } from "./lib/money";
+import { noSpkOf } from "./lib/jadwalRules";
 
 
 // ===== SUMBER DATA: tab "JADWAL" di spreadsheet yang sama =====
@@ -149,6 +150,9 @@ export const finishRun = internalMutation({
     rejectedCount: v.optional(v.number()),
     unlinkedCount: v.optional(v.number()),
     unlinkedNames: v.optional(v.array(v.string())),
+    dateConflictCount: v.optional(v.number()),
+    keptManualCount: v.optional(v.number()),
+    ambiguousAreas: v.optional(v.array(v.string())),
     error: v.optional(v.string()),
   },
   handler: async (ctx, { runId, ...rest }) => {
@@ -176,10 +180,22 @@ export const importRows = internalMutation({
     const now = Date.now();
 
     // 1) Peta sales lapangan per area (area → salesId)
+    //    Aturan: 1 area = 1 sales lapangan. Kalau ternyata ada lebih dari satu,
+    //    JANGAN menebak (dulu: sales pertama menelan semua baris). Barisnya
+    //    dibiarkan tanpa sales dan areanya dilaporkan ke supervisor.
     const users = await ctx.db.query("users").collect();
-    const salesByArea = new Map<string, any>();
+    const fieldByArea = new Map<string, any[]>();
     for (const u of users as any[]) {
-      if (u.role === "field" && u.area && !salesByArea.has(u.area)) salesByArea.set(u.area, u._id);
+      if (u.role !== "field" || !u.area) continue;
+      const arr = fieldByArea.get(u.area);
+      if (arr) arr.push(u);
+      else fieldByArea.set(u.area, [u]);
+    }
+    const salesByArea = new Map<string, any>();
+    const ambiguousAreas: string[] = [];
+    for (const [area, list] of fieldByArea) {
+      if (list.length === 1) salesByArea.set(area, list[0]._id);
+      else ambiguousAreas.push(area);
     }
 
     // 2) Peta toko master: "AREA||nama ternormalisasi" → dokumen
@@ -264,6 +280,7 @@ export const importRows = internalMutation({
     for (const e of existing) byKey.set(e.monthKey + "||" + e.storeKey, e);
 
     let inserted = 0, updated = 0, cancelled = 0, purged = 0;
+    let dateConflicts = 0, keptManual = 0;
 
     // 5) Tambah / perbarui — TULIS HANYA KALAU ADA PERUBAHAN
     for (const [key, f] of fresh) {
@@ -283,6 +300,7 @@ export const importRows = internalMutation({
           target: f.target,
           act: f.act,
           catatan: f.catatan,
+          noSpk: noSpkOf({ dateKey: f.dateKey, area: f.area, urutan: f.urutan }),
           status: "PLANNED",
           createdAt: now,
         });
@@ -292,32 +310,21 @@ export const importRows = internalMutation({
 
       if (cur.status !== "PLANNED") continue; // jejak kunjungan tidak boleh hilang
 
-      const changed =
-        cur.dateKey !== f.dateKey ||
-        cur.storeName !== f.storeName ||
-        (cur.storeId ?? null) !== (f.storeId ?? null) ||
-        (cur.salesId ?? null) !== (f.salesId ?? null) ||
-        (cur.urutan ?? null) !== (f.urutan ?? null) ||
-        (cur.target ?? null) !== (f.target ?? null) ||
-        (cur.act ?? null) !== (f.act ?? null) ||
-        (cur.catatan ?? null) !== (f.catatan ?? null) ||
-        (cur.nameKey !== f.nameKey) ||
-        (cur.area !== f.area);
+      // ← SHEET HANYA UNTUK INPUT.
+      //   Baris yang sudah ada TIDAK diubah tanggal / urutan / sales-nya oleh
+      //   sheet. Geser-hapus-edit dilakukan supervisor di aplikasi, jadi sync
+      //   tidak boleh "mengembalikan" keputusan itu. Yang tetap diambil dari
+      //   sheet hanya angka informasi (target, omset) + catatan.
+      if (cur.dateKey !== f.dateKey) dateConflicts++;
 
-      if (!changed) continue;
+      const patch: any = {};
+      if ((cur.target ?? null) !== (f.target ?? null)) patch.target = f.target;
+      if ((cur.act ?? null) !== (f.act ?? null)) patch.act = f.act;
+      if ((cur.catatan ?? null) !== (f.catatan ?? null)) patch.catatan = f.catatan;
+      if (!cur.storeId && f.storeId) patch.storeId = f.storeId; // bantu tautkan nama
+      if (Object.keys(patch).length === 0) continue;
 
-      await ctx.db.patch(cur._id, {
-        dateKey: f.dateKey,
-        tanggal: f.tanggal,
-        storeName: f.storeName,
-        storeId: f.storeId,
-        salesId: f.salesId,
-        urutan: f.urutan,
-        target: f.target,
-        act: f.act,
-        catatan: f.catatan,
-        updatedAt: now,
-      });
+      await ctx.db.patch(cur._id, { ...patch, updatedAt: now });
       updated++;
     }
 
@@ -326,6 +333,7 @@ export const importRows = internalMutation({
     for (const e of existing) {
       if (e.status !== "PLANNED") continue;
       if (e.isAdHoc) continue;                                        // jangan sentuh kunjungan dari app
+      if (e.dateLocked || e.editedAt != null) { keptManual++; continue; } // keputusan supervisor di app
       if (fresh.has(e.monthKey + "||" + e.storeKey)) continue;
       if (e.visitId) {
         // masih tertaut kunjungan → simpan sebagai jejak, jangan dihapus
@@ -345,6 +353,7 @@ export const importRows = internalMutation({
       if (purged >= PURGE_MAX) break;
       if (e.status !== "CANCELLED") continue;
       if (e.isAdHoc || e.visitId) continue;                           // jangan buang jejak kerja
+      if (e.dateLocked || e.editedAt != null) continue;               // jangan buang pembatalan dari app
       await ctx.db.delete(e._id);
       purged++;
     }
@@ -361,6 +370,9 @@ export const importRows = internalMutation({
       unlinkedNames,
       looseLinked,          // ← berapa yang tersambung lewat pencocokan longgar
       purged,               // ← baris "Dibatalkan" lama yang ikut dibersihkan
+      dateConflicts,        // ← sheet beda tanggal tapi baris sudah diputuskan di app
+      keptManual,           // ← baris hasil edit app yang dipertahankan
+      ambiguousAreas,       // ← area dengan lebih dari 1 sales lapangan
       total: fresh.size,
     };
   },
@@ -384,6 +396,9 @@ export const autoSync = internalAction({
         rejectedCount: result?.rejected ?? 0,
         unlinkedCount: result?.unlinkedCount ?? 0,
         unlinkedNames: result?.unlinkedNames ?? [],
+        dateConflictCount: result?.dateConflicts ?? 0,
+        keptManualCount: result?.keptManual ?? 0,
+        ambiguousAreas: result?.ambiguousAreas ?? [],
       });
       return { ok: true, ...result };
     } catch (err: any) {
@@ -424,6 +439,9 @@ export const manualSync = action({
         rejectedCount: result?.rejected ?? 0,
         unlinkedCount: result?.unlinkedCount ?? 0,
         unlinkedNames: result?.unlinkedNames ?? [],
+        dateConflictCount: result?.dateConflicts ?? 0,
+        keptManualCount: result?.keptManual ?? 0,
+        ambiguousAreas: result?.ambiguousAreas ?? [],
       });
 
       await ctx.runMutation(internal.audit.writeEvent, {
@@ -433,7 +451,7 @@ export const manualSync = action({
         action: "jadwal.sync",
         entityType: "visit_schedule_sync_run",
         entityId: String(runId),
-        summary: `Sinkron JADWAL — ${result?.inserted ?? 0} baru, ${result?.updated ?? 0} diperbarui, ${result?.cancelled ?? 0} dibatalkan/dihapus, ${result?.purged ?? 0} batal lama dibersihkan, ${result?.looseLinked ?? 0} nama mirip disambungkan, ${result?.unlinkedCount ?? 0} nama belum terhubung.`,
+        summary: `Sinkron JADWAL — ${result?.inserted ?? 0} baru, ${result?.updated ?? 0} diperbarui, ${result?.cancelled ?? 0} dibatalkan/dihapus, ${result?.purged ?? 0} batal lama dibersihkan, ${result?.looseLinked ?? 0} nama mirip disambungkan, ${result?.unlinkedCount ?? 0} nama belum terhubung, ${result?.dateConflicts ?? 0} tanggal sudah diputuskan di app (tidak ditimpa).`,
         metadata: { source: "JADWAL" },
       });
 
@@ -467,7 +485,8 @@ export const getLastSyncStatus = query({
       return {
         hasSync: false, requestedAt: null, finishedAt: null, status: "never",
         insertedCount: 0, updatedCount: 0, cancelledCount: 0,
-        rejectedCount: 0, unlinkedCount: 0, unlinkedNames: [], error: null,
+        rejectedCount: 0, unlinkedCount: 0, unlinkedNames: [],
+        dateConflictCount: 0, keptManualCount: 0, ambiguousAreas: [], error: null,
       };
     }
     return {
@@ -481,6 +500,9 @@ export const getLastSyncStatus = query({
       rejectedCount: last.rejectedCount ?? 0,
       unlinkedCount: last.unlinkedCount ?? 0,
       unlinkedNames: last.unlinkedNames ?? [],
+      dateConflictCount: last.dateConflictCount ?? 0,
+      keptManualCount: last.keptManualCount ?? 0,
+      ambiguousAreas: last.ambiguousAreas ?? [],
       error: last.error ?? null,
     };
   },

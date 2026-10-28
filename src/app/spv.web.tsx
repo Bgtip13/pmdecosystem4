@@ -12,6 +12,7 @@ const GROUPS: any[] = [
     title: "Pantau",
     items: [
       { icon: "clock", color: A.purple, bg: "#F3EFFC", label: "Audit Aktivitas", desc: "Siapa mengubah / menghapus / menyetujui apa, kapan", to: "/audit" },
+      { icon: "chart", color: A.green, bg: "#F0FDF4", label: "Penilaian Sales & Telemarketing", desc: "On-track/tidak per sales • kunjungan • follow-up", to: "/spv-penilaian" },
     ],
   },
   {

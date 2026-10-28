@@ -144,6 +144,10 @@ export default function Beranda() {
     api.visits.listLiveSales,
     (isSuper || isOwner) && need("live") ? undefined : "skip"
   ) as any;
+  const kpiMonthly = useQuery(api.visits.monthlyKpi, (isSuper || isOwner) && need("kpi") ? {} : "skip") as any;
+  const kpiTeleMonthly = useQuery(api.visits.monthlyKpiTele, (isSuper || isOwner) && need("kpi") ? {} : "skip") as any;
+  const collPiutang = useQuery(api.piutang.collectionAssessment, (isSuper || isOwner) && need("kpi") ? { daysBack: 7 } : "skip") as any;
+  const collSpk = useQuery(api.orderFollowups.collectionAssessment, (isSuper || isOwner) && need("kpi") ? { daysBack: 7 } : "skip") as any;
 
   // ==== Panel: Progres Kunjungan Area (telemarketing) ====
   const visitHist = useQuery(

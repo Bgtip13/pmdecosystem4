@@ -115,6 +115,10 @@ export default function BerandaWeb() {
   const ensureOrder = useMutation(api.orderFollowups.ensureToday);
 
   const live = useQuery(api.visits.listLiveSales, (isSuper || isOwner ? undefined : "skip") as any) as any;
+  const kpiMonthly = useQuery(api.visits.monthlyKpi, (isSuper || isOwner ? {} : "skip") as any) as any;
+  const kpiTeleMonthly = useQuery(api.visits.monthlyKpiTele, (isSuper || isOwner ? {} : "skip") as any) as any;
+  const collPiutang = useQuery(api.piutang.collectionAssessment, (isSuper || isOwner ? { daysBack: 7 } : "skip") as any) as any;
+  const collSpk = useQuery(api.orderFollowups.collectionAssessment, (isSuper || isOwner ? { daysBack: 7 } : "skip") as any) as any;
   const visitHist = useQuery(api.visits.listHistory, (isTele ? { from: dayStart, to: dayEnd } : "skip") as any) as any;
   const fuToko = useQuery(api.dashboard.activeStoreMonthly, (usesFu ? {} : "skip") as any) as any;
 
@@ -448,6 +452,135 @@ export default function BerandaWeb() {
             <TouchableOpacity style={sty.btnGhost} onPress={() => router.push("/izin" as any)}>
               <Text style={sty.btnGhostText}>Kelola Izin Sales</Text>
             </TouchableOpacity>
+          </Panel>
+
+          <Panel
+            basis={520}
+            icon="bar-chart"
+            title="KPI Kunjungan Sales (Bulan Ini)"
+            right={<Text style={sty.panelHint}>Jumlah • Waktu • Keterangan</Text>}
+          >
+            {kpiMonthly === undefined ? (
+              <IOSSpinner size="small" color={RED} />
+            ) : !kpiMonthly || kpiMonthly.length === 0 ? (
+              <Text style={sty.muted}>Belum ada data kunjungan bulan ini.</Text>
+            ) : (
+              <>
+                <View style={sty.thead}>
+                  <Text style={[sty.th, { width: 160 }]}>Sales</Text>
+                  <Text style={[sty.th, { width: 70 }]}>Kunjungan</Text>
+                  <Text style={[sty.th, { width: 70 }]}>Rata(menit)</Text>
+                  <Text style={[sty.th, { flex: 1 }]}>Keterangan %</Text>
+                  <Text style={[sty.th, { width: 80, textAlign: "right" }]}>Skor</Text>
+                </View>
+                {kpiMonthly.slice(0, 10).map((k: any, i: number) => (
+                  <View key={k.salesId} style={[sty.trow, i === Math.min(9, kpiMonthly.length - 1) && sty.trowLast]}>
+                    <View style={{ width: 160, paddingRight: 10 }}>
+                      <Text style={sty.tName} numberOfLines={1}>{k.salesName}</Text>
+                      <Text style={sty.tSub} numberOfLines={1}>{k.area ?? "-"}</Text>
+                    </View>
+                    <Text style={[sty.tVal, { width: 70 }]}>{k.kunjungan}</Text>
+                    <Text style={[sty.tVal, { width: 70 }]}>{k.rataMenit}</Text>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Bar pct={k.ketPct} color={k.ketPct >= 80 ? GREEN : k.ketPct >= 60 ? ORANGE : RED} height={6} />
+                      <Text style={sty.tSub}>{k.adaKeterangan}/{k.kunjungan} ada keterangan</Text>
+                    </View>
+                    <View style={{ width: 80, alignItems: "flex-end" }}>
+                      <Text style={[sty.tProg, { color: k.skor >= 80 ? GREEN : k.skor >= 60 ? ORANGE : RED }]}>{k.skor}</Text>
+                    </View>
+                  </View>
+                ))}
+              </>
+            )}
+          </Panel>
+
+          <Panel
+            basis={480}
+            icon="phone"
+            title="KPI Telemarketing (Bulan Ini)"
+            right={<Text style={sty.panelHint}>Keterangan di kunjungan area</Text>}
+          >
+            {kpiTeleMonthly === undefined ? (
+              <IOSSpinner size="small" color={RED} />
+            ) : !kpiTeleMonthly || kpiTeleMonthly.length === 0 ? (
+              <Text style={sty.muted}>Belum ada data.</Text>
+            ) : (
+              <>
+                <View style={sty.thead}>
+                  <Text style={[sty.th, { width: 150 }]}>Telemarketing</Text>
+                  <Text style={[sty.th, { width: 90 }]}>Kunjungan</Text>
+                  <Text style={[sty.th, { flex: 1 }]}>Ada Keterangan %</Text>
+                  <Text style={[sty.th, { width: 70, textAlign: "right" }]}>Skor</Text>
+                </View>
+                {kpiTeleMonthly.slice(0, 10).map((k: any, i: number) => (
+                  <View key={k.teleId} style={[sty.trow, i === Math.min(9, kpiTeleMonthly.length - 1) && sty.trowLast]}>
+                    <View style={{ width: 150, paddingRight: 10 }}>
+                      <Text style={sty.tName} numberOfLines={1}>{k.teleName}</Text>
+                      <Text style={sty.tSub} numberOfLines={1}>{k.area ?? "-"}</Text>
+                    </View>
+                    <Text style={[sty.tVal, { width: 90 }]}>{k.kunjunganDibawah}</Text>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Bar pct={k.ketPct} color={k.ketPct >= 80 ? GREEN : k.ketPct >= 60 ? ORANGE : RED} height={6} />
+                      <Text style={sty.tSub}>{k.adaKeterangan}/{k.kunjunganDibawah}</Text>
+                    </View>
+                    <View style={{ width: 70, alignItems: "flex-end" }}>
+                      <Text style={[sty.tProg, { color: k.skor >= 80 ? GREEN : k.skor >= 60 ? ORANGE : RED }]}>{k.skor}</Text>
+                    </View>
+                  </View>
+                ))}
+              </>
+            )}
+          </Panel>
+
+          <Panel
+            basis={520}
+            icon="trending-down"
+            title="Penilaian Bulanan Penagihan"
+            right={<Text style={sty.panelHint}>Hilang besok = diduga lunas</Text>}
+          >
+            {collPiutang === undefined ? (
+              <IOSSpinner size="small" color={RED} />
+            ) : !collPiutang || collPiutang.length === 0 ? (
+              <Text style={sty.muted}>Belum ada data.</Text>
+            ) : (
+              (() => {
+                const cp = collPiutang[0];
+                const cs = collSpk && collSpk[0] ? collSpk[0] : null;
+                return (
+                  <>
+                    <Text style={[sty.tSub, { marginBottom: 6, fontWeight: "700" }]}>FU Toko (Piutang) - {cp.monthKey}</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                      <View style={sty.miniBox}><Text style={sty.miniLabel}>MUNCUL</Text><Text style={sty.miniValue}>{cp.totalMuncul}</Text></View>
+                      <View style={sty.miniBox}><Text style={sty.miniLabel}>DIDUGA LUNAS</Text><Text style={[sty.miniValue, { color: GREEN }]}>{cp.didugaLunas} ({cp.pctLunas}%)</Text></View>
+                      <View style={sty.miniBox}><Text style={sty.miniLabel}>TERTAGIH</Text><Text style={sty.miniValue}>{cp.tertagih}</Text></View>
+                    </View>
+                    {(cp.perArea||[]).slice(0,6).map((a:any,i:number)=> (
+                      <View key={a.area} style={[sty.trow, i === Math.min(5,(cp.perArea||[]).length-1) && sty.trowLast]}>
+                        <Text style={[sty.tSub,{width:80}]}>{a.area}</Text>
+                        <Text style={[sty.tVal,{flex:1}]}>Muncul {a.muncul}</Text>
+                        <Text style={[sty.tVal,{width:90, textAlign:'right', color:GREEN}]}>Lunas {a.lunas}</Text>
+                      </View>
+                    ))}
+                    <Text style={[sty.tSub, { marginTop: 12, marginBottom: 6, fontWeight: "700" }]}>SPK Admin (Order Followup){cs ? ` - ${cs.monthKey}` : ''}</Text>
+                    {cs ? (
+                      <>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                          <View style={sty.miniBox}><Text style={sty.miniLabel}>MUNCUL</Text><Text style={sty.miniValue}>{cs.totalMuncul}</Text></View>
+                          <View style={sty.miniBox}><Text style={sty.miniLabel}>DIDUGA LUNAS</Text><Text style={[sty.miniValue, { color: GREEN }]}>{cs.didugaLunas} ({cs.pctLunas}%)</Text></View>
+                        </View>
+                        {(cs.perArea||[]).slice(0,6).map((a:any,i:number)=> (
+                          <View key={a.area} style={[sty.trow, i === Math.min(5,(cs.perArea||[]).length-1) && sty.trowLast]}>
+                            <Text style={[sty.tSub,{width:80}]}>{a.area}</Text>
+                            <Text style={[sty.tVal,{flex:1}]}>Muncul {a.muncul}</Text>
+                            <Text style={[sty.tVal,{width:90, textAlign:'right', color:GREEN}]}>Lunas {a.lunas}</Text>
+                          </View>
+                        ))}
+                      </>
+                    ) : <Text style={sty.muted}>Belum ada data.</Text>}
+                  </>
+                );
+              })()
+            )}
           </Panel>
 
           <Panel

@@ -1,7 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, ActivityIndicator, Image,
-} from "react-native";
+import { View, Text, StyleSheet, Image } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -61,7 +60,7 @@ export default function TokoAktifDetailWeb() {
   if (data === undefined) {
     return (
       <DesktopShell active="riwayat" title="Detail FU Toko" subtitle="Memuat data toko…">
-        <View style={s.center}><ActivityIndicator size="large" color={A.brand} /></View>
+        <View style={s.center}><IOSSpinner size="large" color={A.brand} /></View>
       </DesktopShell>
     );
   }
@@ -316,7 +315,7 @@ export default function TokoAktifDetailWeb() {
 
             <Panel title="Riwayat Aksi" icon="clock">
               {trail === undefined ? (
-                <ActivityIndicator size="small" color={A.brand} />
+                <IOSSpinner size="small" color={A.brand} />
               ) : audit.length === 0 ? (
                 <EmptyLine text="Belum ada aktivitas tercatat." />
               ) : (

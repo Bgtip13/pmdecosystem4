@@ -1,5 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { useConvexAuth } from "@convex-dev/auth/react";
@@ -73,7 +74,7 @@ export default function StoreDetail() {
   };
 
   if (!isAuthenticated || !viewer) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
 
   const canEdit = viewer.role === "field" || viewer.role === "supervisor";
@@ -138,7 +139,7 @@ export default function StoreDetail() {
       </View>
 
       {store === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : !store ? (
         <View style={styles.center}><Text>Toko tidak ditemukan.</Text></View>
       ) : (

@@ -1,8 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator,
-  Image, Modal, TextInput, Alert, Linking,
-} from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Modal, TextInput, Alert, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -139,7 +137,7 @@ export default function LaporanEkspedisi() {
       </View>
 
       {loading && !data ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : err ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Gagal memuat</Text>

@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator } from "react-native";
+import IOSSpinner from "../../components/IOSSpinner";
+import { View, Text, TouchableOpacity, StyleSheet, FlatList } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -20,7 +21,7 @@ export default function ChatList() {
   if (!viewer) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={RED} />
+        <IOSSpinner size="large" color={RED} />
       </View>
     );
   }
@@ -64,7 +65,7 @@ export default function ChatList() {
       </View>
 
       {rooms === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : rooms.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Belum ada percakapan</Text>

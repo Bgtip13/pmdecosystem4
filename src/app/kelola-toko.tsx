@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
@@ -315,7 +316,7 @@ export default function KelolaToko() {
       </View>
 
       {rows === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : (
         <FlatList
           data={shownRows}

@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import IOSSpinner from "./IOSSpinner";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -34,7 +35,7 @@ export default function TodayCard() {
   const exc = useQuery(api.dashboard.todaySpkExceptions, {}) as any;
 
   if (ov === undefined) {
-    return <View style={styles.card}><ActivityIndicator size="small" color={RED} /></View>;
+    return <View style={styles.card}><IOSSpinner size="small" color={RED} /></View>;
   }
   if (!ov) return null;
 
@@ -112,7 +113,7 @@ export default function TodayCard() {
         </View>
 
         {exc === undefined ? (
-          <ActivityIndicator size="small" color={RED} />
+          <IOSSpinner size="small" color={RED} />
         ) : (exc?.items ?? []).length === 0 ? (
           <Text style={styles.ok}>✅ Semua beres hari ini</Text>
         ) : (

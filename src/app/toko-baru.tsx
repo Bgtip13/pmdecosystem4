@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import * as Location from "expo-location";
@@ -24,7 +25,7 @@ export default function TokoBaru() {
   const [area, setArea] = useState("");
   const [busy, setBusy] = useState(false);
 
-  if (!viewer) return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
 
   const doSave = async () => {
     if (!name.trim()) return Alert.alert("Lengkapi Data", "Nama toko wajib diisi.");

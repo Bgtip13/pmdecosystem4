@@ -1,7 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useState } from "react";
-import {
-  View, Text, StyleSheet, ActivityIndicator, Image,
-} from "react-native";
+import { View, Text, StyleSheet, Image } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -49,7 +48,7 @@ export default function SpkDetailOrderWeb() {
   if (data === undefined) {
     return (
       <DesktopShell active="riwayat" title="Detail Follow-up Orderan" subtitle="Memuat data tugas…">
-        <View style={s.center}><ActivityIndicator size="large" color={A.brand} /></View>
+        <View style={s.center}><IOSSpinner size="large" color={A.brand} /></View>
       </DesktopShell>
     );
   }

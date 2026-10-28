@@ -1,7 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useEffect, useMemo, useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Platform,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Platform } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -274,7 +273,7 @@ export default function RiwayatWeb() {
   };
 
   if (!viewer) {
-    return <View style={s.center}><ActivityIndicator size="large" color={A.brand} /></View>;
+    return <View style={s.center}><IOSSpinner size="large" color={A.brand} /></View>;
   }
 
   if (!canSee) {
@@ -471,7 +470,7 @@ export default function RiwayatWeb() {
       {/* ===== Tabel ===== */}
       <View style={s.tableCard}>
         {loading ? (
-          <View style={s.loading}><ActivityIndicator size="large" color={A.brand} /></View>
+          <View style={s.loading}><IOSSpinner size="large" color={A.brand} /></View>
         ) : tab === "kunjungan" ? (
           <>
             <View style={s.thead}>

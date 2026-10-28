@@ -1,5 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -55,7 +56,7 @@ export default function EditAkun() {
   }, [target]);
 
   if (!target) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
 
   const isSelf = viewer?._id === id;

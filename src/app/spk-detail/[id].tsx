@@ -1,8 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useState } from "react";
-import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator,
-  Image, TextInput, Alert,
-} from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, TextInput, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -39,7 +37,7 @@ export default function SpkDetail() {
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/spk"); };
 
   if (data === undefined) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
   if (!data) {
     return (

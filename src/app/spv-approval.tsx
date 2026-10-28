@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -18,7 +19,7 @@ export default function SpvApproval() {
   const rejectRequest = useMutation(api.locationRequests.rejectRequest);
   const [busyId, setBusyId] = useState("");
 
-  if (!viewer) return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
 
   const fmtDate = (ms: number) => new Date(ms).toLocaleDateString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -73,7 +74,7 @@ export default function SpvApproval() {
       </View>
 
       {items === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : items.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Tidak ada permintaan</Text>

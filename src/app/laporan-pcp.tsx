@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useAction, useQuery } from "convex/react";
 import Svg, { Circle } from "react-native-svg";
@@ -111,7 +112,7 @@ export default function LaporanPcp() {
       </View>
 
       {loading && !data ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : err ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Gagal memuat</Text>

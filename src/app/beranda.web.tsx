@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useEffect, useRef, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -188,7 +189,7 @@ export default function BerandaWeb() {
   }, [viewer]);
 
   if (!viewer) {
-    return <View style={sty.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={sty.center}><IOSSpinner size="large" color={RED} /></View>;
   }
 
   const areaLabel = viewer.area ?? "Semua Area";
@@ -396,7 +397,7 @@ export default function BerandaWeb() {
             right={<Text style={sty.panelHint}>{liveActive} aktif • {liveLeave} izin</Text>}
           >
             {live === undefined ? (
-              <ActivityIndicator size="small" color={RED} />
+              <IOSSpinner size="small" color={RED} />
             ) : liveRows.length === 0 ? (
               <Text style={sty.muted}>Belum ada data sales hari ini.</Text>
             ) : (
@@ -456,7 +457,7 @@ export default function BerandaWeb() {
             right={<Text style={sty.panelHint}>{fuTotalPending} belum · {fuTotalDone} selesai</Text>}
           >
             {!fuReady ? (
-              <ActivityIndicator size="small" color={RED} />
+              <IOSSpinner size="small" color={RED} />
             ) : fuTotalPending === 0 && fuTotalDone === 0 ? (
               <Text style={sty.muted}>Belum ada follow-up untuk hari ini.</Text>
             ) : (
@@ -543,7 +544,7 @@ export default function BerandaWeb() {
         <View style={sty.grid}>
           <Panel basis={520} icon="store" title="Progres Kunjungan Area (hari ini)" right={<Text style={sty.panelHint}>{(visitHist ?? []).length} kunjungan</Text>}>
             {visitHist === undefined ? (
-              <ActivityIndicator size="small" color={RED} />
+              <IOSSpinner size="small" color={RED} />
             ) : (visitHist ?? []).length === 0 ? (
               <Text style={sty.muted}>Belum ada kunjungan sales di area {areaLabel} hari ini.</Text>
             ) : (
@@ -571,7 +572,7 @@ export default function BerandaWeb() {
             right={<Text style={sty.panelHint}>{fuToko ? `periode ${fuToko.monthKey}` : "–"}</Text>}
           >
             {fuToko === undefined ? (
-              <ActivityIndicator size="small" color={RED} />
+              <IOSSpinner size="small" color={RED} />
             ) : !fuToko ? (
               <Text style={sty.muted}>Tidak ada data FU Toko.</Text>
             ) : (
@@ -612,7 +613,7 @@ export default function BerandaWeb() {
             right={<Text style={sty.panelHint}>{eksShown.length} kiriman</Text>}
           >
             {eksState === "loading" ? (
-              <ActivityIndicator size="small" color={RED} />
+              <IOSSpinner size="small" color={RED} />
             ) : eksState === "err" || !eks ? (
               <Text style={sty.muted}>Data belum tersedia.</Text>
             ) : (
@@ -679,7 +680,7 @@ export default function BerandaWeb() {
         >
           {!canSeeAllArea ? <Text style={sty.hint}>Menampilkan area {myAreaUp || "-"} saja.</Text> : null}
           {pcpState === "loading" ? (
-            <ActivityIndicator size="small" color={RED} />
+            <IOSSpinner size="small" color={RED} />
           ) : pcpState === "err" || !pcpRows || pcpRows.length === 0 ? (
             <>
               <Text style={sty.muted}>Data belum tersedia.</Text>
@@ -726,7 +727,7 @@ export default function BerandaWeb() {
         >
           {!canSeeAllArea ? <Text style={sty.hint}>Menampilkan area {myAreaUp || "-"} saja.</Text> : null}
           {pgState === "loading" ? (
-            <ActivityIndicator size="small" color={RED} />
+            <IOSSpinner size="small" color={RED} />
           ) : pgState === "err" || !pgRows || pgRows.length === 0 ? (
             <>
               <Text style={sty.muted}>Data belum tersedia.</Text>

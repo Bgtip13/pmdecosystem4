@@ -1,8 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
-  FlatList, ScrollView, Alert, Modal, Image, BackHandler,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, ScrollView, Alert, Modal, Image, BackHandler } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useQuery, useAction, useMutation, useConvex } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
@@ -356,7 +354,7 @@ export default function Spk() {
   }, [viewer, usesPiutang, todayKey]);
 
   if (!viewer) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
   const areaLabel = viewer.area ?? "Semua Area";
   const isTodayStr = (d: string) => d === new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
@@ -1472,7 +1470,7 @@ export default function Spk() {
               }
               ListEmptyComponent={
                 stores === undefined
-                  ? <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+                  ? <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
                   : emptyBox("Toko tidak ditemukan", "Coba kata kunci lain atau ubah filter area.")
               }
             />
@@ -1561,7 +1559,7 @@ export default function Spk() {
               }
               ListEmptyComponent={
                 done === undefined
-                  ? <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+                  ? <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
                   : emptyBox("Belum ada hasil follow-up", "Ubah tanggal atau kata kunci pencarian.")
               }
             />
@@ -1596,7 +1594,7 @@ export default function Spk() {
               contentContainerStyle={{ padding: 16, paddingBottom: 110 }}
               ListEmptyComponent={
                 hist === undefined
-                  ? <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+                  ? <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
                   : emptyBox("Belum ada kunjungan", "Tidak ada kunjungan pada tanggal ini.")
               }
             />

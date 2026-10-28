@@ -1,14 +1,13 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Platform, Image, ScrollView, useWindowDimensions,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ScrollView, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useAction, useQuery } from "convex/react";
 import { Redirect } from "expo-router";
 import { api } from "../../convex/_generated/api";
 import AppIcon from "../components/AppIcon";
+import BrandMark from "../components/BrandMark";
 import { A, FONT } from "../components/desktop/tokens";
 
 // Khusus WEB — login merah-putih. APK tetap memakai index.tsx.
@@ -20,9 +19,9 @@ export default function IndexWeb() {
     return (
       <View style={styles.center}>
         <View style={styles.loadingTile}>
-          <Image source={require("../../assets/logo.png")} style={styles.loadingLogo} resizeMode="contain" />
+          <BrandMark size={52} />
         </View>
-        <ActivityIndicator size="large" color={A.brand} style={{ marginTop: 18 }} />
+        <IOSSpinner size="large" color={A.brand} style={{ marginTop: 18 }} />
         <Text style={styles.loadingText}>Menyiapkan PMD Ecosystem…</Text>
       </View>
     );
@@ -42,7 +41,7 @@ function BrandPanel() {
     >
       <View style={styles.brandTopRow}>
         <View style={styles.logoTile}>
-          <Image source={require("../../assets/logo.png")} style={styles.logo} resizeMode="contain" />
+          <BrandMark size={33} />
         </View>
         <View>
           <Text style={styles.brandName}>PMD ECOSYSTEM 4.0</Text>
@@ -136,7 +135,7 @@ function Login() {
           {compact ? (
             <View style={styles.compactBrand}>
               <View style={styles.compactLogoTile}>
-                <Image source={require("../../assets/logo.png")} style={styles.compactLogo} resizeMode="contain" />
+                <BrandMark size={30} />
               </View>
               <View>
                 <Text style={styles.compactBrandName}>PMD Ecosystem 4.0</Text>

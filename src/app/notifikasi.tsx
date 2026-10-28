@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, SectionList, Alert } from "react-native";
+import IOSSpinner from "../components/IOSSpinner";
+import { View, Text, TouchableOpacity, StyleSheet, SectionList, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -34,7 +35,7 @@ export default function Notifikasi() {
   const markRead = useMutation(api.notifications.markRead);
   const remove = useMutation(api.notifications.remove);
 
-  if (!viewer) return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   const isSuper = viewer.role === "supervisor";
 
   const list = (rows ?? []) as any[];
@@ -106,7 +107,7 @@ export default function Notifikasi() {
       </View>
 
       {rows === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : list.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyEmoji}>🔕</Text>

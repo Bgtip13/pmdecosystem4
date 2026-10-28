@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, Image, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Image, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -63,7 +64,7 @@ export default function Riwayat() {
     ...(salesId ? { salesId: salesId as any } : {}),
   }) as any;
 
-  if (!viewer) return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
 
   const isToday = day.toDateString() === new Date().toDateString();
   const fmtDate = (d: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
@@ -237,7 +238,7 @@ export default function Riwayat() {
       ) : null}
 
       {rows === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : shown.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>

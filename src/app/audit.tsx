@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, FlatList } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -84,7 +85,7 @@ export default function Audit() {
       </View>
 
       {res === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : items.length === 0 ? (
         <View style={styles.center}><Text style={styles.empty}>Belum ada aktivitas untuk filter ini.</Text></View>
       ) : (

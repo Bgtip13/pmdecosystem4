@@ -1,8 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useState } from "react";
-import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
-  Image, TextInput, Alert, Modal,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, TextInput, Alert, Modal } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -47,7 +45,7 @@ export default function VisitDetail() {
   const [reviewOpen, setReviewOpen] = useState(false);   // ← BARU: popup review
 
   if (data === undefined) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
   if (!data) {
     return <View style={styles.center}><Text>Data tidak ditemukan.</Text></View>;

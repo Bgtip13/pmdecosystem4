@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -44,7 +45,7 @@ export default function Izin() {
   const setLeave = useMutation(api.leaves.setLeave);
   const clearLeave = useMutation(api.leaves.clearLeave);
 
-  if (!viewer) return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
 
   if (!isSuper) {
     return (
@@ -138,7 +139,7 @@ export default function Izin() {
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 }} keyboardShouldPersistTaps="handled">
         {salesList === undefined ? (
-          <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+          <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
         ) : (
           <>
             {/* ===== FORM ===== */}
@@ -226,7 +227,7 @@ export default function Izin() {
             </Text>
 
             {leaves === undefined ? (
-              <ActivityIndicator size="small" color={VIOLET} style={{ marginVertical: 8 }} />
+              <IOSSpinner size="small" color={VIOLET} style={{ marginVertical: 8 }} />
             ) : (leaves ?? []).length === 0 ? (
               <View style={styles.card}>
                 <Text style={styles.meta}>Belum ada izin untuk tanggal ini.</Text>

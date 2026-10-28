@@ -1,7 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, Alert,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import * as Location from "expo-location";
@@ -112,7 +111,7 @@ export default function LuarJadwal() {
           </View>
           {item.address ? <Text style={styles.addr} numberOfLines={2}>{item.address}</Text> : null}
         </View>
-        {busy ? <ActivityIndicator size="small" color={RED} /> : <Text style={styles.arrow}>›</Text>}
+        {busy ? <IOSSpinner size="small" color={RED} /> : <Text style={styles.arrow}>›</Text>}
       </TouchableOpacity>
     );
   };
@@ -143,7 +142,7 @@ export default function LuarJadwal() {
           <Text style={styles.emptySub}>Pencarian baru dijalankan setelah itu, biar hemat.</Text>
         </View>
       ) : results === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : (results as any[]).length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Tidak ada toko yang cocok</Text>

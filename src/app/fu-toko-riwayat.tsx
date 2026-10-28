@@ -1,8 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
-  ScrollView, Alert,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useConvex } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -174,7 +172,7 @@ export default function FuTokoRiwayat() {
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
         {!viewer ? (
-          <ActivityIndicator size="large" color={RED} style={{ marginTop: 30 }} />
+          <IOSSpinner size="large" color={RED} style={{ marginTop: 30 }} />
         ) : !canSee ? (
           <Text style={styles.hint}>Tidak ada akses. Layar ini untuk supervisor, owner & telemarketing.</Text>
         ) : (

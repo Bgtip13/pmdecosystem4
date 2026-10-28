@@ -1,13 +1,14 @@
 import { useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, Image, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from "react-native";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useAction, useQuery } from "convex/react";
 import { Redirect } from "expo-router";
 import { api } from "../../convex/_generated/api";
 import AppIcon from "../components/AppIcon";
+import BrandMark from "../components/BrandMark";
 import LoadingScreen from "../components/LoadingScreen";
 
 const RED = "#D92D20";
@@ -60,7 +61,7 @@ function Login() {
       <View style={[styles.deco, styles.decoSmall]} />
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <Image source={require("../../assets/logo.png")} style={styles.logo} resizeMode="contain" />
+        <BrandMark size={132} />
 
         <View style={styles.headWrap}>
           <Text style={styles.title}>PMD Ecosystem 4.0</Text>
@@ -142,7 +143,7 @@ function ChangePassword() {
       <View style={[styles.deco, styles.decoSmall]} />
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <Image source={require("../../assets/logo.png")} style={styles.logoSmall} resizeMode="contain" />
+        <BrandMark size={88} style={{ marginBottom: 6 }} />
         <Text style={styles.title}>Ganti Password</Text>
         <Text style={styles.subtitle}>Kamu wajib mengganti password sebelum lanjut.</Text>
 

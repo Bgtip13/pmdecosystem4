@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -29,7 +30,7 @@ export default function AkunWeb() {
   const [photoBusy, setPhotoBusy] = useState(false);
 
   if (!viewer) {
-    return <View style={s.center}><ActivityIndicator size="large" color={A.blue} /></View>;
+    return <View style={s.center}><IOSSpinner size="large" color={A.blue} /></View>;
   }
 
   const doLogout = async () => {

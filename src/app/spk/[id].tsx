@@ -1,8 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
-  ScrollView, Alert, Image, KeyboardAvoidingView, Platform,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useAction } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
@@ -44,7 +42,7 @@ export default function FollowUp() {
   if (!task) {
     return (
       <View style={styles.center}>
-        {list === undefined ? <ActivityIndicator size="large" color={RED} /> : (
+        {list === undefined ? <IOSSpinner size="large" color={RED} /> : (
           <>
             <Text style={styles.emptyTitle}>Tugas sudah dikerjakan / tidak ditemukan</Text>
             <TouchableOpacity style={styles.btnOutline} onPress={() => router.back()}>

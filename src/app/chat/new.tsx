@@ -1,8 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, Alert,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -61,7 +59,7 @@ export default function NewChat() {
       </View>
 
       {contacts === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 130 }}>
           {isSuper && sel.length > 1 ? (

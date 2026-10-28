@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -24,7 +25,7 @@ export default function Live() {
     return () => clearInterval(t);
   }, []);
 
-  if (!rows) return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+  if (!rows) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
 
   const activeCount = rows.filter((r: any) => r.state === "visit").length;
 

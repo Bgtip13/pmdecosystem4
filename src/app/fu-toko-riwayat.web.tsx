@@ -1,7 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useEffect, useMemo, useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -155,7 +154,7 @@ export default function FuTokoRiwayatWeb() {
   if (!viewer) {
     return (
       <DesktopShell active="laporan" title="Riwayat FU Toko" subtitle="Memuat akun…">
-        <View style={s.center}><ActivityIndicator size="large" color={A.brand} /></View>
+        <View style={s.center}><IOSSpinner size="large" color={A.brand} /></View>
       </DesktopShell>
     );
   }
@@ -316,7 +315,7 @@ export default function FuTokoRiwayatWeb() {
               <Text style={s.panelHint}>{rows.length} toko</Text>
             </View>
             {loading ? (
-              <View style={s.loading}><ActivityIndicator size="large" color={A.brand} /></View>
+              <View style={s.loading}><IOSSpinner size="large" color={A.brand} /></View>
             ) : rows.length === 0 ? (
               <View style={s.panelBody}>
                 <EmptyLine text="Tidak ada toko yang cocok dengan filter ini." />

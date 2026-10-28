@@ -1,5 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -46,7 +47,7 @@ export default function EditToko() {
   const canEdit = role === "supervisor";
   const allowed = VIEW_ROLES.includes(role);
 
-  if (!store || !viewer) return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+  if (!store || !viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   if (!allowed) {
     return (
       <View style={styles.center}>

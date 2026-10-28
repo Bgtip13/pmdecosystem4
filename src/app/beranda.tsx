@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useEffect, useRef, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -239,7 +240,7 @@ export default function Beranda() {
   }, [viewer, openMap]);
 
   if (!viewer) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
 
   const accent = isField ? RED : isTele ? ORANGE : VIOLET;
@@ -540,7 +541,7 @@ export default function Beranda() {
             summary={live === undefined ? "–" : `${liveActive} aktif • ${liveLeave} izin`}
           >
             {live === undefined ? (
-              <ActivityIndicator size="small" color={RED} style={{ marginVertical: 8 }} />
+              <IOSSpinner size="small" color={RED} style={{ marginVertical: 8 }} />
             ) : liveRows.length === 0 ? (
               <Text style={styles.meta}>Belum ada data sales hari ini.</Text>
             ) : (
@@ -630,7 +631,7 @@ export default function Beranda() {
         {isTele ? (
           <SectionCard icon="store" title="Progres Kunjungan Area (hari ini)" id="tele" summary={visitHist === undefined ? "–" : `${(visitHist ?? []).length} kunjungan`}>
             {visitHist === undefined ? (
-              <ActivityIndicator size="small" color={RED} style={{ marginVertical: 8 }} />
+              <IOSSpinner size="small" color={RED} style={{ marginVertical: 8 }} />
             ) : (visitHist ?? []).length === 0 ? (
               <Text style={styles.meta}>Belum ada kunjungan sales di area {areaLabel} hari ini.</Text>
             ) : (
@@ -660,7 +661,7 @@ export default function Beranda() {
             }
           >
             {fuLoading ? (
-              <ActivityIndicator size="small" color={RED} style={{ marginVertical: 8 }} />
+              <IOSSpinner size="small" color={RED} style={{ marginVertical: 8 }} />
             ) : fuTotalPending === 0 && fuTotalDone === 0 ? (
               <Text style={styles.meta}>Belum ada follow-up untuk hari ini.</Text>
             ) : (
@@ -732,7 +733,7 @@ export default function Beranda() {
             summary={fuToko ? `${fuToko.pending} belum` : "–"}
           >
             {fuToko === undefined ? (
-              <ActivityIndicator size="small" color={RED} style={{ marginVertical: 8 }} />
+              <IOSSpinner size="small" color={RED} style={{ marginVertical: 8 }} />
             ) : !fuToko ? (
               <Text style={styles.hint}>Tidak ada data FU Toko.</Text>
             ) : (
@@ -767,7 +768,7 @@ export default function Beranda() {
             <Text style={styles.hint}>Menampilkan area {myAreaUp || "-"} saja.</Text>
           ) : null}
           {pcpState === "loading" ? (
-            <ActivityIndicator size="small" color={RED} style={{ marginVertical: 8 }} />
+            <IOSSpinner size="small" color={RED} style={{ marginVertical: 8 }} />
           ) : pcpState === "err" || !pcpRows || pcpRows.length === 0 ? (
             <View>
               <Text style={styles.meta}>Data belum tersedia.</Text>
@@ -843,7 +844,7 @@ export default function Beranda() {
             <Text style={styles.hint}>Menampilkan area {myAreaUp || "-"} saja.</Text>
           ) : null}
           {pgState === "loading" ? (
-            <ActivityIndicator size="small" color={RED} style={{ marginVertical: 8 }} />
+            <IOSSpinner size="small" color={RED} style={{ marginVertical: 8 }} />
           ) : pgState === "err" || !pgRows || pgRows.length === 0 ? (
             <View>
               <Text style={styles.meta}>Data belum tersedia.</Text>
@@ -891,7 +892,7 @@ export default function Beranda() {
           summary={!eks ? "–" : `${eksShown.length} kiriman`}
         >
           {eksState === "loading" ? (
-            <ActivityIndicator size="small" color={RED} style={{ marginVertical: 8 }} />
+            <IOSSpinner size="small" color={RED} style={{ marginVertical: 8 }} />
           ) : eksState === "err" || !eks ? (
             <Text style={styles.meta}>Data belum tersedia.</Text>
           ) : (

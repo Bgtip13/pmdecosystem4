@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useConvex } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -178,7 +179,7 @@ export default function LaporanFuToko() {
         </TouchableOpacity>
 
         {data === undefined ? (
-          <ActivityIndicator size="large" color={RED} style={{ marginTop: 30 }} />
+          <IOSSpinner size="large" color={RED} style={{ marginTop: 30 }} />
         ) : !data ? (
           <Text style={[styles.hint, { marginTop: 20 }]}>
             Tidak ada ringkasan untuk akun ini. Tombol ekspor di atas tetap bisa dipakai.

@@ -1,5 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -71,7 +72,7 @@ export default function SpkAdminWeb() {
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/beranda" as any); };
 
   if (!viewer) {
-    return <View style={sty.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={sty.center}><IOSSpinner size="large" color={RED} /></View>;
   }
 
   if (!bolehLihat) {
@@ -339,7 +340,7 @@ export default function SpkAdminWeb() {
         right={<Text style={sty.panelHint}>{loading ? "memuat…" : `ditampilkan dari ${allRows.length} tugas`}</Text>}
       >
         {loading ? (
-          <ActivityIndicator size="small" color={RED} />
+          <IOSSpinner size="small" color={RED} />
         ) : rows.length === 0 ? (
           <View style={{ paddingVertical: 18, alignItems: "center" }}>
             <Text style={sty.muted}>Tidak ada tugas yang cocok dengan filter ini.</Text>

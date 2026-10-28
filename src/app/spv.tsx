@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import IOSSpinner from "../components/IOSSpinner";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -26,7 +27,7 @@ export default function SpvHub() {
   const pending = useQuery(api.locationRequests.listPendingRequests) as any;
 
   if (!viewer) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
 
   if (viewer.role !== "supervisor") {

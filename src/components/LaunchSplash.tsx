@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Image, Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   cancelAnimation,
   Easing,
@@ -11,14 +12,18 @@ import Animated, {
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
+import BrandMark from "./BrandMark";
+import IOSSpinner from "./IOSSpinner";
+import { theme } from "../lib/theme";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GRAY_LIGHT = "#98A2B3";
-
-// Ukuran ini HARUS sama dengan `imageWidth` splash di app.json supaya
-// frame pertama animasi pas dengan splash native (tidak ada lompatan).
-const SPLASH_LOGO = 220;
+// Sama dengan `imageWidth` splash native di app.json → frame pertama animasi
+// pas dengan splash native, jadi tidak ada logo yang "melompat" atau berubah
+// dari kotak bawaan ke logo bertema.
+const SPLASH_MARK = 200;
+// Ukuran akhir logo: sama dengan ukuran di LoadingScreen, jadi peralihannya mulus.
+const BRAND_MARK = 132;
+const MARK_SCALE = BRAND_MARK / SPLASH_MARK;
+const RISE = 84;
 
 const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1);
 
@@ -29,10 +34,6 @@ const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1);
  * pelepasan splash native yang dilewati karena browser tidak memilikinya.
  */
 export default function LaunchSplash() {
-  return <NativeLaunchSplash />;
-}
-
-function NativeLaunchSplash() {
   const [gone, setGone] = useState(false);
   const started = useRef(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -40,45 +41,17 @@ function NativeLaunchSplash() {
   const logoScale = useSharedValue(1);
   const logoY = useSharedValue(0);
   const contentOpacity = useSharedValue(0);
-  const contentY = useSharedValue(16);
+  const contentY = useSharedValue(14);
   const ringA = useSharedValue(0);
   const ringB = useSharedValue(0);
-  const sweep = useSharedValue(0);
-  const dotA = useSharedValue(0);
-  const dotB = useSharedValue(0);
-  const dotC = useSharedValue(0);
   const fade = useSharedValue(0);
 
   useEffect(() => {
     return () => {
       timers.current.forEach(clearTimeout);
-      [
-        logoScale,
-        logoY,
-        contentOpacity,
-        contentY,
-        ringA,
-        ringB,
-        sweep,
-        dotA,
-        dotB,
-        dotC,
-        fade,
-      ].forEach(cancelAnimation);
+      [logoScale, logoY, contentOpacity, contentY, ringA, ringB, fade].forEach(cancelAnimation);
     };
-  }, [
-    logoScale,
-    logoY,
-    contentOpacity,
-    contentY,
-    ringA,
-    ringB,
-    sweep,
-    dotA,
-    dotB,
-    dotC,
-    fade,
-  ]);
+  }, [logoScale, logoY, contentOpacity, contentY, ringA, ringB, fade]);
 
   const start = () => {
     if (started.current) return;
@@ -89,68 +62,34 @@ function NativeLaunchSplash() {
     // akan menolak, jadi lebih aman dilewati.
     if (Platform.OS !== "web") SplashScreen.hideAsync().catch(() => {});
 
-    const breathe = (delay: number) =>
-      withDelay(
-        delay,
-        withRepeat(
-          withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.quad) }),
-          -1,
-          true,
-        ),
-      );
+    // Logo menyusut dari ukuran splash native ke ukuran brand, naik sedikit
+    // supaya ada ruang untuk teks & spinner di bawahnya.
+    logoScale.value = withTiming(MARK_SCALE, { duration: 560, easing: EASE_OUT });
+    logoY.value = withTiming(-RISE, { duration: 560, easing: EASE_OUT });
 
-    // Logo menyusut dari posisi splash native ke posisi brand.
-    logoScale.value = withDelay(
-      140,
-      withTiming(0.62, { duration: 620, easing: EASE_OUT }),
-    );
-    logoY.value = withDelay(
-      140,
-      withTiming(-64, { duration: 620, easing: EASE_OUT }),
-    );
-
-    // Teks & progress menyusul.
+    // Teks & spinner menyusul.
     contentOpacity.value = withDelay(
-      380,
-      withTiming(1, { duration: 420, easing: Easing.out(Easing.quad) }),
+      220,
+      withTiming(1, { duration: 360, easing: Easing.out(Easing.quad) }),
     );
-    contentY.value = withDelay(
-      380,
-      withTiming(0, { duration: 480, easing: EASE_OUT }),
-    );
+    contentY.value = withDelay(220, withTiming(0, { duration: 420, easing: EASE_OUT }));
 
+    // Dua gelombang ring halus di belakang logo.
     ringA.value = withDelay(
-      700,
-      withRepeat(
-        withTiming(1, { duration: 2200, easing: Easing.out(Easing.quad) }),
-        -1,
-        false,
-      ),
+      420,
+      withRepeat(withTiming(1, { duration: 2000, easing: Easing.out(Easing.quad) }), -1, false),
     );
     ringB.value = withDelay(
-      1800,
-      withRepeat(
-        withTiming(1, { duration: 2200, easing: Easing.out(Easing.quad) }),
-        -1,
-        false,
-      ),
+      1420,
+      withRepeat(withTiming(1, { duration: 2000, easing: Easing.out(Easing.quad) }), -1, false),
     );
-
-    sweep.value = withRepeat(
-      withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.cubic) }),
-      -1,
-      false,
-    );
-    dotA.value = breathe(700);
-    dotB.value = breathe(880);
-    dotC.value = breathe(1060);
 
     // Seluruh overlay fade, lalu dilepas dari layar.
     fade.value = withDelay(
-      1350,
-      withTiming(1, { duration: 340, easing: Easing.inOut(Easing.quad) }),
+      1400,
+      withTiming(1, { duration: 330, easing: Easing.inOut(Easing.quad) }),
     );
-    timers.current.push(setTimeout(() => setGone(true), 1710));
+    timers.current.push(setTimeout(() => setGone(true), 1760));
   };
 
   // Di web onLayout bisa tidak terpanggil (mis. saat halaman masih di-hidrasi),
@@ -163,15 +102,10 @@ function NativeLaunchSplash() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const rootStyle = useAnimatedStyle(() => ({
-    opacity: 1 - fade.value,
-  }));
+  const rootStyle = useAnimatedStyle(() => ({ opacity: 1 - fade.value }));
 
   const logoStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: logoScale.value },
-      { translateY: logoY.value },
-    ],
+    transform: [{ scale: logoScale.value }, { translateY: logoY.value }],
   }));
 
   const contentStyle = useAnimatedStyle(() => ({
@@ -180,31 +114,13 @@ function NativeLaunchSplash() {
   }));
 
   const ringAStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(ringA.value, [0, 0.14, 1], [0, 0.35, 0]),
-    transform: [{ scale: interpolate(ringA.value, [0, 1], [0.75, 1.35]) }],
+    opacity: interpolate(ringA.value, [0, 0.12, 1], [0, 0.3, 0]),
+    transform: [{ scale: interpolate(ringA.value, [0, 1], [0.82, 1.55]) }],
   }));
 
   const ringBStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(ringB.value, [0, 0.14, 1], [0, 0.35, 0]),
-    transform: [{ scale: interpolate(ringB.value, [0, 1], [0.75, 1.35]) }],
-  }));
-
-  const sweepStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: interpolate(sweep.value, [0, 1], [-64, 168]) }],
-    opacity: interpolate(sweep.value, [0, 0.15, 0.85, 1], [0, 1, 1, 0]),
-  }));
-
-  const dotAStyle = useAnimatedStyle(() => ({
-    opacity: 0.25 + dotA.value * 0.75,
-    transform: [{ translateY: -3 * dotA.value }],
-  }));
-  const dotBStyle = useAnimatedStyle(() => ({
-    opacity: 0.25 + dotB.value * 0.75,
-    transform: [{ translateY: -3 * dotB.value }],
-  }));
-  const dotCStyle = useAnimatedStyle(() => ({
-    opacity: 0.25 + dotC.value * 0.75,
-    transform: [{ translateY: -3 * dotC.value }],
+    opacity: interpolate(ringB.value, [0, 0.12, 1], [0, 0.3, 0]),
+    transform: [{ scale: interpolate(ringB.value, [0, 1], [0.82, 1.55]) }],
   }));
 
   if (gone) return null;
@@ -216,34 +132,32 @@ function NativeLaunchSplash() {
       accessibilityRole="progressbar"
       accessibilityLabel="Membuka PMD Ecosystem"
     >
-      <View style={styles.anchor}>
+      <LinearGradient
+        colors={["#FFFEFC", "#FCFAFA", "#FFF6F5"]}
+        locations={[0, 0.55, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[styles.blob, styles.blobTop]} />
+      <View style={[styles.blob, styles.blobBottom]} />
+
+      {/* Logo: mulai persis di posisi & ukuran splash native. */}
+      <Animated.View style={[styles.anchor, logoStyle]}>
+        <BrandMark size={SPLASH_MARK} />
+      </Animated.View>
+
+      {/* Ring dipusatkan pada posisi akhir logo (setelah menyusut & naik). */}
+      <View style={styles.ringArea} pointerEvents="none">
         <Animated.View style={[styles.ring, ringAStyle]} />
         <Animated.View style={[styles.ring, ringBStyle]} />
-
-        <Animated.View style={[styles.logoBox, logoStyle]}>
-          <Image
-            source={require("../../assets/logo.png")}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </Animated.View>
       </View>
 
       <Animated.View style={[styles.content, contentStyle]}>
         <Text style={styles.title}>PMD Ecosystem</Text>
         <Text style={styles.subtitle}>Prima Mandiri Distribusi</Text>
 
-        <View style={styles.track}>
-          <Animated.View style={[styles.sweep, sweepStyle]} />
-        </View>
-
         <View style={styles.loadingRow}>
+          <IOSSpinner size="small" color={theme.colors.inkMuted} />
           <Text style={styles.loadingText}>Memuat</Text>
-          <View style={styles.dots}>
-            <Animated.View style={[styles.dot, dotAStyle]} />
-            <Animated.View style={[styles.dot, dotBStyle]} />
-            <Animated.View style={[styles.dot, dotCStyle]} />
-          </View>
         </View>
       </Animated.View>
     </Animated.View>
@@ -257,10 +171,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.colors.bg,
     zIndex: 1000,
     elevation: 1000,
+    overflow: "hidden",
   },
+
+  blob: { position: "absolute", backgroundColor: "#FEF3F2", borderRadius: 999 },
+  blobTop: { width: 320, height: 320, top: -140, right: -130 },
+  blobBottom: { width: 240, height: 240, bottom: -110, left: -100 },
 
   // Titik pusat layar — sama dengan posisi logo di splash native.
   anchor: {
@@ -268,25 +187,29 @@ const styles = StyleSheet.create({
     top: "50%",
     left: 0,
     right: 0,
-    height: SPLASH_LOGO,
-    marginTop: -SPLASH_LOGO / 2,
+    height: SPLASH_MARK,
+    marginTop: -SPLASH_MARK / 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  logoBox: {
-    width: SPLASH_LOGO,
-    height: SPLASH_LOGO,
+
+  ringArea: {
+    position: "absolute",
+    top: "50%",
+    left: 0,
+    right: 0,
+    height: BRAND_MARK,
+    marginTop: -RISE - BRAND_MARK / 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  logo: { width: SPLASH_LOGO, height: SPLASH_LOGO },
   ring: {
     position: "absolute",
-    width: SPLASH_LOGO,
-    height: SPLASH_LOGO,
+    width: BRAND_MARK,
+    height: BRAND_MARK,
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: RED,
+    borderColor: theme.colors.primary,
   },
 
   content: {
@@ -294,57 +217,35 @@ const styles = StyleSheet.create({
     top: "50%",
     left: 0,
     right: 0,
-    marginTop: 30,
+    marginTop: 24,
     alignItems: "center",
     paddingHorizontal: 32,
   },
   title: {
     fontSize: 23,
     fontWeight: "900",
-    color: "#101828",
+    color: theme.colors.ink,
     letterSpacing: 0.2,
     textAlign: "center",
   },
   subtitle: {
     fontSize: 13,
     fontWeight: "600",
-    color: GRAY,
+    color: theme.colors.inkMuted,
     marginTop: 5,
     textAlign: "center",
-  },
-
-  track: {
-    width: 168,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: "#F4E5E3",
-    overflow: "hidden",
-    marginTop: 30,
-  },
-  sweep: {
-    width: 64,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: RED,
   },
   loadingRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 14,
-    height: 18,
+    marginTop: 22,
+    height: 22,
   },
   loadingText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: GRAY_LIGHT,
-    letterSpacing: 0.3,
-  },
-  dots: { flexDirection: "row", alignItems: "flex-end", marginLeft: 5 },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: RED,
-    marginHorizontal: 2,
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: theme.colors.inkFaint,
+    letterSpacing: 0.2,
+    marginLeft: 8,
   },
 });

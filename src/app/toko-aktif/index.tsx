@@ -1,5 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, TextInput, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -79,7 +80,7 @@ export default function TokoAktifList() {
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/spk"); };
 
   if (!viewer) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
   if (!bolehLihat) {
     return (
@@ -360,7 +361,7 @@ export default function TokoAktifList() {
         }
         ListEmptyComponent={
           list === undefined ? (
-            <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+            <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
           ) : (
             <View style={styles.center}>
               <Text style={styles.emptyTitle}>Belum ada data FU Toko</Text>

@@ -1,8 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, Alert, ScrollView,
-  Modal, Pressable,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Alert, ScrollView, Modal, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -258,7 +256,7 @@ export default function JadwalList() {
   };
 
   if (!viewer || data === undefined) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
 
   const rows = data?.rows ?? [];
@@ -492,7 +490,7 @@ export default function JadwalList() {
 
             <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
               {candidatesLoading ? (
-                <ActivityIndicator size="small" color={RED} style={{ marginVertical: 16 }} />
+                <IOSSpinner size="small" color={RED} style={{ marginVertical: 16 }} />
               ) : candidates.length === 0 ? (
                 <Text style={styles.linkEmpty}>
                   {q.length >= 2

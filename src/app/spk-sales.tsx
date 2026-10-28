@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from "react-native";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { api } from "../../convex/_generated/api";
@@ -40,7 +41,7 @@ export default function SpkSales() {
     searchMode && viewer ? ({ q: qDeb, area, limit: 30 } as any) : "skip"
   ) as any;
 
-  if (!viewer) return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
 
   if (viewer.role !== "field" && viewer.role !== "supervisor") {
     return (
@@ -106,7 +107,7 @@ export default function SpkSales() {
       ) : null}
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : rows.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>{searchMode ? "Tidak ada toko yang cocok" : "Tidak ada toko"}</Text>

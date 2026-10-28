@@ -1,5 +1,6 @@
+import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -22,7 +23,7 @@ export default function KirimNotifikasi() {
   const [sel, setSel] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
-  if (!viewer) return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   if (viewer.role !== "supervisor") {
     return (
       <View style={styles.center}>
@@ -86,7 +87,7 @@ export default function KirimNotifikasi() {
             <TextInput style={styles.search} placeholder="Cari nama / ID..."
               value={q} onChangeText={setQ} autoCapitalize="none" />
             {users === undefined ? (
-              <ActivityIndicator size="small" color={RED} style={{ marginVertical: 10 }} />
+              <IOSSpinner size="small" color={RED} style={{ marginVertical: 10 }} />
             ) : (
               filtered.map((u: any) => {
                 const on = sel.includes(u._id);

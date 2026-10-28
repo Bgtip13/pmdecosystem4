@@ -1,8 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useEffect, useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
-  ScrollView, Image, Alert,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
@@ -82,7 +80,7 @@ export default function TokoAktifDetail() {
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/toko-aktif" as any); };
 
   if (data === undefined || viewer === undefined) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
   if (!data) {
     return (
@@ -387,7 +385,7 @@ export default function TokoAktifDetail() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Riwayat Aksi</Text>
           {trail === undefined ? (
-            <ActivityIndicator size="small" color={RED} style={{ marginVertical: 6 }} />
+            <IOSSpinner size="small" color={RED} style={{ marginVertical: 6 }} />
           ) : (trail ?? []).length === 0 ? (
             <Text style={styles.hint}>Belum ada aktivitas tercatat.</Text>
           ) : (

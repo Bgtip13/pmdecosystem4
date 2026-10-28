@@ -1,7 +1,6 @@
+import IOSSpinner from "../../components/IOSSpinner";
 import { useState } from "react";
-import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, useConvex } from "convex/react";
 import * as Sharing from "expo-sharing";
@@ -135,7 +134,7 @@ export default function LaporanJadwal() {
       </View>
 
       {data === undefined ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
       ) : !data ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Tidak ada akses</Text>

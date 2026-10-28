@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import IOSSpinner from "../components/IOSSpinner";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -21,7 +22,7 @@ export default function LaporanWeb() {
   const viewer = useQuery(api.users.viewer) as any;
 
   if (!viewer) {
-    return <View style={s.center}><ActivityIndicator size="large" color={A.blue} /></View>;
+    return <View style={s.center}><IOSSpinner size="large" color={A.blue} /></View>;
   }
 
   const isPpic = viewer.role === "ppic";

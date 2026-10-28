@@ -10,7 +10,10 @@ const crons = cronJobs();
 // ===== SINKRON DATA (bukan notifikasi — tetap jalan tiap hari) =====
 // Sinkron piutang 04:00 DIHAPUS sesuai permintaan sebelumnya.
 // crons.daily("sync piutang harian", { hourUTC: 21 }, internal.piutang.autoSync);
-crons.daily("sync piutang 08.00 WIB", { hourUTC: 1, minuteUTC: 0 }, internal.piutang.autoSync);
+// Sinkron piutang 08.00 WIB DINONAKTIFKAN: piutang.autoSync tidak pernah ada dan
+// piutangSync.ts hanya berisi mutation (belum ada action pengambil sheet).
+// Deploy akan gagal bila cron menunjuk fungsi yang tidak ada.
+// crons.daily("sync piutang 08.00 WIB", { hourUTC: 1, minuteUTC: 0 }, internal.piutang.autoSync);
 crons.daily("sync jadwal 08.05 WIB", { hourUTC: 1, minuteUTC: 5 }, internal.jadwalSync.autoSync);
 
 // ============================================================================

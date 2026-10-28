@@ -30,6 +30,7 @@ import type * as lib_money from "../lib/money.js";
 import type * as locationRequests from "../locationRequests.js";
 import type * as notifications from "../notifications.js";
 import type * as orderFollowups from "../orderFollowups.js";
+import type * as penilaian from "../penilaian.js";
 import type * as piutang from "../piutang.js";
 import type * as piutangSync from "../piutangSync.js";
 import type * as reminderData from "../reminderData.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   locationRequests: typeof locationRequests;
   notifications: typeof notifications;
   orderFollowups: typeof orderFollowups;
+  penilaian: typeof penilaian;
   piutang: typeof piutang;
   piutangSync: typeof piutangSync;
   reminderData: typeof reminderData;

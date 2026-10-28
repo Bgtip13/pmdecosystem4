@@ -570,3 +570,107 @@ export const todayByArea = query({
     return Array.from(map.values());
   },
 });
+
+
+// ===== PENILAIAN BULANAN SPK ADMIN (lunas/selesai = hilang dari list hari berikutnya) =====
+export const collectionAssessment = query({
+  args: {
+    monthKey: v.optional(v.string()),
+  },
+  handler: async (ctx, { monthKey }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) return [];
+    const me = await ctx.db.get(userId);
+    const role = (me as any)?.role;
+    if (role !== "supervisor" && role !== "owner") return [];
+
+    const mk = monthKey ?? new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7);
+    const [y, m] = mk.split("-").map((x: string) => parseInt(x, 10));
+    const days: string[] = [];
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    for (let d = 1; d <= lastDay; d++) {
+      days.push(`${mk}-${String(d).padStart(2, "0")}`);
+    }
+
+    const all: any[] = [];
+    for (const day of days) {
+      const rows = await ctx.db.query("order_followups").withIndex("by_day_status", (q) => q.eq("day", day)).collect();
+      for (const r of rows) all.push({ ...r, day });
+    }
+
+    const perDay = new Map<string, Set<string>>();
+    for (const r of all) {
+      if (!perDay.has(r.day)) perDay.set(r.day, new Set());
+      perDay.get(r.day)!.add((r.storeName || "").toLowerCase());
+    }
+
+    let totalMuncul = 0;
+    let didugaLunas = 0;
+    const byArea = new Map<string, { area: string; muncul: number; lunas: number }>();
+
+    for (let i = 0; i < days.length - 1; i++) {
+      const day = days[i];
+      const nextDay = days[i + 1];
+      const rowsToday = all.filter((r: any) => r.day === day && r.status !== "done" && r.workflowStatus !== "CLSD");
+      const nextSet = perDay.get(nextDay) || new Set();
+      for (const r of rowsToday) {
+        totalMuncul++;
+        const area = r.area || "-";
+        const cur = byArea.get(area) ?? { area, muncul: 0, lunas: 0 };
+        cur.muncul++;
+        if (!nextSet.has((r.storeName || "").toLowerCase())) {
+          didugaLunas++;
+          cur.lunas++;
+        }
+        byArea.set(area, cur);
+      }
+    }
+
+    const pctLunas = totalMuncul > 0 ? Math.round((didugaLunas / totalMuncul) * 100) : 0;
+    return [{
+      monthKey: mk,
+      totalMuncul,
+      didugaLunas,
+      pctLunas,
+      perArea: Array.from(byArea.values()).sort((a, b) => b.muncul - a.muncul),
+    }];
+  },
+});
+
+
+export const collectionAssessmentDays = query({
+  args: {
+    daysBack: v.optional(v.number()),
+  },
+  handler: async (ctx, { daysBack = 7 }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) return [];
+    const me = await ctx.db.get(userId);
+    const role = (me as any)?.role;
+    if (role !== "supervisor" && role !== "owner") return [];
+
+    const now = new Date(Date.now() + 7 * 3600 * 1000);
+    const results: any[] = [];
+    for (let d = 0; d < daysBack; d++) {
+      const base = new Date(now);
+      base.setUTCDate(base.getUTCDate() - d);
+      const day = base.toISOString().slice(0, 10);
+      const next = new Date(base);
+      next.setUTCDate(next.getUTCDate() - (d - 1));
+      const nextDay = d === 0 ? null : next.toISOString().slice(0, 10);
+      const rows = await ctx.db.query("order_followups").withIndex("by_day_status", (q) => q.eq("day", day)).collect();
+      if (rows.length === 0) continue;
+      let disappeared = 0;
+      if (nextDay) {
+        const nextRows = await ctx.db.query("order_followups").withIndex("by_day_status", (q) => q.eq("day", nextDay)).collect();
+        const nextSet = new Set(nextRows.map((r: any) => (r.storeName || "").toLowerCase()));
+        for (const r of rows as any[]) {
+          if (r.status === "done" || r.workflowStatus === "CLSD") continue;
+          if (!nextSet.has((r.storeName || "").toLowerCase())) disappeared++;
+        }
+      }
+      results.push({ day, total: rows.length, didugaLunas: disappeared, open: rows.filter((r: any) => r.status !== "done" && r.workflowStatus !== "CLSD").length });
+    }
+    return results;
+  },
+});

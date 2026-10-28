@@ -572,7 +572,7 @@ export const todayByArea = query({
 });
 
 
-// ===== PENILAIAN BULANAN SPK ADMIN (lunas/selesai = hilang dari list hari berikutnya) =====
+// ===== PENILAIAN BULANAN PENAGIHAN (lunas = hilang dari list hari berikutnya) =====
 export const collectionAssessment = query({
   args: {
     monthKey: v.optional(v.string()),
@@ -594,7 +594,7 @@ export const collectionAssessment = query({
 
     const all: any[] = [];
     for (const day of days) {
-      const rows = await ctx.db.query("order_followups").withIndex("by_day", (q) => q.eq("day", day)).collect();
+      const rows = await ctx.db.query("piutang_tasks").withIndex("by_day", (q) => q.eq("day", day)).collect();
       for (const r of rows) all.push({ ...r, day });
     }
 
@@ -606,7 +606,8 @@ export const collectionAssessment = query({
 
     let totalMuncul = 0;
     let didugaLunas = 0;
-    const byArea = new Map<string, { area: string; muncul: number; lunas: number }>();
+    let tertagih = 0;
+    const byArea = new Map<string, { area: string; muncul: number; lunas: number; tertagih: number }>();
 
     for (let i = 0; i < days.length - 1; i++) {
       const day = days[i];
@@ -616,11 +617,15 @@ export const collectionAssessment = query({
       for (const r of rowsToday) {
         totalMuncul++;
         const area = r.area || "-";
-        const cur = byArea.get(area) ?? { area, muncul: 0, lunas: 0 };
+        const cur = byArea.get(area) ?? { area, muncul: 0, lunas: 0, tertagih: 0 };
         cur.muncul++;
         if (!nextSet.has((r.storeName || "").toLowerCase())) {
           didugaLunas++;
           cur.lunas++;
+        }
+        if (r.hasil === "lunas" || r.hasil === "cicil") {
+          tertagih++;
+          cur.tertagih++;
         }
         byArea.set(area, cur);
       }
@@ -631,6 +636,7 @@ export const collectionAssessment = query({
       monthKey: mk,
       totalMuncul,
       didugaLunas,
+      tertagih,
       pctLunas,
       perArea: Array.from(byArea.values()).sort((a, b) => b.muncul - a.muncul),
     }];
@@ -638,9 +644,10 @@ export const collectionAssessment = query({
 });
 
 
-export const collectionAssessment = query({
+// ===== PENILAIAN HARIAN PENAGIHAN (7 hari terakhir) =====
+export const collectionAssessmentDays = query({
   args: {
-    daysBack: v.optional(v.number()),
+    daysBack: v.optional(v.number()), // default 7
   },
   handler: async (ctx, { daysBack = 7 }) => {
     const userId = await getAuthUserId(ctx);
@@ -657,13 +664,14 @@ export const collectionAssessment = query({
       const day = base.toISOString().slice(0, 10);
       const next = new Date(base);
       next.setUTCDate(next.getUTCDate() - (d - 1));
+      // hari ini belum punya "besok" -> belum bisa dibandingkan
       const nextDay = d === 0 ? null : next.toISOString().slice(0, 10);
-      const rows = await ctx.db.query("order_followups").withIndex("by_day", (q) => q.eq("day", day)).collect();
+      const rows = await ctx.db.query("piutang_tasks").withIndex("by_day", (q) => q.eq("day", day)).collect();
       if (rows.length === 0) continue;
       let disappeared = 0;
       if (nextDay) {
-        const nextRows = await ctx.db.query("order_followups").withIndex("by_day", (q) => q.eq("day", nextDay)).collect();
-        const nextSet = new Set(nextRows.map((r: any) => (r.storeName || "").toLowerCase()));
+        const nextRows = await ctx.db.query("piutang_tasks").withIndex("by_day", (q) => q.eq("day", nextDay)).collect();
+        const nextSet = new Set(nextRows.map((r: any) => r.storeName.toLowerCase()));
         for (const r of rows as any[]) {
           if (r.status === "done" || r.workflowStatus === "CLSD") continue;
           if (!nextSet.has((r.storeName || "").toLowerCase())) disappeared++;

@@ -124,6 +124,13 @@ export default function DesktopShell({
         badge: (piutangCount?.count ?? 0) + (orderCount?.count ?? 0),
       });
     }
+    // Kunjungan lapangan: daftar toko untuk check-in + jadwal harian dari sheet.
+    if (role === "field" || isSuper) {
+      items.push({ key: "spk-sales", label: "SPK Sales", icon: "pin", href: "/spk-sales", group: "Operasional" });
+    }
+    if (role === "field" || isSuper || isOwner) {
+      items.push({ key: "jadwal", label: "SPK Jadwal", icon: "calendar", href: "/jadwal", group: "Operasional" });
+    }
     items.push({ key: "riwayat", label: "Riwayat", icon: "clock", href: "/riwayat", group: "Operasional" });
     if (canSeeLaporan) {
       items.push({ key: "laporan", label: "Laporan", icon: "chart", href: "/laporan", group: "Analitik" });
@@ -133,11 +140,17 @@ export default function DesktopShell({
     }
     items.push({ key: "akun", label: "Akun", icon: "user", href: "/akun", group: "Sistem" });
     return items;
-  }, [canUseSpk, canSeeLaporan, isSuper, piutangCount?.count, orderCount?.count]);
+  }, [canUseSpk, canSeeLaporan, isSuper, isOwner, role, piutangCount?.count, orderCount?.count]);
 
   const paletteItems = useMemo(() => {
     const base = [
       ...navItems.map((n) => ({ label: n.label, hint: n.group, icon: n.icon, href: n.href })),
+      ...(role === "field" || isSuper
+        ? [{ label: "SPK Sales", hint: "Operasional", icon: "pin", href: "/spk-sales" }]
+        : []),
+      ...(role === "field" || isSuper || isOwner
+        ? [{ label: "SPK Jadwal", hint: "Operasional", icon: "calendar", href: "/jadwal" }]
+        : []),
       { label: "Riwayat Kunjungan Sales", hint: "Riwayat", icon: "pin", href: "/riwayat?tab=kunjungan" },
       { label: "Riwayat Follow-up Admin", hint: "Riwayat", icon: "checkDone", href: "/riwayat?tab=admin" },
       { label: "Riwayat FU Toko", hint: "Riwayat", icon: "store", href: "/riwayat?tab=fu" },
@@ -171,7 +184,7 @@ export default function DesktopShell({
       }
       return false;
     });
-  }, [navItems, paletteQuery, canSeeLaporan, isSuper]);
+  }, [navItems, paletteQuery, canSeeLaporan, isSuper, isOwner, role]);
 
   const openItem = (href: string) => {
     setPaletteOpen(false);

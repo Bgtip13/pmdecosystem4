@@ -117,8 +117,8 @@ export default function BerandaWeb() {
   const live = useQuery(api.visits.listLiveSales, (isSuper || isOwner ? undefined : "skip") as any) as any;
   const kpiMonthly = useQuery(api.visits.monthlyKpi, (isSuper || isOwner ? {} : "skip") as any) as any;
   const kpiTeleMonthly = useQuery(api.visits.monthlyKpiTele, (isSuper || isOwner ? {} : "skip") as any) as any;
-  const collPiutang = useQuery(api.piutang.collectionAssessment, (isSuper || isOwner ? { daysBack: 7 } : "skip") as any) as any;
-  const collSpk = useQuery(api.orderFollowups.collectionAssessment, (isSuper || isOwner ? { daysBack: 7 } : "skip") as any) as any;
+  const collPiutang = useQuery(api.piutang.collectionAssessment, (isSuper || isOwner ? {} : "skip") as any) as any;
+  const collSpk = useQuery(api.orderFollowups.collectionAssessment, (isSuper || isOwner ? {} : "skip") as any) as any;
   const visitHist = useQuery(api.visits.listHistory, (isTele ? { from: dayStart, to: dayEnd } : "skip") as any) as any;
   const fuToko = useQuery(api.dashboard.activeStoreMonthly, (usesFu ? {} : "skip") as any) as any;
 

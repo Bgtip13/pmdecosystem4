@@ -61,7 +61,7 @@ function Login() {
       <View style={[styles.deco, styles.decoSmall]} />
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <BrandMark size={132} />
+        <BrandMark size={132} style={{ alignSelf: "center" }} />
 
         <View style={styles.headWrap}>
           <Text style={styles.title}>PMD Ecosystem 4.0</Text>
@@ -143,7 +143,7 @@ function ChangePassword() {
       <View style={[styles.deco, styles.decoSmall]} />
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <BrandMark size={88} style={{ marginBottom: 6 }} />
+        <BrandMark size={88} style={{ alignSelf: "center", marginBottom: 6 }} />
         <Text style={styles.title}>Ganti Password</Text>
         <Text style={styles.subtitle}>Kamu wajib mengganti password sebelum lanjut.</Text>
 

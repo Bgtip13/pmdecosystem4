@@ -3,7 +3,7 @@ import { usePathname } from "expo-router";
 import type { ReactNode } from "react";
 
 // Rute yang SUDAH punya versi desktop (*.web.tsx). Tambahkan setiap kali ada berkas baru.
-const DESKTOP_ROUTES = ["/", "/beranda", "/spk", "/spk-sales", "/jadwal", "/spk-detail", "/spk-detail-order", "/spv", "/laporan", "/akun", "/toko-aktif", "/riwayat", "/visit-detail", "/fu-toko-riwayat"];
+const DESKTOP_ROUTES = ["/", "/beranda", "/spk", "/spk-sales", "/jadwal", "/spk-detail", "/spk-detail-order", "/spv", "/spv-penilaian", "/laporan", "/akun", "/toko-aktif", "/riwayat", "/visit-detail", "/fu-toko-riwayat"];
 
 export default function WebFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";

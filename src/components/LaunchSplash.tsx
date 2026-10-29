@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { LinearGradient } from "expo-linear-gradient";
+import { useConvexAuth } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 import Animated, {
   cancelAnimation,
   Easing,
-  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -13,187 +14,232 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import BrandMark from "./BrandMark";
-import IOSSpinner from "./IOSSpinner";
+import SplashProgress from "./SplashProgress";
+import { api } from "../../convex/_generated/api";
 import { theme } from "../lib/theme";
 
-// Sama dengan `imageWidth` splash native di app.json → frame pertama animasi
-// pas dengan splash native, jadi tidak ada logo yang "melompat" atau berubah
-// dari kotak bawaan ke logo bertema.
-const SPLASH_MARK = 200;
-// Ukuran akhir logo: sama dengan ukuran di LoadingScreen, jadi peralihannya mulus.
-const BRAND_MARK = 132;
-const MARK_SCALE = BRAND_MARK / SPLASH_MARK;
-const RISE = 84;
+// Ukuran logo di splash native (app.json → expo-splash-screen.imageWidth).
+// Overlay mulai dari ukuran ini juga, jadi tidak ada logo yang "melompat".
+const NATIVE_MARK = 200;
+// Ukuran akhir logo — dipakai juga oleh LoadingScreen lewat mode `inline`.
+const BRAND_MARK = 120;
+const MARK_SCALE = NATIVE_MARK / BRAND_MARK;
+const RISE = 78;
+// Jarak atas blok teks dari titik tengah layar (lihat styles.content).
+const CONTENT_TOP = -RISE + BRAND_MARK / 2 + 22;
+
+const MIN_SHOW = 1150;   // animasi pembuka sempat terlihat
+const MAX_WAIT = 6500;   // jangan menahan aplikasi kalau sesi lambat
+const FADE_OUT = 340;
 
 const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1);
 
+type Props = {
+  /** Dipakai LoadingScreen: tampil statis tanpa menunggu sesi & tanpa fade. */
+  inline?: boolean;
+};
+
 /**
- * Animasi pembuka. Tampil menutupi router sejak frame pertama, mengambil alih
- * splash native, lalu fade ke layar aplikasi.
- * Dipakai di APK (iOS/Android) DAN di tampilan web. Waktunya sama; di web hanya
- * pelepasan splash native yang dilewati karena browser tidak memilikinya.
+ * Animasi pembuka yang sama untuk APK dan web.
+ *
+ * Urutannya satu tarikan napas, tanpa tumpang tindih:
+ *   1. splash native (logo diam 200pt) → overlay mengambil alih di frame yang sama;
+ *   2. logo menyusut ke 120pt sambil naik, teks merek menyusul;
+ *   3. satu garis progres tipis berjalan (bukan spinner + ring sekaligus);
+ *   4. overlay menunggu sesi siap, lalu fade ke halaman aplikasi.
+ *
+ * Karena overlay baru dilepas setelah sesi siap, LoadingScreen tidak muncul
+ * berbarengan di belakangnya — tidak ada logo/teks/spinner ganda.
  */
-export default function LaunchSplash() {
+export default function LaunchSplash({ inline = false }: Props) {
   const [gone, setGone] = useState(false);
-  const started = useRef(false);
+  const [started, setStarted] = useState(false);
+  const startedRef = useRef(false);
+  const startedAt = useRef(0);
+  const faded = useRef(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const logoScale = useSharedValue(1);
-  const logoY = useSharedValue(0);
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const viewer = useQuery(api.users.viewer);
+  // Sesi selesai dimuat: tidak sedang login, atau profil sudah datang.
+  const appReady = !isLoading && !(isAuthenticated && viewer === undefined);
+
+  const logoScale = useSharedValue(MARK_SCALE);
+  const logoY = useSharedValue(RISE);
   const contentOpacity = useSharedValue(0);
-  const contentY = useSharedValue(14);
-  const ringA = useSharedValue(0);
-  const ringB = useSharedValue(0);
+  const contentY = useSharedValue(12);
+  const haloOpacity = useSharedValue(0);
   const fade = useSharedValue(0);
 
   useEffect(() => {
     return () => {
       timers.current.forEach(clearTimeout);
-      [logoScale, logoY, contentOpacity, contentY, ringA, ringB, fade].forEach(cancelAnimation);
+      [logoScale, logoY, contentOpacity, contentY, haloOpacity, fade].forEach(cancelAnimation);
     };
-  }, [logoScale, logoY, contentOpacity, contentY, ringA, ringB, fade]);
+  }, [logoScale, logoY, contentOpacity, contentY, haloOpacity, fade]);
 
-  const start = () => {
-    if (started.current) return;
-    started.current = true;
+  const beginFade = useCallback(() => {
+    if (inline || faded.current) return;
+    faded.current = true;
+    fade.value = withTiming(1, { duration: FADE_OUT, easing: Easing.inOut(Easing.quad) });
+    timers.current.push(setTimeout(() => setGone(true), FADE_OUT + 40));
+  }, [fade, inline]);
 
-    // Splash native baru dilepas setelah overlay ini siap di layar.
-    // Di web tidak ada splash native — kalau tetap dipanggil, expo-splash-screen
-    // akan menolak, jadi lebih aman dilewati.
+  // Mulai animasi hanya sekali. Splash native baru dilepas setelah overlay ada.
+  const start = useCallback(() => {
+    if (inline || startedRef.current) return;
+    startedRef.current = true;
+    startedAt.current = Date.now();
+    setStarted(true);
+
     if (Platform.OS !== "web") SplashScreen.hideAsync().catch(() => {});
 
-    // Logo menyusut dari ukuran splash native ke ukuran brand, naik sedikit
-    // supaya ada ruang untuk teks & spinner di bawahnya.
-    logoScale.value = withTiming(MARK_SCALE, { duration: 560, easing: EASE_OUT });
-    logoY.value = withTiming(-RISE, { duration: 560, easing: EASE_OUT });
+    // Logo mengecil dari ukuran splash native ke ukuran merek, naik sedikit.
+    logoScale.value = withTiming(1, { duration: 620, easing: EASE_OUT });
+    logoY.value = withTiming(0, { duration: 620, easing: EASE_OUT });
 
-    // Teks & spinner menyusul.
-    contentOpacity.value = withDelay(
-      220,
-      withTiming(1, { duration: 360, easing: Easing.out(Easing.quad) }),
-    );
-    contentY.value = withDelay(220, withTiming(0, { duration: 420, easing: EASE_OUT }));
+    // Teks menyusul setelah logo mulai bergerak.
+    contentOpacity.value = withDelay(200, withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) }));
+    contentY.value = withDelay(200, withTiming(0, { duration: 460, easing: EASE_OUT }));
 
-    // Dua gelombang ring halus di belakang logo.
-    ringA.value = withDelay(
-      420,
-      withRepeat(withTiming(1, { duration: 2000, easing: Easing.out(Easing.quad) }), -1, false),
-    );
-    ringB.value = withDelay(
-      1420,
-      withRepeat(withTiming(1, { duration: 2000, easing: Easing.out(Easing.quad) }), -1, false),
+    // Halo lembut muncul setelah logo diam, lalu berdenyut pelan.
+    haloOpacity.value = withDelay(
+      600,
+      withRepeat(withTiming(1, { duration: 1700, easing: Easing.inOut(Easing.quad) }), -1, true),
     );
 
-    // Seluruh overlay fade, lalu dilepas dari layar.
-    fade.value = withDelay(
-      1400,
-      withTiming(1, { duration: 330, easing: Easing.inOut(Easing.quad) }),
-    );
-    timers.current.push(setTimeout(() => setGone(true), 1760));
-  };
+    // Pengaman: aplikasi tidak boleh tertahan splash selamanya.
+    timers.current.push(setTimeout(beginFade, MAX_WAIT));
+  }, [beginFade, contentOpacity, contentY, haloOpacity, inline, logoScale, logoY]);
 
-  // Di web onLayout bisa tidak terpanggil (mis. saat halaman masih di-hidrasi),
-  // jadi animasi dimulai lewat timer juga. start() hanya jalan sekali, dan tanpa
-  // ini overlay pembuka bisa menyangkut menutupi seluruh aplikasi.
+  // Dismiss hanya setelah animasi minimum selesai DAN sesi siap.
   useEffect(() => {
-    if (Platform.OS !== "web") return;
+    if (!started || inline) return;
+    const remaining = Math.max(0, MIN_SHOW - (Date.now() - startedAt.current));
+    const t = setTimeout(() => {
+      if (appReady) beginFade();
+    }, remaining);
+    timers.current.push(t);
+    return () => clearTimeout(t);
+  }, [appReady, beginFade, started, inline]);
+
+  // Di web onLayout bisa tidak terpanggil saat hidrasi; timer ini menjaganya.
+  useEffect(() => {
+    if (inline || Platform.OS !== "web") return;
     const t = setTimeout(start, 0);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [inline, start]);
 
-  const rootStyle = useAnimatedStyle(() => ({ opacity: 1 - fade.value }));
-
+  const rootStyle = useAnimatedStyle(() => ({ opacity: inline ? 1 : 1 - fade.value }));
   const logoStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: logoScale.value }, { translateY: logoY.value }],
+    transform: [{ translateY: logoY.value }, { scale: logoScale.value }],
   }));
-
   const contentStyle = useAnimatedStyle(() => ({
     opacity: contentOpacity.value,
     transform: [{ translateY: contentY.value }],
   }));
-
-  const ringAStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(ringA.value, [0, 0.12, 1], [0, 0.3, 0]),
-    transform: [{ scale: interpolate(ringA.value, [0, 1], [0.82, 1.55]) }],
-  }));
-
-  const ringBStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(ringB.value, [0, 0.12, 1], [0, 0.3, 0]),
-    transform: [{ scale: interpolate(ringB.value, [0, 1], [0.82, 1.55]) }],
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: 0.35 + haloOpacity.value * 0.5,
   }));
 
   if (gone) return null;
 
+  const animated = !inline;
+
   return (
     <Animated.View
-      style={[styles.root, rootStyle]}
-      onLayout={start}
+      style={[styles.root, inline ? styles.rootInline : styles.rootOverlay, rootStyle]}
+      onLayout={inline ? undefined : start}
       accessibilityRole="progressbar"
       accessibilityLabel="Membuka PMD Ecosystem"
+      pointerEvents={inline ? "none" : "auto"}
     >
       <LinearGradient
-        colors={["#FFFEFC", "#FCFAFA", "#FFF6F5"]}
-        locations={[0, 0.55, 1]}
+        colors={["#FCFAFA", "#FCFAFA", "#FFF6F5"]}
+        locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFill}
       />
       <View style={[styles.blob, styles.blobTop]} />
       <View style={[styles.blob, styles.blobBottom]} />
 
-      {/* Logo: mulai persis di posisi & ukuran splash native. */}
-      <Animated.View style={[styles.anchor, logoStyle]}>
-        <BrandMark size={SPLASH_MARK} />
-      </Animated.View>
+      {/* Halo di posisi akhir logo — tidak ikut mengecil agar tidak bertumpuk. */}
+      {animated ? (
+        <Animated.View style={[styles.halo, haloStyle]} />
+      ) : (
+        <View style={[styles.halo, { opacity: 0.6 }]} />
+      )}
 
-      {/* Ring dipusatkan pada posisi akhir logo (setelah menyusut & naik). */}
-      <View style={styles.ringArea} pointerEvents="none">
-        <Animated.View style={[styles.ring, ringAStyle]} />
-        <Animated.View style={[styles.ring, ringBStyle]} />
-      </View>
-
-      <Animated.View style={[styles.content, contentStyle]}>
-        <Text style={styles.title}>PMD Ecosystem</Text>
-        <Text style={styles.subtitle}>Prima Mandiri Distribusi</Text>
-
-        <View style={styles.loadingRow}>
-          <IOSSpinner size="small" color={theme.colors.inkMuted} />
-          <Text style={styles.loadingText}>Memuat</Text>
+      {animated ? (
+        <Animated.View style={[styles.anchor, logoStyle]}>
+          <BrandMark size={BRAND_MARK} />
+        </Animated.View>
+      ) : (
+        <View style={styles.anchor}>
+          <BrandMark size={BRAND_MARK} />
         </View>
-      </Animated.View>
+      )}
+
+      {animated ? (
+        <Animated.View style={[styles.content, contentStyle]}>
+          <Text style={styles.title}>PMD Ecosystem</Text>
+          <Text style={styles.subtitle}>Prima Mandiri Distribusi</Text>
+          <SplashProgress style={styles.progress} />
+        </Animated.View>
+      ) : (
+        <View style={styles.content}>
+          <Text style={styles.title}>PMD Ecosystem</Text>
+          <Text style={styles.subtitle}>Prima Mandiri Distribusi</Text>
+          <SplashProgress style={styles.progress} />
+        </View>
+      )}
+
+      <View style={styles.footer}>
+        <View style={styles.footerLine} />
+        <Text style={styles.footerText}>APLIKASI INTERNAL</Text>
+        <View style={styles.footerLine} />
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
+    backgroundColor: theme.colors.bg,
+    overflow: "hidden",
+  },
+  rootOverlay: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: theme.colors.bg,
     zIndex: 1000,
     elevation: 1000,
-    overflow: "hidden",
+  },
+  rootInline: {
+    flex: 1,
   },
 
   blob: { position: "absolute", backgroundColor: "#FEF3F2", borderRadius: 999 },
-  blobTop: { width: 320, height: 320, top: -140, right: -130 },
-  blobBottom: { width: 240, height: 240, bottom: -110, left: -100 },
+  blobTop: { width: 340, height: 340, top: -160, right: -150 },
+  blobBottom: { width: 250, height: 250, bottom: -120, left: -110 },
 
-  // Titik pusat layar — sama dengan posisi logo di splash native.
-  anchor: {
+  // Pusat logo setelah animasi: 78pt di atas titik tengah layar.
+  halo: {
     position: "absolute",
     top: "50%",
-    left: 0,
-    right: 0,
-    height: SPLASH_MARK,
-    marginTop: -SPLASH_MARK / 2,
-    alignItems: "center",
-    justifyContent: "center",
+    left: "50%",
+    width: 172,
+    height: 172,
+    marginLeft: -86,
+    marginTop: -RISE - 86,
+    borderRadius: 999,
+    backgroundColor: "rgba(217,45,32,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(217,45,32,0.10)",
   },
 
-  ringArea: {
+  anchor: {
     position: "absolute",
     top: "50%",
     left: 0,
@@ -203,49 +249,53 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  ring: {
-    position: "absolute",
-    width: BRAND_MARK,
-    height: BRAND_MARK,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: theme.colors.primary,
-  },
 
   content: {
     position: "absolute",
     top: "50%",
     left: 0,
     right: 0,
-    marginTop: 24,
+    marginTop: CONTENT_TOP,
     alignItems: "center",
     paddingHorizontal: 32,
   },
   title: {
-    fontSize: 23,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: "900",
     color: theme.colors.ink,
     letterSpacing: 0.2,
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12.5,
+    lineHeight: 18,
     fontWeight: "600",
     color: theme.colors.inkMuted,
     marginTop: 5,
     textAlign: "center",
   },
-  loadingRow: {
+  progress: { marginTop: 24 },
+
+  footer: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 22,
-    height: 22,
+    justifyContent: "center",
   },
-  loadingText: {
-    fontSize: 12.5,
-    fontWeight: "600",
-    color: theme.colors.inkFaint,
-    letterSpacing: 0.2,
-    marginLeft: 8,
+  footerLine: {
+    width: 22,
+    height: 1,
+    backgroundColor: "#F0DAD7",
+    marginHorizontal: 10,
+  },
+  footerText: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    letterSpacing: 1.8,
+    color: "#C7B4B1",
   },
 });

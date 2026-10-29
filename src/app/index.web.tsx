@@ -1,4 +1,3 @@
-import IOSSpinner from "../components/IOSSpinner";
 import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ScrollView, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,6 +7,7 @@ import { Redirect } from "expo-router";
 import { api } from "../../convex/_generated/api";
 import AppIcon from "../components/AppIcon";
 import BrandMark from "../components/BrandMark";
+import LoadingScreen from "../components/LoadingScreen";
 import { A, FONT } from "../components/desktop/tokens";
 
 // Khusus WEB — login merah-putih. APK tetap memakai index.tsx.
@@ -16,15 +16,7 @@ export default function IndexWeb() {
   const viewer = useQuery(api.users.viewer) as any;
 
   if (isLoading || (isAuthenticated && viewer === undefined)) {
-    return (
-      <View style={styles.center}>
-        <View style={styles.loadingTile}>
-          <BrandMark size={52} />
-        </View>
-        <IOSSpinner size="large" color={A.brand} style={{ marginTop: 18 }} />
-        <Text style={styles.loadingText}>Menyiapkan PMD Ecosystem…</Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
   if (!isAuthenticated) return <Login />;
   if (viewer?.mustChangePassword) return <ChangePassword />;
@@ -300,14 +292,6 @@ const styles = StyleSheet.create({
     backgroundColor: A.page, padding: 24,
     ...(Platform.OS === "web" ? ({ minHeight: "100vh" } as any) : {}),
   },
-  loadingTile: {
-    width: 74, height: 74, borderRadius: 18,
-    backgroundColor: A.surface, borderWidth: 1, borderColor: A.brandBorder,
-    alignItems: "center", justifyContent: "center",
-  },
-  loadingLogo: { width: 52, height: 52 },
-  loadingText: { color: A.muted, fontSize: 11.5, marginTop: 10, fontWeight: "600", fontFamily: FONT },
-
   wrap: {
     flex: 1, backgroundColor: "#EFE8E4",
     justifyContent: "center", alignItems: "center", padding: 24,

@@ -1,10 +1,15 @@
-import { ScrollViewStyleReset } from "expo-router/html";
+import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 
 // Shell HTML versi web — tidak dipakai di Android/iOS.
+// SDK 58: headNodes (metadata + CSS RN-web) dan bodyNodes (bundle JavaScript)
+// WAJIB dirender. Tanpa bodyNodes, HTML statis terkirim tanpa JS sama sekali —
+// halaman hanya menampilkan splash diam dan tidak pernah ter-hidrasi.
 export default function Root({ children }: PropsWithChildren) {
+  const { headNodes, bodyNodes, htmlAttributes, bodyAttributes } = useServerDocumentContext();
+
   return (
-    <html lang="id">
+    <html lang="id" {...htmlAttributes}>
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
@@ -21,8 +26,12 @@ export default function Root({ children }: PropsWithChildren) {
         />
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
+        {headNodes}
       </head>
-      <body>{children}</body>
+      <body {...bodyAttributes}>
+        {children}
+        {bodyNodes}
+      </body>
     </html>
   );
 }

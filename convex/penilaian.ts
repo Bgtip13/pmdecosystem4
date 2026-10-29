@@ -2,6 +2,7 @@ import { action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 
+
 // ============================================================================
 // PENILAIAN BULANAN SALES (supervisor & owner)
 //
@@ -154,6 +155,21 @@ function findSdm(rows: any[] | null, name: string) {
   );
 }
 
+// Sebulan dibagi 9 kali kiriman. Porsi mingguan memakai rata-rata kiriman
+// per minggu (9 kiriman / 4 minggu = 2,25), jadi bobot target mingguan =
+// 2,25/9 = 25% dari target bulanan. Semua angka ditampilkan di rapor supaya
+// supervisor bisa menjelaskan asal targetnya.
+const KIRIMAN_PER_BULAN = 9;
+const MINGGU_PER_BULAN = 4;
+const KIRIMAN_PER_MINGGU = KIRIMAN_PER_BULAN / MINGGU_PER_BULAN;
+
+function rupiahShort(n: number | null) {
+  if (n == null) return "-";
+  if (Math.abs(n) >= 1_000_000_000) return `Rp${(n / 1_000_000_000).toFixed(1).replace(".", ",")} M`;
+  if (Math.abs(n) >= 1_000_000) return `Rp${(n / 1_000_000).toFixed(1).replace(".", ",")} jt`;
+  return `Rp${n.toLocaleString("id-ID")}`;
+}
+
 function omsetOf(name: string, area: string, bulanan: any[] | null, mingguan: any[] | null) {
   const b = findSdm(bulanan, name);
   const m = findSdm(mingguan, name);
@@ -164,17 +180,22 @@ function omsetOf(name: string, area: string, bulanan: any[] | null, mingguan: an
     else if (b.tgt && b.act != null) bulanPct = Math.round((b.act / b.tgt) * 100);
   }
 
+  // Rata-rata mingguan: seluruh minggu yang sudah ada ACT-nya.
+  const weeks = ((m?.weeks ?? []) as any[]).filter((w) => w.act != null);
+  const mingguAct = weeks.length
+    ? Math.round(weeks.reduce((a, w) => a + Number(w.act ?? 0), 0) / weeks.length)
+    : null;
+
+  // Target per kiriman → porsi mingguan 9 kiriman/bulan.
+  const targetPerKiriman = b?.tgt != null ? Math.round(b.tgt / KIRIMAN_PER_BULAN) : null;
+  const targetMinggu =
+    targetPerKiriman != null
+      ? Math.round(targetPerKiriman * KIRIMAN_PER_MINGGU)
+      : m?.tgtMgg ?? null;
+
   let mingguPct: number | null = null;
-  let mingguLabel: string | null = null;
-  let mingguAct: number | null = null;
-  if (m) {
-    const last = [...(m.weeks ?? [])].reverse().find((w: any) => w.pct != null || w.act != null);
-    if (last) {
-      mingguLabel = last.m;
-      mingguAct = last.act ?? null;
-      if (last.pct != null) mingguPct = Math.round(last.pct);
-      else if (m.tgtMgg && last.act != null) mingguPct = Math.round((last.act / m.tgtMgg) * 100);
-    }
+  if (mingguAct != null && targetMinggu) {
+    mingguPct = Math.round((mingguAct / targetMinggu) * 100);
   }
 
   return {
@@ -183,8 +204,19 @@ function omsetOf(name: string, area: string, bulanan: any[] | null, mingguan: an
     omsetBulanTarget: b?.tgt ?? null,
     omsetBulanPct: bulanPct,
     omsetMingguAct: mingguAct,
-    omsetMingguLabel: mingguLabel,
+    omsetMingguTarget: targetMinggu,
     omsetMingguPct: mingguPct,
+    omsetMingguCount: weeks.length,
+    omsetMingguLabel: weeks.length ? `rata-rata ${weeks.map((w) => w.m).join("/")}` : null,
+    omsetMingguWeeks: ((m?.weeks ?? []) as any[]).map((w) => ({
+      label: w.m,
+      act: w.act ?? null,
+      pct: w.pct ?? null,
+    })),
+    omsetTargetPerKiriman: targetPerKiriman,
+    omsetKirimanPerBulan: KIRIMAN_PER_BULAN,
+    omsetKirimanPerMinggu: KIRIMAN_PER_MINGGU,
+    omsetRingkas: `${rupiahShort(mingguAct)} / minggu`,
   };
 }
 
@@ -300,9 +332,45 @@ export const raw = internalQuery({
       followupDaily.set(d, fm);
     }
 
-    // Kunci tagihan: nama toko + nominal (persis seperti permintaan penilaian)
-    const tagihanKey = (r: any) =>
-      `${String(r.storeName ?? "").trim().toLowerCase()}|${r.piutang ?? r.total ?? 0}`;
+    // ===== RIWAYAT SPK ADMIN =====
+    // Sync piutang menghapus & membuat ulang tugas OPEN tiap hari, jadi satu
+    // tagihan punya beberapa _id. Identitas tagihan = toko + tanggal/nominal.
+    // Kalau ada duplikat, baris yang paling maju (CLSD > INPG > OPEN) dipakai.
+    const rankWf = (r: any) =>
+      r.workflowStatus === "CLSD" ? 3 : r.workflowStatus === "INPG" ? 2 : r.status === "done" ? 1 : 0;
+    const piutangKey = (r: any) =>
+      [
+        String(r.storeName ?? "").trim().toLowerCase(),
+        r.tanggal ?? "",
+        r.total ?? "",
+        r.piutang ?? "",
+      ].join("|");
+
+    const piutangByArea = new Map<string, Map<string, any>>();
+    for (const dayMap of piutangDaily.values()) {
+      for (const [area, rows] of dayMap) {
+        if (!piutangByArea.has(area)) piutangByArea.set(area, new Map());
+        const bucket = piutangByArea.get(area)!;
+        for (const r of rows) {
+          const key = piutangKey(r);
+          const prev = bucket.get(key);
+          if (!prev || rankWf(r) > rankWf(prev) || (rankWf(r) === rankWf(prev) && (r.updatedAt ?? r.createdAt ?? 0) > (prev.updatedAt ?? prev.createdAt ?? 0))) {
+            bucket.set(key, r);
+          }
+        }
+      }
+    }
+
+    // Order follow-up tidak dibuat ulang tiap hari, tapi dedupeKey tetap dipakai
+    // supaya hitungan aman kalau ada baris ganda.
+    const orderByArea = new Map<string, Map<string, any>>();
+    for (const dayMap of followupDaily.values()) {
+      for (const [area, rows] of dayMap) {
+        if (!orderByArea.has(area)) orderByArea.set(area, new Map());
+        const bucket = orderByArea.get(area)!;
+        for (const r of rows) bucket.set(String(r.dedupeKey ?? r._id), r);
+      }
+    }
 
     const metricsForArea = async (area: string) => {
       // ===== FU Toko (sheet Toko_aktif) =====
@@ -316,39 +384,28 @@ export const raw = internalQuery({
       const fuNoRespon = fuHasil.filter((r) => r.result === "no_respon").length;
       const fuTidakOrder = fuHasil.length - fuOrder - fuPlan - fuNoRespon;
 
-      // ===== SPK penagihan: muncul lagi besok dengan nama + nominal sama? =====
-      let tagihTotal = 0;
-      let tagihSelesai = 0;
-      let tagihMasih = 0;
-      for (let i = 0; i + 1 < days.length; i++) {
-        const rows = piutangDaily.get(days[i])?.get(area) ?? [];
-        const nextRows = piutangDaily.get(days[i + 1])?.get(area) ?? [];
-        // hari tanpa daftar (libur / belum sync) tidak dinilai
-        if (rows.length === 0 || nextRows.length === 0) continue;
-        const nextSet = new Set(nextRows.map(tagihanKey));
-        for (const r of rows) {
-          if (r.status === "done" || r.workflowStatus === "CLSD") continue;
-          tagihTotal++;
-          if (nextSet.has(tagihanKey(r))) tagihMasih++;
-          else tagihSelesai++;
-        }
-      }
+      // ===== SPK penagihan (riwayat piutang_tasks bulan ini) =====
+      const pTasks = Array.from(piutangByArea.get(area)?.values() ?? []);
+      const pHasil = (h: string) => pTasks.filter((r) => r.hasil === h).length;
+      const pClosed = pTasks.filter((r) => r.workflowStatus === "CLSD").length;
+      const pInpg = pTasks.filter((r) => r.workflowStatus === "INPG").length;
+      const pOpen = pTasks.length - pClosed - pInpg;
+      // Pekerjaan yang sudah dikirim tapi belum di-review tetap dihargai separuh,
+      // supaya keterlambatan review supervisor tidak menjatuhkan nilai petugas.
+      const tagihPct = pTasks.length > 0
+        ? Math.round(((pClosed + pInpg * 0.5) / pTasks.length) * 100)
+        : null;
 
-      // ===== SPK orderan (order_followups) =====
-      let spkTotal = 0;
-      let spkOrder = 0;
-      let spkNoRespon = 0;
-      let spkTidakOrder = 0;
-      for (const d of days) {
-        const rows = followupDaily.get(d)?.get(area) ?? [];
-        for (const r of rows) {
-          if (r.hasil == null) continue;
-          spkTotal++;
-          if (r.hasil === "order_masuk" || r.hasil === "order_tambah") spkOrder++;
-          else if (r.hasil === "no_respon") spkNoRespon++;
-          else spkTidakOrder++;
-        }
-      }
+      // ===== SPK orderan (riwayat order_followups bulan ini) =====
+      const oTasks = Array.from(orderByArea.get(area)?.values() ?? []);
+      const oHasil = (h: string) => oTasks.filter((r) => r.hasil === h).length;
+      const oClosed = oTasks.filter((r) => r.workflowStatus === "CLSD").length;
+      const oInpg = oTasks.filter((r) => r.workflowStatus === "INPG").length;
+      const oOpen = oTasks.length - oClosed - oInpg;
+      const oOrder = oHasil("order_masuk") + oHasil("order_tambah");
+      // Konversi order dihitung dari seluruh tugas bulan ini; tugas yang belum
+      // dikerjakan menahan skor, bukan diabaikan.
+      const spkOrderPct = oTasks.length > 0 ? Math.round((oOrder / oTasks.length) * 100) : null;
 
       return {
         area,
@@ -358,15 +415,25 @@ export const raw = internalQuery({
         fuNoRespon,
         fuTidakOrder,
         fuPct: fuHasil.length > 0 ? Math.round(((fuOrder + fuPlan * 0.5) / fuHasil.length) * 100) : null,
-        tagihTotal,
-        tagihSelesai,
-        tagihMasih,
-        tagihPct: tagihTotal > 0 ? Math.round((tagihSelesai / tagihTotal) * 100) : null,
-        spkTotal,
-        spkOrder,
-        spkNoRespon,
-        spkTidakOrder,
-        spkPct: spkTotal > 0 ? Math.round((spkOrder / spkTotal) * 100) : null,
+        tagihTotal: pTasks.length,
+        tagihClosed: pClosed,
+        tagihInpg: pInpg,
+        tagihOpen: pOpen,
+        tagihPct,
+        tagihLunas: pHasil("lunas"),
+        tagihCicil: pHasil("cicil"),
+        tagihJanji: pHasil("janji_bayar"),
+        tagihNoRespon: pHasil("no_respon"),
+        spkTotal: oTasks.length,
+        spkClosed: oClosed,
+        spkInpg: oInpg,
+        spkOpen: oOpen,
+        spkOrder: oOrder,
+        spkOrderMasuk: oHasil("order_masuk"),
+        spkOrderTambah: oHasil("order_tambah"),
+        spkNoRespon: oHasil("no_respon"),
+        spkTidakOrder: oHasil("tidak_order"),
+        spkPct: spkOrderPct,
       };
     };
 
@@ -382,8 +449,10 @@ export const raw = internalQuery({
         area: u.area ?? "",
         ...(m ?? {
           fuTotal: 0, fuOrder: 0, fuPlan: 0, fuNoRespon: 0, fuTidakOrder: 0, fuPct: null,
-          tagihTotal: 0, tagihSelesai: 0, tagihMasih: 0, tagihPct: null,
-          spkTotal: 0, spkOrder: 0, spkNoRespon: 0, spkTidakOrder: 0, spkPct: null,
+          tagihTotal: 0, tagihClosed: 0, tagihInpg: 0, tagihOpen: 0, tagihPct: null,
+          tagihLunas: 0, tagihCicil: 0, tagihJanji: 0, tagihNoRespon: 0,
+          spkTotal: 0, spkClosed: 0, spkInpg: 0, spkOpen: 0, spkOrder: 0, spkPct: null,
+          spkOrderMasuk: 0, spkOrderTambah: 0, spkNoRespon: 0, spkTidakOrder: 0,
         }),
       };
     });
@@ -392,42 +461,152 @@ export const raw = internalQuery({
   },
 });
 
-// ===== PENILAIAN BULANAN (dipanggil halaman SPV) =====
-export const monthly = action({
-  args: { monthKey: v.optional(v.string()) },
-  handler: async (ctx, { monthKey }) => {
-    const viewer: any = await ctx.runQuery(api.users.viewer);
-    if (!viewer || (viewer.role !== "supervisor" && viewer.role !== "owner")) {
-      throw new Error("Khusus supervisor.");
-    }
-
-    const mk = monthKey ?? dayKeyWIB().slice(0, 7);
+// ===== HITUNG RAPOR (dipakai aksi publik & pemeriksaan internal) =====
+async function computeMonthly(ctx: any, monthKey: string) {
+    const mk = monthKey;
     const raw: any = await ctx.runQuery(internal.penilaian.raw, { monthKey: mk });
 
     const [bulanan, mingguan] = await Promise.all([fetchPcpBulanan(), fetchPcpMingguan()]);
 
+    // Setiap komponen membawa nilai, target, sumber data, dan penjelasan agar
+    // halaman detail bisa menjadi rapor yang bisa dibaca sendiri oleh sales.
+    type Komponen = {
+      key: string;
+      label: string;
+      bobot: number;
+      pct: number | null;
+      nilai: string;
+      target?: string;
+      sumber: string;
+      penjelasan: string;
+    };
+    const nilaiPct = (p: number | null) => (p == null ? null : Math.max(0, Math.min(100, p)));
+    const susun = (parts: Komponen[]) => {
+      const hasil = hitungSkor(parts.map((p) => ({ label: p.label, pct: p.pct, bobot: p.bobot })));
+      return {
+        skor: hasil.skor,
+        status: hasil.status,
+        komponen: parts.map((p) => ({ ...p, pct: nilaiPct(p.pct) })),
+      };
+    };
+    const komponenOmset = (omset: any, bobotBulan: number, bobotMinggu: number): Komponen[] => [
+      {
+        key: "omset_bulan",
+        label: "Omset bulanan",
+        bobot: bobotBulan,
+        pct: omset.omsetBulanPct,
+        nilai: `${rupiahShort(omset.omsetBulan)} / ${rupiahShort(omset.omsetBulanTarget)}`,
+        target: omset.omsetBulanTarget != null ? rupiahShort(omset.omsetBulanTarget) : "-",
+        sumber: "Sheet PCP bulanan",
+        penjelasan: "Omset aktual bulan berjalan dibanding target bulanan dari sheet PCP.",
+      },
+      {
+        key: "omset_minggu",
+        label: "Omset mingguan",
+        bobot: bobotMinggu,
+        pct: omset.omsetMingguPct,
+        nilai: `${rupiahShort(omset.omsetMingguAct)} / minggu`,
+        target: omset.omsetMingguTarget != null ? rupiahShort(omset.omsetMingguTarget) : "-",
+        sumber: "Sheet PCP mingguan",
+        penjelasan:
+          `Rata-rata ${omset.omsetMingguCount ?? 0} minggu yang sudah ada ACT. ` +
+          `Target mingguan = target per kiriman × ${KIRIMAN_PER_MINGGU} kiriman/minggu ` +
+          `(porsi ${KIRIMAN_PER_BULAN} kiriman dalam sebulan).`,
+      },
+    ];
+
     const field = (raw.field ?? []).map((f: any) => {
       const omset = omsetOf(f.name, f.area, bulanan, mingguan);
-      const hasil = hitungSkor([
-        { label: "Kunjungan harian", pct: f.kunjunganPct, bobot: 30 },
-        { label: "Toko order", pct: f.orderPct, bobot: 25 },
-        { label: "Keterangan lengkap", pct: f.ketPct, bobot: 15 },
-        { label: "Omset bulanan", pct: omset.omsetBulanPct, bobot: 20 },
-        { label: "Omset mingguan", pct: omset.omsetMingguPct, bobot: 10 },
+      const hasil = susun([
+        {
+          key: "kunjungan",
+          label: "Kunjungan sesuai target",
+          bobot: 30,
+          pct: f.kunjunganPct,
+          nilai: `${f.hariMemenuhi}/${f.hariWajib} hari`,
+          target: `${f.targetHarian} toko/hari (Sabtu ${f.targetSabtu})`,
+          sumber: "Check-in kunjungan sales",
+          penjelasan:
+            `Dihitung dari jumlah hari yang mencapai target kunjungan (${f.targetHarian} toko, ` +
+            `Sabtu ${f.targetSabtu}). Hari Minggu dan izin/cuti tidak dihitung. ` +
+            `Total kunjungan bulan ini: ${f.kunjungan} toko.`,
+        },
+        {
+          key: "order",
+          label: "Toko tembus order",
+          bobot: 25,
+          pct: f.orderPct,
+          nilai: `${f.orderCount}/${f.kunjungan} toko`,
+          target: "Semakin tinggi semakin baik",
+          sumber: "Form kunjungan (status order)",
+          penjelasan:
+            "Persentase toko yang dikunjungi lalu menghasilkan order. " +
+            "Kunjungan tanpa order tetap dihitung ke penyebut.",
+        },
+        {
+          key: "keterangan",
+          label: "Kelengkapan keterangan",
+          bobot: 15,
+          pct: f.ketPct,
+          nilai: `${f.keteranganLengkap}/${f.kunjungan} kunjungan`,
+          target: "Catatan + tren/produk dicari",
+          sumber: "Form kunjungan",
+          penjelasan:
+            "Kunjungan dianggap lengkap bila catatan terisi dan tren/produk yang dicari juga diisi. " +
+            "Data lengkap memudahkan telemarketing menindaklanjuti.",
+        },
+        ...komponenOmset(omset, 20, 10),
       ]);
-      return { ...f, ...omset, ...hasil };
+      return { ...f, role: "field", ...omset, ...hasil };
     });
 
     const tele = (raw.tele ?? []).map((t: any) => {
       const omset = omsetOf(t.name, t.area, bulanan, mingguan);
-      const hasil = hitungSkor([
-        { label: "FU Toko", pct: t.fuPct, bobot: 30 },
-        { label: "SPK penagihan", pct: t.tagihPct, bobot: 30 },
-        { label: "SPK orderan", pct: t.spkPct, bobot: 20 },
-        { label: "Omset bulanan", pct: omset.omsetBulanPct, bobot: 15 },
-        { label: "Omset mingguan", pct: omset.omsetMingguPct, bobot: 5 },
+      const hasil = susun([
+        {
+          key: "fu_toko",
+          label: "FU Toko",
+          bobot: 25,
+          pct: t.fuPct,
+          nilai: `${t.fuOrder} order + ${t.fuPlan} rencana / ${t.fuTotal} FU`,
+          target: "Order & rencana order dihargai",
+          sumber: "Sheet Toko Aktif",
+          penjelasan:
+            `Hasil FU bulan ini: ${t.fuOrder} order, ${t.fuPlan} rencana order, ` +
+            `${t.fuNoRespon} no respon, ${t.fuTidakOrder} tidak order. ` +
+            "Rencana order dihargai separuh.",
+        },
+        {
+          key: "spk_penagihan",
+          label: "SPK penagihan (riwayat)",
+          bobot: 30,
+          pct: t.tagihPct,
+          nilai: `${t.tagihClosed} CLSD + ${t.tagihInpg} review / ${t.tagihTotal} tugas`,
+          target: "CLSD penuh, INPG separuh",
+          sumber: "Riwayat SPK Admin — piutang_tasks",
+          penjelasan:
+            `Dari ${t.tagihTotal} tugas penagihan bulan ini: ${t.tagihClosed} disetujui (CLSD), ` +
+            `${t.tagihInpg} menunggu review, ${t.tagihOpen} belum dikerjakan. ` +
+            `Hasil tercatat: ${t.tagihLunas} lunas, ${t.tagihCicil} cicil, ` +
+            `${t.tagihJanji} janji bayar, ${t.tagihNoRespon} no respon.`,
+        },
+        {
+          key: "spk_orderan",
+          label: "SPK orderan (riwayat)",
+          bobot: 20,
+          pct: t.spkPct,
+          nilai: `${t.spkOrder}/${t.spkTotal} order`,
+          target: "Order masuk/tambah dari SPK H+1",
+          sumber: "Riwayat SPK Admin — order_followups",
+          penjelasan:
+            `Dari ${t.spkTotal} tugas orderan bulan ini: ${t.spkClosed} CLSD, ` +
+            `${t.spkInpg} menunggu review, ${t.spkOpen} belum dikerjakan. ` +
+            `Hasil: ${t.spkOrderMasuk} order masuk, ${t.spkOrderTambah} order tambah, ` +
+            `${t.spkTidakOrder} tidak order, ${t.spkNoRespon} no respon.`,
+        },
+        ...komponenOmset(omset, 15, 10),
       ]);
-      return { ...t, ...omset, ...hasil };
+      return { ...t, role: "telemarketing", ...omset, ...hasil };
     });
 
     const urut = (a: any, b: any) => b.skor - a.skor || String(a.name).localeCompare(String(b.name));
@@ -439,6 +618,15 @@ export const monthly = action({
       fetchedAt: Date.now(),
       batasOnTrack: ON_TRACK_MIN,
       omsetTersedia: bulanan != null || mingguan != null,
+      porsiOmset: {
+        kirimanPerBulan: KIRIMAN_PER_BULAN,
+        mingguPerBulan: MINGGU_PER_BULAN,
+        kirimanPerMinggu: KIRIMAN_PER_MINGGU,
+        catatan:
+          `Omset mingguan memakai rata-rata minggu berjalan. Target per kiriman = ` +
+          `target bulanan ÷ ${KIRIMAN_PER_BULAN}; target mingguan = target per kiriman × ` +
+          `${KIRIMAN_PER_MINGGU} kiriman/minggu.`,
+      },
       field,
       tele,
       summary: {
@@ -446,5 +634,16 @@ export const monthly = action({
         tele: { total: tele.length, onTrack: tele.filter((x: any) => x.skor >= ON_TRACK_MIN).length },
       },
     };
+}
+
+// ===== PENILAIAN BULANAN (dipanggil halaman SPV) =====
+export const monthly = action({
+  args: { monthKey: v.optional(v.string()) },
+  handler: async (ctx, { monthKey }) => {
+    const viewer: any = await ctx.runQuery(api.users.viewer);
+    if (!viewer || (viewer.role !== "supervisor" && viewer.role !== "owner")) {
+      throw new Error("Khusus supervisor.");
+    }
+    return await computeMonthly(ctx, monthKey ?? dayKeyWIB().slice(0, 7));
   },
 });

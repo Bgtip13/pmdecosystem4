@@ -1,1032 +1,885 @@
-import IOSSpinner from "../components/IOSSpinner";
-import { useEffect, useRef, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useQuery, useAction, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import IOSSpinner from "../components/IOSSpinner";
 import AppIcon from "../components/AppIcon";
-import TodayCard from "../components/TodayCard";
 import DesktopShell from "../components/desktop/DesktopShell";
-import { Kpi, Panel, Bar, Chip } from "../components/desktop/ui";
-import { A } from "../components/desktop/tokens";
-import { theme } from "../lib/theme";
+import { Bar, Chip, Kpi, Panel, WebButton } from "../components/desktop/ui";
+import { A, FONT } from "../components/desktop/tokens";
+import {
+  pcpAreas,
+  pcpTotals,
+  pcpWeekly,
+  usePcpBulanan,
+  usePcpMingguan,
+} from "../components/home/usePcp";
 
-const { colors: C, radius: R } = theme;
+const TARGET = 7;
+const ROLE_LABEL: Record<string, string> = {
+  owner: "Owner",
+  supervisor: "Supervisor",
+  field: "Sales Lapangan",
+  telemarketing: "Telemarketing",
+  ppic: "PPIC",
+};
 
-const GRAY = C.inkMuted;
-const RED = C.primary;
-const BLUE = C.role.field;
-const VIOLET = C.role.supervisor;
-const GREEN = C.role.owner;
-const ORANGE = C.role.telemarketing;
-
-const ROLE_LABEL: any = { owner: "Owner", field: "Sales Lapangan", telemarketing: "Telemarketing", supervisor: "Supervisor" };
-
-const LEAVE_TYPE_LABEL: any = { sakit: "Sakit", izin: "Izin", cuti: "Cuti", dinas_luar: "Dinas luar", libur: "Libur" };
-const LEAVE_SCOPE_LABEL: any = { tidak_masuk: "Tidak masuk", tidak_keliling: "Tidak keliling" };
-
-const AREA_ORDER = ["GLOBAL", "SOLO", "DIY", "SEMARANG", "TAB"];
-const AREA_BG: any = { GLOBAL: C.chip.purple.bg, SOLO: C.chip.danger.bg, DIY: C.chip.info.bg, SEMARANG: C.chip.success.bg, TAB: C.chip.warning.bg };
-const AREA_TX: any = { GLOBAL: C.chip.purple.fg, SOLO: C.chip.danger.fg, DIY: C.chip.info.fg, SEMARANG: C.chip.success.fg, TAB: C.chip.warning.fg };
-
-const TARGET_MIN = 7;
-const EKSPEDISI_WEB_URL = "https://laporan-app-phi.vercel.app/";
-
-let pcpCache: { at: number; data: any } | null = null;
-let pgCache: { at: number; data: any } | null = null;
-let eksCache: { at: number; data: any } | null = null;
-const EKS_NEWEST_AT_BOTTOM = true;
-
-function fmtDur(ms: number): string {
+// ===== Bantuan format & tanggal =====
+function todayRangeWIB() {
+  const n = new Date(Date.now() + 7 * 3600 * 1000);
+  const y = n.getUTCFullYear();
+  const m = String(n.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(n.getUTCDate()).padStart(2, "0");
+  const from = Date.parse(`${y}-${m}-${d}T00:00:00+07:00`);
+  return { from, to: from + 86400000 - 1, day: `${y}-${m}-${d}` };
+}
+function monthKeyWIB() {
+  return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7);
+}
+function monthLabel(mk: string) {
+  const [y, m] = mk.split("-");
+  const names = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  return `${names[Number(m) - 1] ?? m} ${y}`;
+}
+const rp = (n?: number | null) =>
+  n == null || isNaN(Number(n)) ? "–" : "Rp" + Math.round(Number(n)).toLocaleString("id-ID");
+function compactRp(n?: number | null) {
+  if (n == null || isNaN(Number(n))) return "–";
+  const v = Number(n);
+  if (Math.abs(v) >= 1e9) return `Rp${(v / 1e9).toLocaleString("id-ID", { maximumFractionDigits: 2 })} M`;
+  if (Math.abs(v) >= 1e6) return `Rp${(v / 1e6).toLocaleString("id-ID", { maximumFractionDigits: 1 })} jt`;
+  return rp(v);
+}
+const pctText = (p?: number | null) => (p == null ? "–" : `${Math.round(p)}%`);
+const tone = (p?: number | null) =>
+  p == null ? A.muted : p < 50 ? A.red : p < 80 ? A.orange : A.green;
+const fmtTime = (ms?: number | null) =>
+  ms ? new Date(ms).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "–";
+function fmtDur(ms: number) {
   const m = Math.max(0, Math.round((ms || 0) / 60000));
   if (m < 60) return `${m} mnt`;
   return `${Math.floor(m / 60)} j ${m % 60} mnt`;
 }
-const rupiah = (n?: number | null) => (n == null ? "-" : "Rp" + n.toLocaleString("id-ID"));
-const fmtPct = (p: number | null) =>
-  p == null ? "–" : p.toLocaleString("id-ID", { maximumFractionDigits: 1 }) + "%";
-const pctColor = (p: number | null) => (p == null ? C.inkFaint : p < 30 ? RED : p < 70 ? ORANGE : GREEN);
+const upper = (v: any) => String(v ?? "").trim().toUpperCase();
 
-function groupByArea(rows: any[]) {
-  const map = new Map<string, any[]>();
-  for (const r of rows) {
-    const a = String(r.area ?? "").trim().toUpperCase() || "LAINNYA";
-    const arr = map.get(a);
-    if (arr) arr.push(r);
-    else map.set(a, [r]);
-  }
-  return Array.from(map.keys())
-    .sort((a, b) => {
-      const ia = AREA_ORDER.indexOf(a);
-      const ib = AREA_ORDER.indexOf(b);
-      return (ia < 0 ? 90 : ia) - (ib < 0 ? 90 : ib) || a.localeCompare(b);
-    })
-    .map((area) => ({ area, rows: map.get(area) as any[] }));
-}
-const sumBy = (rows: any[], f: (r: any) => number) => rows.reduce((s, r) => s + (f(r) || 0), 0);
-
-function todayPatterns(): string[] {
-  const n = new Date(Date.now() + 7 * 3600 * 1000);
-  const dPad = String(n.getUTCDate()).padStart(2, "0");
-  const dNoPad = String(n.getUTCDate());
-  const mPad = String(n.getUTCMonth() + 1).padStart(2, "0");
-  const mNoPad = String(n.getUTCMonth() + 1);
-  const y = String(n.getUTCFullYear());
-  const yy = y.slice(2);
-  const out = new Set<string>();
-  for (const dd of [dPad, dNoPad]) {
-    for (const mm of [mPad, mNoPad]) {
-      for (const yr of [y, yy]) {
-        out.add(dd + mm + yr);
-        out.add(yr + mm + dd);
-      }
-    }
-  }
-  out.add(dPad + mPad);
-  return Array.from(out);
-}
-const digitsOf = (s: any) => String(s ?? "").replace(/\D/g, "");
-
+// ===== Kerangka halaman =====
 export default function BerandaWeb() {
-  const router = useRouter();
-
   const viewer = useQuery(api.users.viewer) as any;
-  const role = viewer?.role;
-  const isField = role === "field";
-  const isTele = role === "telemarketing";
-  const isSuper = role === "supervisor";
-  const isOwner = role === "owner";
-  const usesFu = isTele || isSuper || isOwner;
-
-  const today = new Date();
-  const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const dayEnd = dayStart + 86400000 - 1;
-
-  const ongoing = useQuery(api.visits.getMyOngoing) as any;
-  const summary = useQuery(api.visits.todaySummary) as any;
-
-  const piuFu = useQuery(api.piutang.todayByArea, (usesFu ? {} : "skip") as any) as any;
-  const ordFu = useQuery(api.orderFollowups.todayByArea, (usesFu ? {} : "skip") as any) as any;
-  const manageUsers = useQuery(api.users.listUsersManage, (isSuper ? {} : "skip") as any) as any;
-
-  const fetchPcp = useAction(api.laporan.fetchPcpBulanan);
-  const fetchPg = useAction(api.laporan.fetchPcpMingguan);
-  const fetchEks = useAction(api.laporan.fetchEkspedisi);
-  const ensureOrder = useMutation(api.orderFollowups.ensureToday);
-
-  const live = useQuery(api.visits.listLiveSales, (isSuper || isOwner ? undefined : "skip") as any) as any;
-  const kpiMonthly = useQuery(api.visits.monthlyKpi, (isSuper || isOwner ? {} : "skip") as any) as any;
-  const kpiTeleMonthly = useQuery(api.visits.monthlyKpiTele, (isSuper || isOwner ? {} : "skip") as any) as any;
-  const collPiutang = useQuery(api.piutang.collectionAssessment, (isSuper || isOwner ? {} : "skip") as any) as any;
-  const collSpk = useQuery(api.orderFollowups.collectionAssessment, (isSuper || isOwner ? {} : "skip") as any) as any;
-  const visitHist = useQuery(api.visits.listHistory, (isTele ? { from: dayStart, to: dayEnd } : "skip") as any) as any;
-  const fuToko = useQuery(api.dashboard.activeStoreMonthly, (usesFu ? {} : "skip") as any) as any;
-
-  const genRef = useRef(false);
-  useEffect(() => {
-    if (!viewer || genRef.current || !usesFu) return;
-    genRef.current = true;
-    ensureOrder({}).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer]);
-
-  // ==== Fetch laporan (cache 5 mnt) ====
-  const [pcp, setPcp] = useState<any>(null);
-  const [pcpState, setPcpState] = useState<"idle" | "loading" | "done" | "err">("idle");
-  const [pg, setPg] = useState<any>(null);
-  const [pgState, setPgState] = useState<"idle" | "loading" | "done" | "err">("idle");
-  const [eks, setEks] = useState<any>(null);
-  const [eksState, setEksState] = useState<"idle" | "loading" | "done" | "err">("idle");
-
-  useEffect(() => {
-    if (!viewer) return;
-    if (pcpCache && Date.now() - pcpCache.at < 5 * 60 * 1000) {
-      setPcp(pcpCache.data);
-      setPcpState("done");
-      return;
-    }
-    setPcpState("loading");
-    fetchPcp()
-      .then((r: any) => {
-        pcpCache = { at: Date.now(), data: r };
-        setPcp(r);
-        setPcpState("done");
-      })
-      .catch(() => setPcpState("err"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer]);
-
-  useEffect(() => {
-    if (!viewer) return;
-    if (pgCache && Date.now() - pgCache.at < 5 * 60 * 1000) {
-      setPg(pgCache.data);
-      setPgState("done");
-      return;
-    }
-    setPgState("loading");
-    fetchPg()
-      .then((r: any) => {
-        pgCache = { at: Date.now(), data: r };
-        setPg(r);
-        setPgState("done");
-      })
-      .catch(() => setPgState("err"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer]);
-
-  useEffect(() => {
-    if (!viewer) return;
-    if (eksCache && Date.now() - eksCache.at < 5 * 60 * 1000) {
-      setEks(eksCache.data);
-      setEksState("done");
-      return;
-    }
-    setEksState("loading");
-    fetchEks()
-      .then((r: any) => {
-        eksCache = { at: Date.now(), data: r };
-        setEks(r);
-        setEksState("done");
-      })
-      .catch(() => setEksState("err"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer]);
 
   if (!viewer) {
-    return <View style={sty.center}><IOSSpinner size="large" color={RED} /></View>;
+    return (
+      <View style={s.loading}>
+        <IOSSpinner size="large" color={A.brand} />
+      </View>
+    );
   }
 
-  const areaLabel = viewer.area ?? "Semua Area";
-  const fmtTime = (ms: number | null) =>
-    ms ? new Date(ms).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "";
-  const tglPanjang = new Date().toLocaleDateString("id-ID", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
-
-  // ==== Follow-up hari ini per area ====
-  type FuRow = { area: string; piuPending: number; piuDone: number; ordPending: number; ordDone: number };
-  const FOLLOWUP_AREAS = ["SOLO", "DIY", "SEMARANG"];
-
-  const fuMap = new Map<string, FuRow>(
-    FOLLOWUP_AREAS.map((area) => [area, { area, piuPending: 0, piuDone: 0, ordPending: 0, ordDone: 0 }])
-  );
-  const fuBump = (area: string, k: "piuPending" | "piuDone" | "ordPending" | "ordDone", n: number) => {
-    const key = String(area ?? "").trim().toUpperCase() || "LAINNYA";
-    if (!fuMap.has(key)) fuMap.set(key, { area: key, piuPending: 0, piuDone: 0, ordPending: 0, ordDone: 0 });
-    fuMap.get(key)![k] += Number(n ?? 0);
-  };
-  for (const r of (piuFu ?? [])) { fuBump(String(r.area), "piuPending", r.pending ?? 0); fuBump(String(r.area), "piuDone", r.done ?? 0); }
-  for (const r of (ordFu ?? [])) { fuBump(String(r.area), "ordPending", r.pending ?? 0); fuBump(String(r.area), "ordDone", r.done ?? 0); }
-
-  const fuAreas = Array.from(fuMap.values()).sort(
-    (a, b) => FOLLOWUP_AREAS.indexOf(a.area) - FOLLOWUP_AREAS.indexOf(b.area) || a.area.localeCompare(b.area)
-  );
-  const fuTotalPending = fuAreas.reduce((s, a) => s + a.piuPending + a.ordPending, 0);
-  const fuTotalDone = fuAreas.reduce((s, a) => s + a.piuDone + a.ordDone, 0);
-  const fuReady = usesFu && piuFu !== undefined && ordFu !== undefined;
-
-  const teleByArea: Record<string, string> = {};
-  for (const u of (manageUsers ?? [])) {
-    if (u.role === "telemarketing" && u.area) teleByArea[u.area] = u.name;
-  }
-  const petugasOf = (area: string) => (isTele ? (viewer.name ?? "") : (teleByArea[area] ?? ""));
-
-  // ==== Progres sales ====
-  const liveRows: any[] = [...((live ?? []) as any[])].sort(
-    (a, b) =>
-      Number(!!a.leave) - Number(!!b.leave) ||
-      String(a.sales?.area ?? "").localeCompare(String(b.sales?.area ?? "")) ||
-      String(a.sales?.name ?? "").localeCompare(String(b.sales?.name ?? ""))
-  );
-  const liveLeave = liveRows.filter((x) => !!x.leave).length;
-  const liveActive = liveRows.length - liveLeave;
-  const liveNotStarted = liveRows.filter(
-    (x: any) => !x.leave && x.state !== "visit" && (x.todayDoneCount ?? 0) === 0
-  ).length;
-
-  // ==== Field ====
-  const fieldDone = summary?.doneCount ?? 0;
-  const fieldPos = fieldDone + (ongoing?.visit ? 1 : 0);
-  const fieldOk = fieldPos >= TARGET_MIN;
-  const fieldPctBar = Math.min(100, Math.round((fieldPos / TARGET_MIN) * 100));
-
-  // ==== Pencapaian bulanan ====
-  const canSeeAllArea = isSuper || isOwner;
-  const myAreaUp = String(viewer.area ?? "").trim().toUpperCase();
-  const filterMyArea = (rows: any[] | null) => {
-    if (!rows) return rows;
-    if (canSeeAllArea) return rows;
-    if (!myAreaUp) return [];
-    return rows.filter((r: any) => String(r.area ?? "").trim().toUpperCase() === myAreaUp);
-  };
-
-  const pcpRows = filterMyArea(pcp?.rows ?? null);
-  const pcpGroups = pcpRows
-    ? groupByArea(pcpRows).map((g) => {
-      const tgt = sumBy(g.rows, (r) => r.tgt || 0);
-      const act = sumBy(g.rows, (r) => r.act || 0);
-      const kejar = sumBy(g.rows, (r) => r.kejar || 0);
-      const pcts = g.rows.map((r) => r.pcpPct).filter((p: any) => typeof p === "number") as number[];
-      const pct = tgt > 0 ? (act / tgt) * 100 : pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null;
-      return { area: g.area, sdm: g.rows.length, tgt, act, kejar, pct };
-    })
-    : [];
-
-  const pgRows = filterMyArea(pg?.rows ?? null);
-  const weekLabels: string[] = pg?.weekLabels ?? ["M1", "M2", "M3", "M4", "M5"];
-  const pgGroups = pgRows
-    ? groupByArea(pgRows).map((g) => {
-      const weeks = weekLabels.map((lbl, i) => {
-        let act = 0;
-        const pcts: number[] = [];
-        for (const r of g.rows) {
-          const w = (r.weeks ?? [])[i];
-          if (!w) continue;
-          act += w.act || 0;
-          if (typeof w.pct === "number") pcts.push(w.pct);
-        }
-        const pct = pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null;
-        return { label: lbl, act, pct };
-      });
-      return { area: g.area, sdm: g.rows.length, weeks };
-    })
-    : [];
-
-  // ==== Ekspedisi ====
-  const eksRows: any[] = (eks?.detail ?? []).flatMap((g: any) => g.rows ?? []);
-  const eksPats = todayPatterns();
-  const matchToday = (t: any) => {
-    const dg = digitsOf(t);
-    return !!dg && eksPats.some((p) => dg === p || dg.startsWith(p));
-  };
-  const eksToday = eksRows.filter((r: any) => matchToday(r.tanggal));
-  const rawDates: string[] = [];
-  for (const r of eksRows) {
-    const t = String(r.tanggal ?? "").trim();
-    if (t && !rawDates.includes(t)) rawDates.push(t);
-  }
-  const lastDate = rawDates.length
-    ? (EKS_NEWEST_AT_BOTTOM ? rawDates[rawDates.length - 1] : rawDates[0])
-    : "";
-  const eksShown: any[] = eksToday.length > 0
-    ? eksToday
-    : lastDate
-      ? eksRows.filter((r: any) => String(r.tanggal ?? "").trim() === lastDate)
-      : [];
-  const eksIsToday = eksToday.length > 0;
-  const eksLabel = eksShown.length ? String(eksShown[0]?.tanggal ?? "").trim() : "";
-
-  const eksArmadaCount: Record<string, number> = {};
-  for (const r of eksShown) {
-    const a = r.armada || "Tanpa Armada";
-    eksArmadaCount[a] = (eksArmadaCount[a] || 0) + 1;
-  }
-  const eksArmadaList = Object.keys(eksArmadaCount)
-    .sort((a, b) => a.localeCompare(b))
-    .map((a) => ({ armada: a, count: eksArmadaCount[a] }));
-  const eksMax = eksArmadaList.reduce((m: number, a: any) => Math.max(m, a.count), 0) || 1;
-  const eksTunai = eksShown.reduce((s: number, r: any) => s + (r.tunai || 0), 0);
-  const eksTransfer = eksShown.reduce((s: number, r: any) => s + (r.transfer || 0), 0);
+  const role = viewer.role;
+  const title =
+    role === "owner"
+      ? "Dashboard Owner"
+      : role === "supervisor"
+        ? "Dashboard Supervisor"
+        : role === "telemarketing"
+          ? "Dashboard Telemarketing"
+          : "Dashboard Sales Lapangan";
+  const subtitle = `${ROLE_LABEL[role] ?? role}${viewer.area ? ` • ${viewer.area}` : " • Semua area"} • ${new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`;
 
   return (
-    <DesktopShell
-      active="beranda"
-      title="Dashboard"
-      subtitle={`${ROLE_LABEL[role] ?? role} • ${areaLabel} • ${tglPanjang}`}
-      right={
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TouchableOpacity style={sty.headBtn} onPress={() => router.push("/riwayat?tab=kunjungan" as any)}>
-            <AppIcon name="clock" size={13} color={A.inkSoft} style={{ marginRight: 6 }} />
-            <Text style={sty.headBtnText}>Riwayat</Text>
-          </TouchableOpacity>
-          {isSuper || isOwner || isTele ? (
-            <TouchableOpacity style={sty.headBtnPrimary} onPress={() => router.push("/spk" as any)}>
-              <AppIcon name="clipboard" size={13} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={sty.headBtnPrimaryText}>SPK Admin</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      }
-    >
-      {/* ================= KPI ================= */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 4 }}>
-        {ongoing?.visit ? (
-          <Kpi label="KUNJUNGAN BERJALAN" value={ongoing.store?.name ?? "Toko"} color={RED} hint={`sejak ${fmtTime(ongoing.visit.checkinAt)} — ketuk untuk lanjut`} />
-        ) : null}
-
-        {isSuper || isOwner ? (
-          <>
-            <Kpi label="SALES AKTIF" value={`${liveActive}`} color={GREEN} hint={`${liveLeave} izin hari ini`} />
-            <Kpi label="BELUM MULAI" value={`${liveNotStarted}`} color={liveNotStarted > 0 ? RED : GREEN} hint={`target ${TARGET_MIN} toko/hari`} />
-          </>
-        ) : null}
-
-        {isField ? (
-          <>
-            <Kpi label="KUNJUNGAN HARI INI" value={`${fieldPos}/${TARGET_MIN}`} color={fieldOk ? GREEN : ORANGE} hint={summary ? `durasi ${fmtDur(summary.durMs ?? 0)}` : ""} />
-            <Kpi
-              label="STATUS"
-              value={ongoing?.visit ? "Sedang berkunjung" : fieldOk ? "Target tercapai" : `Kurang ${Math.max(0, TARGET_MIN - fieldPos)} lagi`}
-              color={ongoing?.visit ? RED : fieldOk ? GREEN : ORANGE}
-            />
-          </>
-        ) : null}
-
-        {usesFu ? (
-          <>
-            <Kpi label="FOLLOW-UP BELUM" value={fuReady ? String(fuTotalPending) : "–"} color={fuTotalPending > 0 ? ORANGE : GREEN} hint={`${fuTotalDone} selesai hari ini`} />
-            <Kpi label="FU TOKO BELUM CLSD" value={fuToko ? String(fuToko.pending) : "–"} color={fuToko?.pending > 0 ? RED : GREEN} hint={fuToko ? `periode ${fuToko.monthKey}` : ""} />
-          </>
-        ) : null}
-
-        {isSuper || isOwner ? (
-          <Kpi label="KIRIMAN EKSPEDISI" value={String(eksShown.length)} color={BLUE} hint={eksShown.length ? eksLabel : "hari ini"} />
-        ) : null}
-      </View>
-
-      {/* ================= HARI INI + PERLU TINDAKAN (supervisor) ================= */}
-      {isSuper ? (
-        <View style={{ marginTop: 16 }}>
-          <TodayCard />
-        </View>
-      ) : null}
-
-      {/* ================= PROGRES SALES + FOLLOW-UP PER AREA ================= */}
-      {isSuper || isOwner ? (
-        <View style={sty.grid}>
-          <Panel
-            basis={500}
-            icon="users"
-            title="Progres Kunjungan Sales"
-            right={<Text style={sty.panelHint}>{liveActive} aktif • {liveLeave} izin</Text>}
-          >
-            {live === undefined ? (
-              <IOSSpinner size="small" color={RED} />
-            ) : liveRows.length === 0 ? (
-              <Text style={sty.muted}>Belum ada data sales hari ini.</Text>
-            ) : (
-              <>
-                <View style={sty.thead}>
-                  <Text style={[sty.th, { width: 180 }]}>Sales</Text>
-                  <Text style={[sty.th, { flex: 1 }]}>Progres</Text>
-                  <Text style={[sty.th, { width: 96, textAlign: "right" }]}>Hasil</Text>
-                </View>
-                {liveRows.map((ls: any, i: number) => {
-                  const excused = !!ls.leave;
-                  const pos = (ls.todayDoneCount ?? 0) + (ls.state === "visit" ? 1 : 0);
-                  const pct = excused ? 100 : Math.min(100, Math.round((pos / TARGET_MIN) * 100));
-                  const ok = !excused && pos >= TARGET_MIN;
-                  const color = excused ? C.chip.warning.fg : ok ? GREEN : ORANGE;
-                  const leaveLabel = excused
-                    ? `${LEAVE_TYPE_LABEL[ls.leave.type] ?? ls.leave.type} • ${LEAVE_SCOPE_LABEL[ls.leave.scope] ?? ls.leave.scope}`
-                    : "";
-                  const info = excused
-                    ? `${leaveLabel}${ls.leave.note ? ` • ${ls.leave.note}` : ""} • dikecualikan dari target`
-                    : ls.state === "visit"
-                      ? `Sedang di ${ls.storeName ?? "Toko"} sejak ${ls.checkinAt ? fmtTime(ls.checkinAt) : "-"}`
-                      : (ls.todayDoneCount ?? 0) > 0
-                        ? `${ls.todayDoneCount} selesai • Order ${ls.orderedCount ?? 0} · Tidak ${ls.notOrderedCount ?? 0} · Tutup ${ls.closedCount ?? 0}`
-                        : "Belum mulai kunjungan";
-                  return (
-                    <View key={ls.sales._id} style={[sty.trow, i === liveRows.length - 1 && sty.trowLast]}>
-                      <View style={{ width: 180, paddingRight: 10 }}>
-                        <Text style={sty.tName} numberOfLines={1}>{ls.sales.name}</Text>
-                        <Text style={sty.tSub} numberOfLines={1}>{ls.sales.area ?? "-"}</Text>
-                      </View>
-                      <View style={{ flex: 1, paddingRight: 12 }}>
-                        <Bar pct={pct} color={excused ? C.chip.warning.fg : color} />
-                        <Text style={sty.tSub} numberOfLines={1}>{info}</Text>
-                      </View>
-                      <View style={{ width: 96, alignItems: "flex-end" }}>
-                        {excused ? (
-                          <Chip text="IZIN" bg={C.chip.warning.bg} fg={C.chip.warning.fg} />
-                        ) : (
-                          <Text style={[sty.tProg, { color }]}>{pos}/{TARGET_MIN}{ok ? " ✓" : ""}</Text>
-                        )}
-                      </View>
-                    </View>
-                  );
-                })}
-              </>
-            )}
-            <TouchableOpacity style={sty.btnGhost} onPress={() => router.push("/izin" as any)}>
-              <Text style={sty.btnGhostText}>Kelola Izin Sales</Text>
-            </TouchableOpacity>
-          </Panel>
-
-          <Panel
-            basis={520}
-            icon="bar-chart"
-            title="KPI Kunjungan Sales (Bulan Ini)"
-            right={<Text style={sty.panelHint}>Jumlah • Waktu • Keterangan</Text>}
-          >
-            {kpiMonthly === undefined ? (
-              <IOSSpinner size="small" color={RED} />
-            ) : !kpiMonthly || kpiMonthly.length === 0 ? (
-              <Text style={sty.muted}>Belum ada data kunjungan bulan ini.</Text>
-            ) : (
-              <>
-                <View style={sty.thead}>
-                  <Text style={[sty.th, { width: 160 }]}>Sales</Text>
-                  <Text style={[sty.th, { width: 70 }]}>Kunjungan</Text>
-                  <Text style={[sty.th, { width: 70 }]}>Rata(menit)</Text>
-                  <Text style={[sty.th, { flex: 1 }]}>Keterangan %</Text>
-                  <Text style={[sty.th, { width: 80, textAlign: "right" }]}>Skor</Text>
-                </View>
-                {kpiMonthly.slice(0, 10).map((k: any, i: number) => (
-                  <View key={k.salesId} style={[sty.trow, i === Math.min(9, kpiMonthly.length - 1) && sty.trowLast]}>
-                    <View style={{ width: 160, paddingRight: 10 }}>
-                      <Text style={sty.tName} numberOfLines={1}>{k.salesName}</Text>
-                      <Text style={sty.tSub} numberOfLines={1}>{k.area ?? "-"}</Text>
-                    </View>
-                    <Text style={[sty.tVal, { width: 70 }]}>{k.kunjungan}</Text>
-                    <Text style={[sty.tVal, { width: 70 }]}>{k.rataMenit}</Text>
-                    <View style={{ flex: 1, paddingRight: 12 }}>
-                      <Bar pct={k.ketPct} color={k.ketPct >= 80 ? GREEN : k.ketPct >= 60 ? ORANGE : RED} height={6} />
-                      <Text style={sty.tSub}>{k.adaKeterangan}/{k.kunjungan} ada keterangan</Text>
-                    </View>
-                    <View style={{ width: 80, alignItems: "flex-end" }}>
-                      <Text style={[sty.tProg, { color: k.skor >= 80 ? GREEN : k.skor >= 60 ? ORANGE : RED }]}>{k.skor}</Text>
-                    </View>
-                  </View>
-                ))}
-              </>
-            )}
-          </Panel>
-
-          <Panel
-            basis={480}
-            icon="phone"
-            title="KPI Telemarketing (Bulan Ini)"
-            right={<Text style={sty.panelHint}>Keterangan di kunjungan area</Text>}
-          >
-            {kpiTeleMonthly === undefined ? (
-              <IOSSpinner size="small" color={RED} />
-            ) : !kpiTeleMonthly || kpiTeleMonthly.length === 0 ? (
-              <Text style={sty.muted}>Belum ada data.</Text>
-            ) : (
-              <>
-                <View style={sty.thead}>
-                  <Text style={[sty.th, { width: 150 }]}>Telemarketing</Text>
-                  <Text style={[sty.th, { width: 90 }]}>Kunjungan</Text>
-                  <Text style={[sty.th, { flex: 1 }]}>Ada Keterangan %</Text>
-                  <Text style={[sty.th, { width: 70, textAlign: "right" }]}>Skor</Text>
-                </View>
-                {kpiTeleMonthly.slice(0, 10).map((k: any, i: number) => (
-                  <View key={k.teleId} style={[sty.trow, i === Math.min(9, kpiTeleMonthly.length - 1) && sty.trowLast]}>
-                    <View style={{ width: 150, paddingRight: 10 }}>
-                      <Text style={sty.tName} numberOfLines={1}>{k.teleName}</Text>
-                      <Text style={sty.tSub} numberOfLines={1}>{k.area ?? "-"}</Text>
-                    </View>
-                    <Text style={[sty.tVal, { width: 90 }]}>{k.kunjunganDibawah}</Text>
-                    <View style={{ flex: 1, paddingRight: 12 }}>
-                      <Bar pct={k.ketPct} color={k.ketPct >= 80 ? GREEN : k.ketPct >= 60 ? ORANGE : RED} height={6} />
-                      <Text style={sty.tSub}>{k.adaKeterangan}/{k.kunjunganDibawah}</Text>
-                    </View>
-                    <View style={{ width: 70, alignItems: "flex-end" }}>
-                      <Text style={[sty.tProg, { color: k.skor >= 80 ? GREEN : k.skor >= 60 ? ORANGE : RED }]}>{k.skor}</Text>
-                    </View>
-                  </View>
-                ))}
-              </>
-            )}
-          </Panel>
-
-          <Panel
-            basis={520}
-            icon="trending-down"
-            title="Penilaian Bulanan Penagihan"
-            right={<Text style={sty.panelHint}>Hilang besok = diduga lunas</Text>}
-          >
-            {collPiutang === undefined ? (
-              <IOSSpinner size="small" color={RED} />
-            ) : !collPiutang || collPiutang.length === 0 ? (
-              <Text style={sty.muted}>Belum ada data.</Text>
-            ) : (
-              (() => {
-                const cp = collPiutang[0];
-                const cs = collSpk && collSpk[0] ? collSpk[0] : null;
-                return (
-                  <>
-                    <Text style={[sty.tSub, { marginBottom: 6, fontWeight: "700" }]}>FU Toko (Piutang) - {cp.monthKey}</Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-                      <View style={sty.miniBox}><Text style={sty.miniLabel}>MUNCUL</Text><Text style={sty.miniValue}>{cp.totalMuncul}</Text></View>
-                      <View style={sty.miniBox}><Text style={sty.miniLabel}>DIDUGA LUNAS</Text><Text style={[sty.miniValue, { color: GREEN }]}>{cp.didugaLunas} ({cp.pctLunas}%)</Text></View>
-                      <View style={sty.miniBox}><Text style={sty.miniLabel}>TERTAGIH</Text><Text style={sty.miniValue}>{cp.tertagih}</Text></View>
-                    </View>
-                    {(cp.perArea||[]).slice(0,6).map((a:any,i:number)=> (
-                      <View key={a.area} style={[sty.trow, i === Math.min(5,(cp.perArea||[]).length-1) && sty.trowLast]}>
-                        <Text style={[sty.tSub,{width:80}]}>{a.area}</Text>
-                        <Text style={[sty.tVal,{flex:1}]}>Muncul {a.muncul}</Text>
-                        <Text style={[sty.tVal,{width:90, textAlign:'right', color:GREEN}]}>Lunas {a.lunas}</Text>
-                      </View>
-                    ))}
-                    <Text style={[sty.tSub, { marginTop: 12, marginBottom: 6, fontWeight: "700" }]}>SPK Admin (Order Followup){cs ? ` - ${cs.monthKey}` : ''}</Text>
-                    {cs ? (
-                      <>
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-                          <View style={sty.miniBox}><Text style={sty.miniLabel}>MUNCUL</Text><Text style={sty.miniValue}>{cs.totalMuncul}</Text></View>
-                          <View style={sty.miniBox}><Text style={sty.miniLabel}>DIDUGA LUNAS</Text><Text style={[sty.miniValue, { color: GREEN }]}>{cs.didugaLunas} ({cs.pctLunas}%)</Text></View>
-                        </View>
-                        {(cs.perArea||[]).slice(0,6).map((a:any,i:number)=> (
-                          <View key={a.area} style={[sty.trow, i === Math.min(5,(cs.perArea||[]).length-1) && sty.trowLast]}>
-                            <Text style={[sty.tSub,{width:80}]}>{a.area}</Text>
-                            <Text style={[sty.tVal,{flex:1}]}>Muncul {a.muncul}</Text>
-                            <Text style={[sty.tVal,{width:90, textAlign:'right', color:GREEN}]}>Lunas {a.lunas}</Text>
-                          </View>
-                        ))}
-                      </>
-                    ) : <Text style={sty.muted}>Belum ada data.</Text>}
-                  </>
-                );
-              })()
-            )}
-          </Panel>
-
-          <Panel
-            basis={440}
-            icon="phone"
-            title="Follow-up Hari Ini per Area"
-            right={<Text style={sty.panelHint}>{fuTotalPending} belum · {fuTotalDone} selesai</Text>}
-          >
-            {!fuReady ? (
-              <IOSSpinner size="small" color={RED} />
-            ) : fuTotalPending === 0 && fuTotalDone === 0 ? (
-              <Text style={sty.muted}>Belum ada follow-up untuk hari ini.</Text>
-            ) : (
-              <>
-                <View style={sty.thead}>
-                  <Text style={[sty.th, { width: 86 }]}>Area</Text>
-                  <Text style={[sty.th, { flex: 1 }]}>Petugas</Text>
-                  <Text style={[sty.th, { width: 96, textAlign: "right" }]}>Piutang</Text>
-                  <Text style={[sty.th, { width: 110, textAlign: "right" }]}>SPK H+1</Text>
-                  <Text style={[sty.th, { width: 84, textAlign: "right" }]}>Status</Text>
-                </View>
-                {fuAreas.map((a, i) => {
-                  const piuOk = a.piuPending === 0;
-                  const ordOk = a.ordPending === 0;
-                  const allOk = piuOk && ordOk;
-                  const notStarted = (a.piuPending + a.ordPending) > 0 && (a.piuDone + a.ordDone) === 0;
-                  const chip = notStarted ? C.chip.danger : allOk ? C.chip.success : C.chip.warning;
-                  const chipLabel = notStarted ? "belum mulai" : allOk ? "beres" : "diproses";
-                  return (
-                    <View key={a.area} style={[sty.trow, i === fuAreas.length - 1 && sty.trowLast]}>
-                      <View style={{ width: 86 }}>
-                        <Chip text={a.area} bg={AREA_BG[a.area] ?? C.chip.neutral.bg} fg={AREA_TX[a.area] ?? C.chip.neutral.fg} />
-                      </View>
-                      <Text style={[sty.tSub, { flex: 1 }]} numberOfLines={1}>
-                        {petugasOf(a.area) || "petugas belum diset"}
-                      </Text>
-                      <View style={{ width: 96, alignItems: "flex-end" }}>
-                        <Text style={[sty.tVal, { color: piuOk ? GREEN : RED }]}>{a.piuPending} belum</Text>
-                        <Text style={sty.tSub}>{a.piuDone} selesai</Text>
-                      </View>
-                      <View style={{ width: 110, alignItems: "flex-end" }}>
-                        <Text style={[sty.tVal, { color: ordOk ? GREEN : RED }]}>{a.ordPending} belum</Text>
-                        <Text style={sty.tSub}>{a.ordDone} selesai</Text>
-                      </View>
-                      <View style={{ width: 84, alignItems: "flex-end" }}>
-                        <Chip text={chipLabel} bg={chip.bg} fg={chip.fg} />
-                      </View>
-                    </View>
-                  );
-                })}
-              </>
-            )}
-            <TouchableOpacity style={sty.btnGhost} onPress={() => router.push("/spk" as any)}>
-              <Text style={sty.btnGhostText}>Buka SPK Admin</Text>
-            </TouchableOpacity>
-          </Panel>
-        </View>
-      ) : null}
-
-      {/* ================= FIELD ================= */}
-      {isField ? (
-        <View style={sty.grid}>
-          <Panel basis={520} icon="store" title="Progres Kunjungan Hari Ini" right={<Text style={sty.panelHint}>{fieldPos}/{TARGET_MIN} toko</Text>}>
-            <View style={sty.miniRow}>
-              <View style={sty.miniBox}>
-                <Text style={sty.miniLabel}>TARGET HARIAN</Text>
-                <Text style={[sty.miniValue, { color: fieldOk ? GREEN : ORANGE }]}>{fieldPos}/{TARGET_MIN}{fieldOk ? " ✓" : ""}</Text>
-              </View>
-              <View style={sty.miniBox}>
-                <Text style={sty.miniLabel}>SELESAI</Text>
-                <Text style={[sty.miniValue, { color: GREEN }]}>{summary ? fieldDone : "–"}</Text>
-              </View>
-              <View style={sty.miniBox}>
-                <Text style={sty.miniLabel}>TOTAL DURASI</Text>
-                <Text style={sty.miniValue}>{summary ? fmtDur(summary.durMs ?? 0) : "–"}</Text>
-              </View>
-              <View style={sty.miniBox}>
-                <Text style={sty.miniLabel}>BERJALAN</Text>
-                <Text style={[sty.miniValue, { color: ongoing?.visit ? RED : GRAY }]}>
-                  {ongoing?.visit ? "1 aktif" : "Tidak ada"}
-                </Text>
-              </View>
-            </View>
-            <View style={{ marginTop: 12 }}>
-              <Bar pct={fieldPctBar} color={fieldOk ? GREEN : ORANGE} height={8} />
-            </View>
-            <Text style={sty.hint}>Daftar toko kunjungan ada di menu SPK → SPK Sales.</Text>
-          </Panel>
-        </View>
-      ) : null}
-
-      {/* ================= TELEMARKETING ================= */}
-      {isTele ? (
-        <View style={sty.grid}>
-          <Panel basis={520} icon="store" title="Progres Kunjungan Area (hari ini)" right={<Text style={sty.panelHint}>{(visitHist ?? []).length} kunjungan</Text>}>
-            {visitHist === undefined ? (
-              <IOSSpinner size="small" color={RED} />
-            ) : (visitHist ?? []).length === 0 ? (
-              <Text style={sty.muted}>Belum ada kunjungan sales di area {areaLabel} hari ini.</Text>
-            ) : (
-              (visitHist ?? []).slice(0, 8).map((it: any, i: number) => (
-                <View key={it.visit._id} style={[sty.trow, i === Math.min(8, (visitHist ?? []).length) - 1 && sty.trowLast]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={sty.tName} numberOfLines={1}>{it.store?.name ?? "Toko terhapus"}</Text>
-                    <Text style={sty.tSub}>{it.salesName || "-"} • {fmtTime(it.visit.checkinAt)}</Text>
-                  </View>
-                </View>
-              ))
-            )}
-            <Text style={sty.hint}>Riwayat lengkap ada di menu SPK → Riwayat.</Text>
-          </Panel>
-        </View>
-      ) : null}
-
-      {/* ================= FU TOKO + EKSPEDISI ================= */}
-      {usesFu ? (
-        <View style={sty.grid}>
-          <Panel
-            basis={420}
-            icon="store"
-            title="FU Toko (bulan ini)"
-            right={<Text style={sty.panelHint}>{fuToko ? `periode ${fuToko.monthKey}` : "–"}</Text>}
-          >
-            {fuToko === undefined ? (
-              <IOSSpinner size="small" color={RED} />
-            ) : !fuToko ? (
-              <Text style={sty.muted}>Tidak ada data FU Toko.</Text>
-            ) : (
-              <>
-                <View style={sty.miniRow}>
-                  <View style={sty.miniBox}>
-                    <Text style={sty.miniLabel}>TOTAL TUGAS</Text>
-                    <Text style={sty.miniValue}>{fuToko.total}</Text>
-                  </View>
-                  <View style={sty.miniBox}>
-                    <Text style={sty.miniLabel}>OPEN</Text>
-                    <Text style={[sty.miniValue, { color: fuToko.open > 0 ? RED : GRAY }]}>{fuToko.open}</Text>
-                  </View>
-                  <View style={sty.miniBox}>
-                    <Text style={sty.miniLabel}>INPG</Text>
-                    <Text style={[sty.miniValue, { color: fuToko.inpg > 0 ? ORANGE : GRAY }]}>{fuToko.inpg}</Text>
-                  </View>
-                  <View style={sty.miniBox}>
-                    <Text style={sty.miniLabel}>CLSD</Text>
-                    <Text style={[sty.miniValue, { color: GREEN }]}>{fuToko.clsd}</Text>
-                  </View>
-                </View>
-                <Text style={sty.hint}>
-                  {fuToko.area ? `Area ${fuToko.area}. ` : "Semua area. "}
-                  {fuToko.pending > 0 ? `Masih ${fuToko.pending} toko belum CLSD.` : "Semua sudah CLSD 👍"}
-                </Text>
-                <TouchableOpacity style={sty.btnGhost} onPress={() => router.push("/toko-aktif" as any)}>
-                  <Text style={sty.btnGhostText}>Buka FU Toko</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </Panel>
-
-          <Panel
-            basis={420}
-            icon={isSuper || isOwner ? "cash" : "box"}
-            title="Kiriman Ekspedisi Hari Ini"
-            right={<Text style={sty.panelHint}>{eksShown.length} kiriman</Text>}
-          >
-            {eksState === "loading" ? (
-              <IOSSpinner size="small" color={RED} />
-            ) : eksState === "err" || !eks ? (
-              <Text style={sty.muted}>Data belum tersedia.</Text>
-            ) : (
-              <>
-                <View style={sty.miniRow}>
-                  {isSuper || isOwner ? (
-                    <>
-                      <View style={sty.miniBox}>
-                        <Text style={sty.miniLabel}>TOTAL TUNAI</Text>
-                        <Text style={[sty.miniValue, { color: GREEN }]} numberOfLines={1}>{rupiah(eksTunai)}</Text>
-                      </View>
-                      <View style={sty.miniBox}>
-                        <Text style={sty.miniLabel}>TOTAL TRANSFER</Text>
-                        <Text style={[sty.miniValue, { color: BLUE }]} numberOfLines={1}>{rupiah(eksTransfer)}</Text>
-                      </View>
-                    </>
-                  ) : null}
-                  <View style={sty.miniBox}>
-                    <Text style={sty.miniLabel}>KIRIMAN</Text>
-                    <Text style={sty.miniValue}>{eksShown.length}</Text>
-                  </View>
-                  <View style={sty.miniBox}>
-                    <Text style={sty.miniLabel}>ARMADA</Text>
-                    <Text style={sty.miniValue}>{eksArmadaList.length}</Text>
-                  </View>
-                </View>
-
-                <View style={{ marginTop: 12 }}>
-                  {eksShown.length === 0 ? (
-                    <Text style={sty.muted}>Belum ada kiriman untuk tanggal hari ini.</Text>
-                  ) : (
-                    eksArmadaList.map((a: any) => (
-                      <View key={a.armada} style={{ marginBottom: 10 }}>
-                        <View style={sty.armadaRow}>
-                          <Text style={sty.tName} numberOfLines={1}>{a.armada}</Text>
-                          <Text style={sty.tVal}>{a.count} kiriman</Text>
-                        </View>
-                        <Bar pct={(a.count / eksMax) * 100} color={BLUE} height={5} />
-                      </View>
-                    ))
-                  )}
-                </View>
-
-                {!eksIsToday && eksShown.length > 0 ? (
-                  <Text style={sty.hint}>Tanggal hari ini belum ada di Sheet — menampilkan data terbaru ({eksLabel}).</Text>
-                ) : null}
-
-                <TouchableOpacity style={sty.btnPrimary} onPress={() => Linking.openURL(EKSPEDISI_WEB_URL)}>
-                  <Text style={sty.btnPrimaryText}>Buka Laporan Ekspedisi Lengkap (Web)</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </Panel>
-        </View>
-      ) : null}
-
-      {/* ================= PENCAPAIAN BULANAN + MINGGUAN ================= */}
-      <View style={sty.grid}>
-        <Panel
-          basis={620}
-          icon="trend"
-          title="Pencapaian Bulanan per Area"
-          right={<Text style={sty.panelHint}>{pcpGroups.length} area</Text>}
-        >
-          {!canSeeAllArea ? <Text style={sty.hint}>Menampilkan area {myAreaUp || "-"} saja.</Text> : null}
-          {pcpState === "loading" ? (
-            <IOSSpinner size="small" color={RED} />
-          ) : pcpState === "err" || !pcpRows || pcpRows.length === 0 ? (
-            <>
-              <Text style={sty.muted}>Data belum tersedia.</Text>
-              <TouchableOpacity style={sty.btnGhost} onPress={() => router.push("/laporan-pcp" as any)}>
-                <Text style={sty.btnGhostText}>Buka Laporan PCP</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <View style={sty.thead}>
-                <Text style={[sty.th, { width: 110 }]}>Area</Text>
-                <Text style={[sty.th, { width: 56, textAlign: "right" }]}>SDM</Text>
-                <Text style={[sty.th, { flex: 1, textAlign: "right" }]}>Target</Text>
-                <Text style={[sty.th, { flex: 1, textAlign: "right" }]}>Aktual</Text>
-                <Text style={[sty.th, { flex: 1, textAlign: "right" }]}>RP Kejar</Text>
-                <Text style={[sty.th, { width: 110, textAlign: "right" }]}>Capaian</Text>
-              </View>
-              {pcpGroups.map((g, i) => (
-                <View key={g.area} style={[sty.trow, i === pcpGroups.length - 1 && sty.trowLast]}>
-                  <View style={{ width: 110 }}>
-                    <Chip text={g.area} bg={AREA_BG[g.area] ?? C.chip.neutral.bg} fg={AREA_TX[g.area] ?? C.chip.neutral.fg} />
-                  </View>
-                  <Text style={[sty.tVal, { width: 56, textAlign: "right" }]}>{g.sdm}</Text>
-                  <Text style={[sty.tVal, { flex: 1, textAlign: "right" }]} numberOfLines={1}>{rupiah(g.tgt)}</Text>
-                  <Text style={[sty.tVal, { flex: 1, textAlign: "right" }]} numberOfLines={1}>{rupiah(g.act)}</Text>
-                  <Text style={[sty.tVal, { flex: 1, textAlign: "right" }]} numberOfLines={1}>{rupiah(g.kejar)}</Text>
-                  <View style={{ width: 110, alignItems: "flex-end" }}>
-                    <Text style={[sty.tVal, { color: pctColor(g.pct) }]}>{fmtPct(g.pct)}</Text>
-                    <View style={{ width: 92 }}>
-                      <Bar pct={Math.min(100, Math.max(0, g.pct ?? 0))} color={pctColor(g.pct)} height={4} />
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </>
-          )}
-        </Panel>
-
-        <Panel
-          basis={480}
-          icon="calendar"
-          title="Pencapaian Mingguan M1–M5 per Area"
-          right={<Text style={sty.panelHint}>{pgGroups.length} area</Text>}
-        >
-          {!canSeeAllArea ? <Text style={sty.hint}>Menampilkan area {myAreaUp || "-"} saja.</Text> : null}
-          {pgState === "loading" ? (
-            <IOSSpinner size="small" color={RED} />
-          ) : pgState === "err" || !pgRows || pgRows.length === 0 ? (
-            <>
-              <Text style={sty.muted}>Data belum tersedia.</Text>
-              <TouchableOpacity style={sty.btnGhost} onPress={() => router.push("/laporan-pcp-mingguan" as any)}>
-                <Text style={sty.btnGhostText}>Buka PCP Mingguan</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <View style={sty.thead}>
-                <Text style={[sty.th, { width: 110 }]}>Area</Text>
-                <Text style={[sty.th, { width: 52, textAlign: "right" }]}>SDM</Text>
-                {weekLabels.map((lbl) => (
-                  <Text key={lbl} style={[sty.th, { flex: 1, textAlign: "right" }]}>{lbl}</Text>
-                ))}
-              </View>
-              {pgGroups.map((g, i) => (
-                <View key={g.area} style={[sty.trow, i === pgGroups.length - 1 && sty.trowLast]}>
-                  <View style={{ width: 110 }}>
-                    <Chip text={g.area} bg={AREA_BG[g.area] ?? C.chip.neutral.bg} fg={AREA_TX[g.area] ?? C.chip.neutral.fg} />
-                  </View>
-                  <Text style={[sty.tVal, { width: 52, textAlign: "right" }]}>{g.sdm}</Text>
-                  {g.weeks.map((wk: any) => (
-                    <View key={wk.label} style={{ flex: 1, alignItems: "flex-end" }}>
-                      <Text style={[sty.tVal, { color: pctColor(wk.pct) }]} numberOfLines={1}>{fmtPct(wk.pct)}</Text>
-                      <View style={{ width: "80%" }}>
-                        <Bar pct={Math.min(100, Math.max(0, wk.pct ?? 0))} color={pctColor(wk.pct)} height={4} />
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </>
-          )}
-        </Panel>
-      </View>
-
-      {/* ================= AKSES CEPAT ================= */}
-      <Text style={sty.gridLabel}>Akses Cepat</Text>
-      <View style={sty.quickWrap}>
-        {(isField || isSuper) ? (
-          <TouchableOpacity style={sty.quick} onPress={() => router.push("/toko-baru" as any)}>
-            <View style={sty.quickBubble}><AppIcon name="store" size={18} color={C.primary} /></View>
-            <Text style={sty.quickLabel}>Toko Baru</Text>
-            <Text style={sty.quickDesc}>Daftarkan toko baru</Text>
-          </TouchableOpacity>
-        ) : null}
-        <TouchableOpacity style={sty.quick} onPress={() => router.push("/kelola-toko" as any)}>
-          <View style={[sty.quickBubble, { backgroundColor: C.chip.info.bg }]}>
-            <AppIcon name="store" size={18} color={C.chip.info.fg} />
-          </View>
-          <Text style={sty.quickLabel}>Kelola Toko</Text>
-          <Text style={sty.quickDesc}>Cari & lihat data toko</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={sty.quick} onPress={() => router.push("/riwayat?tab=kunjungan" as any)}>
-          <View style={[sty.quickBubble, { backgroundColor: C.chip.purple.bg }]}> 
-            <AppIcon name="clock" size={18} color={C.chip.purple.fg} />
-          </View>
-          <Text style={sty.quickLabel}>Riwayat Kunjungan</Text>
-          <Text style={sty.quickDesc}>Arsip SPK sales lapangan</Text>
-        </TouchableOpacity>
-        {usesFu ? (
-          <TouchableOpacity style={sty.quick} onPress={() => router.push("/riwayat?tab=admin" as any)}>
-            <View style={[sty.quickBubble, { backgroundColor: C.chip.success.bg }]}>
-              <AppIcon name="checkDone" size={18} color={C.chip.success.fg} />
-            </View>
-            <Text style={sty.quickLabel}>Riwayat Follow-up</Text>
-            <Text style={sty.quickDesc}>Piutang & orderan CLSD</Text>
-          </TouchableOpacity>
-        ) : null}
-        {usesFu ? (
-          <TouchableOpacity style={sty.quick} onPress={() => router.push("/riwayat?tab=fu" as any)}>
-            <View style={[sty.quickBubble, { backgroundColor: C.chip.warning.bg }]}>
-              <AppIcon name="store" size={18} color={C.chip.warning.fg} />
-            </View>
-            <Text style={sty.quickLabel}>Riwayat FU Toko</Text>
-            <Text style={sty.quickDesc}>Rekap bulanan per area</Text>
-          </TouchableOpacity>
-        ) : null}
-        {isOwner ? (
-          <TouchableOpacity style={sty.quick} onPress={() => router.push("/laporan" as any)}>
-            <View style={[sty.quickBubble, { backgroundColor: C.chip.success.bg }]}>
-              <AppIcon name="chart" size={18} color={C.chip.success.fg} />
-            </View>
-            <Text style={sty.quickLabel}>Laporan</Text>
-            <Text style={sty.quickDesc}>PCP, DAP & target toko</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
+    <DesktopShell active="beranda" title={title} subtitle={subtitle}>
+      {role === "field" ? (
+        <FieldHome />
+      ) : role === "telemarketing" ? (
+        <TeleHome viewer={viewer} />
+      ) : role === "supervisor" ? (
+        <SupervisorHome />
+      ) : role === "owner" ? (
+        <OwnerHome />
+      ) : (
+        <FallbackHome />
+      )}
     </DesktopShell>
   );
 }
 
-const sty = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: A.page },
+// ===== SALES FIELD =====
+function FieldHome() {
+  const router = useRouter();
+  const range = useMemo(() => todayRangeWIB(), []);
+  const ongoing = useQuery(api.visits.getMyOngoing) as any;
+  const summary = useQuery(api.visits.todaySummary, {}) as any;
+  const history = useQuery(api.visits.listHistory, { from: range.from, to: range.to }) as any;
 
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
-  panelHint: { fontSize: 10.5, color: A.muted, fontWeight: "700" },
-  muted: { fontSize: 11.5, color: A.muted },
-  hint: { fontSize: 10.5, color: A.muted, marginTop: 8, fontStyle: "italic" },
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
 
-  // ===== Tabel ringkas =====
-  thead: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 8, paddingVertical: 7,
-    backgroundColor: A.headerRow,
-    borderTopWidth: 1, borderBottomWidth: 1, borderColor: A.border,
-  },
-  th: { fontSize: 9.5, fontWeight: "800", color: A.inkSoft, letterSpacing: 0.3, textTransform: "uppercase" },
-  trow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: A.borderSoft },
-  trowLast: { borderBottomWidth: 0 },
-  tName: { fontSize: 12, fontWeight: "700", color: A.ink },
-  tProg: { fontSize: 13, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  tSub: { fontSize: 10.5, color: A.muted, marginTop: 2 },
-  tVal: { fontSize: 11.5, fontWeight: "600", color: A.ink, fontVariant: ["tabular-nums"] },
-  armadaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  const pos = (summary?.doneCount ?? 0) + (ongoing?.visit ? 1 : 0);
+  const pct = (pos / TARGET) * 100;
+  const reached = pos >= TARGET;
+  const color = reached ? A.green : A.orange;
+  const elapsed = ongoing?.visit ? now - ongoing.visit.checkinAt : 0;
+  const rows = ((history ?? []) as any[]).slice(0, 6);
+  const loading = summary === undefined || ongoing === undefined;
 
-  // ===== Kotak kecil =====
-  miniRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  miniBox: {
-    flexBasis: 130, flexGrow: 1, minWidth: 100,
-    backgroundColor: A.surfaceAlt, borderWidth: 1, borderColor: A.borderSoft,
-    borderRadius: 8, padding: 10,
-  },
-  miniLabel: { fontSize: 9, fontWeight: "800", color: A.muted, letterSpacing: 0.4, textTransform: "uppercase" },
-  miniValue: { fontSize: 14, fontWeight: "700", color: A.ink, marginTop: 3, fontVariant: ["tabular-nums"] },
+  return (
+    <View style={s.stack}>
+      <View style={s.kpiRow}>
+        <Kpi label="Target harian" value={`${pos}/${TARGET}`} hint={`${TARGET - Math.min(pos, TARGET)} toko lagi`} color={color} />
+        <Kpi label="Kunjungan selesai" value={summary?.doneCount ?? 0} hint="Hari ini" color={A.info} />
+        <Kpi label="Total durasi" value={fmtDur(summary?.durMs ?? 0)} hint="Waktu di toko" />
+        <Kpi label="Kunjungan berjalan" value={summary?.ongoing ? 1 : 0} hint={ongoing?.store?.name ?? "Tidak ada"} color={ongoing?.visit ? A.info : A.muted} />
+      </View>
 
-  // ===== Tombol =====
-  btnGhost: {
-    backgroundColor: A.surface, borderWidth: 1, borderColor: A.border,
-    borderRadius: 8, paddingVertical: 8, alignItems: "center", marginTop: 10,
-  },
-  btnGhostText: { color: A.blue, fontWeight: "700", fontSize: 11.5 },
-  btnPrimary: { backgroundColor: A.blue, borderRadius: 8, paddingVertical: 9, alignItems: "center", marginTop: 10 },
-  btnPrimaryText: { color: "#fff", fontWeight: "700", fontSize: 11.5 },
+      <View style={s.grid}>
+        <Panel title="Target & kunjungan hari ini" icon="flag" basis={560}>
+          {loading ? (
+            <Loading text="Memuat kunjungan…" />
+          ) : ongoing?.visit ? (
+            <>
+              <Text style={s.panelLabel}>SEDANG BERKUNJUNGAN</Text>
+              <Text style={s.heroStore} numberOfLines={2}>{ongoing.store?.name ?? "Toko"}</Text>
+              <Text style={s.muted}>
+                Sejak {fmtTime(ongoing.visit.checkinAt)} • {fmtDur(elapsed)}
+                {elapsed >= 45 * 60000 ? " • sudah cukup lama, segera isi hasil" : ""}
+              </Text>
+              <View style={{ marginTop: 12 }}><Bar pct={pct} color={color} height={8} /></View>
+              <Text style={s.small}>Target {pos}/{TARGET} toko • {pctText(pct)}</Text>
+              <View style={s.actionsRow}>
+                <WebButton label="Lanjut isi SPK" icon="clipboard" onPress={() => router.push(`/visit/${ongoing.visit._id}` as any)} />
+                <WebButton label="Lihat riwayat" icon="clock" variant="ghost" onPress={() => router.push("/riwayat" as any)} />
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={s.heroBig}>{pos}<Text style={s.heroBigOf}>/{TARGET} toko</Text></Text>
+              <Bar pct={pct} color={color} height={9} />
+              <Text style={s.muted}>
+                {pos === 0
+                  ? "Belum ada kunjungan hari ini. Mulai dari daftar toko di SPK Sales."
+                  : reached
+                    ? "Target harian sudah tercapai. Lanjutkan bila masih ada toko."
+                    : `${TARGET - pos} toko lagi untuk mencapai target.`}
+              </Text>
+              <View style={s.actionsRow}>
+                <WebButton label="Mulai kunjungan" icon="store" onPress={() => router.push("/spk-sales" as any)} />
+                <WebButton label="Toko baru" icon="plus" variant="ghost" onPress={() => router.push("/toko-baru" as any)} />
+              </View>
+            </>
+          )}
+        </Panel>
 
-  headBtn: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: A.surface, borderWidth: 1, borderColor: A.border,
-    borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7,
-  },
-  headBtnText: { fontSize: 10.5, fontWeight: "700", color: A.inkSoft },
-  headBtnPrimary: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: A.brand, borderRadius: 8,
-    paddingHorizontal: 11, paddingVertical: 7,
-  },
-  headBtnPrimaryText: { fontSize: 10.5, fontWeight: "700", color: "#fff" },
+        <Panel title="Aksi cepat" icon="grid" basis={300}>
+          <QuickLink icon="clipboard" label="SPK Sales" desc="Daftar toko & isi kunjungan" bg={A.infoSoft} fg={A.info} onPress={() => router.push("/spk-sales" as any)} />
+          <QuickLink icon="plus" label="Toko baru" desc="Daftarkan toko yang belum ada" bg={A.brandSoft} fg={A.brand} onPress={() => router.push("/toko-baru" as any)} />
+          <QuickLink icon="calendar" label="Riwayat" desc="Kunjungan & follow-up terdahulu" bg={A.purpleSoft} fg={A.purple} onPress={() => router.push("/riwayat" as any)} />
+          <Text style={s.note}>Target {TARGET} toko/hari. Kunjungan berjalan dihitung satu sampai check-out.</Text>
+        </Panel>
+      </View>
 
-  // ===== Akses cepat =====
-  gridLabel: {
-    fontSize: 11, fontWeight: "800", color: A.inkSoft,
-    letterSpacing: 0.6, textTransform: "uppercase",
-    marginTop: 4, marginBottom: 2,
+      <Panel
+        title="Kunjungan hari ini"
+        icon="pin"
+        right={<WebButton label="Lihat semua" icon="chevron" variant="ghost" onPress={() => router.push("/riwayat" as any)} />}
+      >
+        {history === undefined ? (
+          <Loading text="Memuat riwayat hari ini…" />
+        ) : rows.length === 0 ? (
+          <Empty text="Belum ada kunjungan selesai hari ini." />
+        ) : (
+          <View>
+            <View style={s.tableHead}>
+              <Text style={[s.th, { flex: 2 }]}>TOKO</Text>
+              <Text style={[s.th, { width: 100 }]}>CHECK-OUT</Text>
+              <Text style={[s.th, { width: 90 }]}>DURASI</Text>
+              <Text style={[s.th, { width: 120, textAlign: "right" }]}>HASIL</Text>
+            </View>
+            {rows.map((it: any, i: number) => {
+              const v = it.visit ?? {};
+              const closed = v.metWith === "toko_tutup";
+              const ordered = v.ordered === true;
+              return (
+                <View key={String(v._id ?? i)} style={[s.tr, i === rows.length - 1 && { borderBottomWidth: 0 }]}>
+                  <Text style={[s.td, { flex: 2, fontWeight: "700" }]} numberOfLines={1}>{it.store?.name ?? "Toko"}</Text>
+                  <Text style={[s.td, { width: 100 }]}>{fmtTime(v.checkoutAt)}</Text>
+                  <Text style={[s.td, { width: 90 }]}>{fmtDur((v.checkoutAt ?? 0) - (v.checkinAt ?? 0))}</Text>
+                  <View style={{ width: 120, alignItems: "flex-end" }}>
+                    <Chip
+                      text={closed ? "Tutup" : ordered ? "Order" : "Tidak order"}
+                      bg={closed ? A.surfaceAlt : ordered ? A.greenSoft : A.orangeSoft}
+                      fg={closed ? A.muted : ordered ? A.green : A.orange}
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </Panel>
+    </View>
+  );
+}
+
+// ===== TELEMARKETING =====
+function TeleHome({ viewer }: { viewer: any }) {
+  const router = useRouter();
+  const range = useMemo(() => todayRangeWIB(), []);
+  const piuFu = useQuery(api.piutang.todayByArea, {}) as any;
+  const ordFu = useQuery(api.orderFollowups.todayByArea, {}) as any;
+  const fuToko = useQuery(api.dashboard.activeStoreMonthly, {}) as any;
+  const history = useQuery(api.visits.listHistory, { from: range.from, to: range.to }) as any;
+
+  const area = upper(viewer?.area);
+  const piu = ((piuFu ?? []) as any[]).find((r) => upper(r.area) === area);
+  const ord = ((ordFu ?? []) as any[]).find((r) => upper(r.area) === area);
+  const piuPending = Number(piu?.pending ?? 0);
+  const piuDone = Number(piu?.done ?? 0);
+  const ordPending = Number(ord?.pending ?? 0);
+  const ordDone = Number(ord?.done ?? 0);
+  const pending = piuPending + ordPending;
+  const done = piuDone + ordDone;
+  const total = pending + done;
+  const pct = total > 0 ? (done / total) * 100 : 100;
+  const loading = piuFu === undefined || ordFu === undefined;
+  const allDone = !loading && pending === 0;
+  const color = allDone ? A.green : A.orange;
+  const visits = ((history ?? []) as any[]).slice(0, 6);
+
+  return (
+    <View style={s.stack}>
+      <View style={s.kpiRow}>
+        <Kpi label="Belum selesai" value={loading ? "…" : pending} hint="Tugas hari ini" color={color} />
+        <Kpi label="Selesai" value={loading ? "…" : done} hint={`dari ${total} tugas`} color={A.green} />
+        <Kpi label="Piutang" value={loading ? "…" : piuPending} hint={`${piuDone} selesai`} color={piuPending > 0 ? A.brand : A.green} />
+        <Kpi label="SPK Sales H+1" value={loading ? "…" : ordPending} hint={`${ordDone} selesai`} color={ordPending > 0 ? A.orange : A.green} />
+      </View>
+
+      <View style={s.grid}>
+        <Panel title={`Antrean tugas • ${area || "area kamu"}`} icon="clipboard" basis={560}>
+          {loading ? (
+            <Loading text="Menghitung tugas hari ini…" />
+          ) : (
+            <>
+              <View style={s.heroLine}>
+                <Text style={[s.heroBig, { color }]}>{pending}</Text>
+                <Text style={s.heroBigOf}>tugas belum selesai</Text>
+              </View>
+              <Bar pct={pct} color={color} height={9} />
+              <Text style={s.muted}>
+                {total === 0
+                  ? "Belum ada tugas follow-up untuk area ini hari ini."
+                  : allDone
+                    ? `Semua ${total} tugas hari ini sudah selesai.`
+                    : `${done} dari ${total} tugas selesai • ${pctText(pct)}`}
+              </Text>
+              <View style={s.splitRow}>
+                <SplitBox label="PIUTANG" value={piuPending} sub={`${piuDone} selesai`} color={piuPending > 0 ? A.brand : A.green} />
+                <SplitBox label="SPK SALES H+1" value={ordPending} sub={`${ordDone} selesai`} color={ordPending > 0 ? A.orange : A.green} />
+              </View>
+              <View style={s.actionsRow}>
+                <WebButton
+                  label={allDone ? "Buka SPK Admin" : "Kerjakan tugas"}
+                  icon="clipboard"
+                  variant={allDone ? "ghost" : "primary"}
+                  onPress={() => router.push("/spk?sec=admin" as any)}
+                />
+                <WebButton label="Riwayat" icon="clock" variant="ghost" onPress={() => router.push("/riwayat" as any)} />
+              </View>
+            </>
+          )}
+        </Panel>
+
+        <Panel title="FU Toko bulan ini" icon="store" basis={300}>
+          {fuToko === undefined ? (
+            <Loading text="Memuat FU Toko…" />
+          ) : !fuToko ? (
+            <Empty text="Data FU Toko belum tersedia." />
+          ) : (
+            <>
+              <View style={s.triRow}>
+                <TriBox label="OPEN" value={fuToko.open} color={fuToko.open > 0 ? A.brand : A.green} />
+                <TriBox label="INPG" value={fuToko.inpg} color={fuToko.inpg > 0 ? A.orange : A.green} />
+                <TriBox label="CLSD" value={fuToko.clsd} color={A.green} />
+              </View>
+              <Text style={s.muted}>
+                {fuToko.pending > 0
+                  ? `${fuToko.pending} dari ${fuToko.total} toko belum CLSD.`
+                  : `Semua ${fuToko.total} toko sudah CLSD.`}
+              </Text>
+              <View style={s.actionsRow}>
+                <WebButton
+                  label={fuToko.pending > 0 ? "Lanjutkan FU Toko" : "Riwayat FU Toko"}
+                  icon="store"
+                  onPress={() => router.push((fuToko.pending > 0 ? "/toko-aktif" : "/fu-toko-riwayat") as any)}
+                />
+              </View>
+            </>
+          )}
+        </Panel>
+      </View>
+
+      <Panel
+        title="Kunjungan area hari ini"
+        icon="pin"
+        right={<WebButton label="Lihat semua" icon="chevron" variant="ghost" onPress={() => router.push("/riwayat" as any)} />}
+      >
+        {history === undefined ? (
+          <Loading text="Memuat kunjungan area…" />
+        ) : visits.length === 0 ? (
+          <Empty text={`Belum ada kunjungan sales di area ${area || "ini"} hari ini.`} />
+        ) : (
+          <View>
+            <View style={s.tableHead}>
+              <Text style={[s.th, { flex: 2 }]}>TOKO</Text>
+              <Text style={[s.th, { flex: 1.4 }]}>SALES</Text>
+              <Text style={[s.th, { width: 100 }]}>MASUK</Text>
+              <Text style={[s.th, { width: 110, textAlign: "right" }]}>CHECK-OUT</Text>
+            </View>
+            {visits.map((it: any, i: number) => (
+              <View key={String(it.visit?._id ?? i)} style={[s.tr, i === visits.length - 1 && { borderBottomWidth: 0 }]}>
+                <Text style={[s.td, { flex: 2, fontWeight: "700" }]} numberOfLines={1}>{it.store?.name ?? "Toko"}</Text>
+                <Text style={[s.td, { flex: 1.4 }]} numberOfLines={1}>{it.salesName || "–"}</Text>
+                <Text style={[s.td, { width: 100 }]}>{fmtTime(it.visit?.checkinAt)}</Text>
+                <Text style={[s.td, { width: 110, textAlign: "right" }]}>{fmtTime(it.visit?.checkoutAt)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </Panel>
+    </View>
+  );
+}
+
+// ===== SUPERVISOR =====
+function SupervisorHome() {
+  const router = useRouter();
+  const ov = useQuery(api.dashboard.supervisorTodayOverview, {}) as any;
+  const exc = useQuery(api.dashboard.todaySpkExceptions, {}) as any;
+  const fuToko = useQuery(api.dashboard.activeStoreMonthly, {}) as any;
+  const pcp = usePcpBulanan(true);
+  const totals = pcpTotals(pcp.data?.rows);
+
+  const t = ov?.totals;
+  const items = ((exc?.items ?? []) as any[]).slice(0, 6);
+  const need = exc?.summary?.total ?? 0;
+
+  return (
+    <View style={s.stack}>
+      <View style={s.kpiRow}>
+        <Kpi label="Sales sudah mulai" value={t ? `${t.salesStarted}/${t.eligibleSales ?? t.activeSales}` : "…"} hint={t ? `${t.salesNotStarted} belum mulai` : ""} color={A.info} />
+        <Kpi label="Kunjungan hari ini" value={t ? t.visitsDone : "…"} hint={t ? `${t.ongoingVisits} sedang berkunjung` : ""} color={A.green} />
+        <Kpi label="Kurang target" value={t ? t.salesBelowTarget : "…"} hint={`target ${TARGET} toko/hari`} color={t?.salesBelowTarget > 0 ? A.red : A.green} />
+        <Kpi label="Izin hari ini" value={t ? t.excusedSales : "…"} hint={t?.locationApprovalPending > 0 ? `${t.locationApprovalPending} approval lokasi` : "Tidak ada approval lokasi"} color={t?.excusedSales > 0 ? A.orange : A.muted} />
+      </View>
+
+      <View style={s.grid}>
+        <Panel
+          title="Perlu tindakan"
+          icon="warn"
+          basis={620}
+          right={
+            <Chip
+              text={exc === undefined ? "MEMUAT" : need > 0 ? `${need} ITEM` : "SEMUA BERES"}
+              bg={exc === undefined ? A.surfaceAlt : need > 0 ? A.brandSoft : A.greenSoft}
+              fg={exc === undefined ? A.muted : need > 0 ? A.brand : A.green}
+            />
+          }
+        >
+          {exc === undefined ? (
+            <Loading text="Menyiapkan daftar pengecualian…" />
+          ) : items.length === 0 ? (
+            <View style={[s.okBox]}>
+              <AppIcon name="check" size={18} color={A.green} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.okTitle}>Tidak ada yang perlu ditindaklanjuti</Text>
+                <Text style={s.muted}>Kunjungan sales, SPK, dan FU Toko sudah sesuai.</Text>
+              </View>
+            </View>
+          ) : (
+            items.map((it: any, i: number) => (
+              <TouchableOpacity
+                key={`${it.kind}-${i}`}
+                style={s.excRow}
+                activeOpacity={0.85}
+                onPress={() => router.push(it.link as any)}
+              >
+                <View style={[s.excIcon, { backgroundColor: it.severity === "danger" ? A.brandSoft : A.orangeSoft }]}>
+                  <AppIcon name="warn" size={14} color={it.severity === "danger" ? A.brand : A.orange} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={s.excTitle} numberOfLines={1}>
+                    {it.userName ? `${it.userName}${it.area ? ` • ${it.area}` : ""}` : it.title}
+                  </Text>
+                  <Text style={s.excDesc} numberOfLines={1}>
+                    {it.userName ? `${it.title} — ${it.description ?? ""}` : it.description}
+                  </Text>
+                </View>
+                <Chip
+                  text={it.severity === "danger" ? "Kritis" : "Perhatian"}
+                  bg={it.severity === "danger" ? A.brandSoft : A.orangeSoft}
+                  fg={it.severity === "danger" ? A.red : A.orange}
+                />
+                <AppIcon name="chevron" size={14} color={A.mutedSoft} style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+            ))
+          )}
+        </Panel>
+
+        <Panel title="Ringkasan hari ini" icon="list" basis={340}>
+          <Line icon="clipboard" label="SPK Admin & piutang" value={t ? `${t.spkAdminPending + t.piutangPending}` : "…"} hint={t ? `${t.spkAdminPending} SPK • ${t.piutangPending} piutang` : ""} onPress={() => router.push("/spk?sec=admin" as any)} />
+          <Line icon="store" label="FU Toko" value={fuToko ? `${fuToko.pending}` : "…"} hint={fuToko ? `${fuToko.open} OPEN • ${fuToko.inpg} INPG` : "Memuat…"} onPress={() => router.push("/toko-aktif" as any)} />
+          <Line icon="calendar" label="Izin sales" value={t ? `${t.excusedSales}` : "…"} hint={t ? `${t.locationApprovalPending} approval lokasi menunggu` : ""} onPress={() => router.push("/izin" as any)} />
+          <Line icon="trend" label="PCP bulan ini" value={pcp.state === "loading" && !totals ? "…" : totals ? pctText(totals.pct) : "–"} hint={totals ? `${compactRp(totals.act)} / ${compactRp(totals.tgt)}` : "Menarik data sheet…"} onPress={() => router.push("/laporan-pcp" as any)} />
+          <Line icon="wallet" label="Piutang disinkron" value={ov?.sync?.hasSync ? fmtTime(ov.sync.finishedAt ?? ov.sync.requestedAt) : "Belum"} hint={ov?.sync?.status === "failed" ? "Sinkron terakhir gagal" : "Sinkron terakhir"} onPress={() => router.push("/spv" as any)} />
+          <View style={s.actionsRow}>
+            <WebButton label="Menu Supervisor" icon="shield" onPress={() => router.push("/spv" as any)} />
+            <WebButton label="Live monitor" icon="eye" variant="ghost" onPress={() => router.push("/live" as any)} />
+          </View>
+        </Panel>
+      </View>
+
+      <Panel title="Progres kunjungan sales" icon="users" right={<WebButton label="Kelola izin" icon="calendar" variant="ghost" onPress={() => router.push("/izin" as any)} />}>
+        {ov === undefined ? (
+          <Loading text="Memuat progres sales…" />
+        ) : !ov?.sales?.length ? (
+          <Empty text="Belum ada sales lapangan." />
+        ) : (
+          <View>
+            <View style={s.tableHead}>
+              <Text style={[s.th, { flex: 1.6 }]}>SALES</Text>
+              <Text style={[s.th, { width: 110 }]}>AREA</Text>
+              <Text style={[s.th, { width: 120 }]}>KUNJUNGAN</Text>
+              <Text style={[s.th, { width: 150 }]}>STATUS</Text>
+              <Text style={[s.th, { flex: 1.5 }]}>KETERANGAN</Text>
+            </View>
+            {(ov.sales as any[]).map((row: any, i: number) => {
+              const leave = row.excused;
+              const ok = row.visitCount >= TARGET;
+              return (
+                <View key={String(row.userId)} style={[s.tr, i === ov.sales.length - 1 && { borderBottomWidth: 0 }]}>
+                  <View style={{ flex: 1.6, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={[s.dot, { backgroundColor: leave ? A.orange : row.ongoing ? A.info : ok ? A.green : A.brand }]} />
+                    <Text style={s.tdName} numberOfLines={1}>{row.name}</Text>
+                  </View>
+                  <Text style={[s.td, { width: 110 }]}>{row.area || "–"}</Text>
+                  <View style={{ width: 120 }}>
+                    <Text style={[s.td, { fontWeight: "700" }]}>{row.visitCount}/{TARGET}</Text>
+                    <Bar pct={(row.visitCount / TARGET) * 100} color={leave ? A.orange : ok ? A.green : A.brand} height={4} />
+                  </View>
+                  <View style={{ width: 150 }}>
+                    <Chip
+                      text={leave ? "IZIN" : row.ongoing ? "BERKUNJUNG" : ok ? "TARGET" : "KURANG"}
+                      bg={leave ? A.orangeSoft : row.ongoing ? A.infoSoft : ok ? A.greenSoft : A.brandSoft}
+                      fg={leave ? A.orange : row.ongoing ? A.info : ok ? A.green : A.brand}
+                    />
+                  </View>
+                  <Text style={[s.td, { flex: 1.5 }]} numberOfLines={1}>
+                    {leave
+                      ? "Dikecualikan dari target"
+                      : row.ongoing
+                        ? `Di ${row.ongoing.storeName ?? "toko"} • ${row.ongoing.minutes} mnt`
+                        : row.visitCount === 0
+                          ? "Belum mulai"
+                          : `${row.orderedCount} order • ${row.visitCount - row.orderedCount} tanpa order`}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </Panel>
+    </View>
+  );
+}
+
+// ===== OWNER =====
+function OwnerHome() {
+  const router = useRouter();
+  const bulanan = usePcpBulanan(true);
+  const mingguan = usePcpMingguan(true);
+  const tim = useQuery(api.visits.monthlyKpi, {}) as any;
+  const fuToko = useQuery(api.dashboard.activeStoreMonthly, {}) as any;
+
+  const totals = pcpTotals(bulanan.data?.rows);
+  const areas = pcpAreas(bulanan.data?.rows);
+  const weeks = pcpWeekly(mingguan.data?.rows, mingguan.data?.weekLabels);
+  const timRows = (tim ?? []) as any[];
+  const onTrack = timRows.filter((r) => Number(r.skor ?? 0) >= 70).length;
+  const avgScore = timRows.length
+    ? Math.round(timRows.reduce((sum, r) => sum + Number(r.skor ?? 0), 0) / timRows.length)
+    : 0;
+  const loadingPcp = bulanan.state === "loading" && !totals;
+  const pcpError = bulanan.state === "err" && !totals;
+
+  return (
+    <View style={s.stack}>
+      <View style={s.kpiRow}>
+        <Kpi label="Omset bulan ini" value={loadingPcp ? "…" : totals ? compactRp(totals.act) : "–"} hint={monthLabel(monthKeyWIB())} color={tone(totals?.pct)} />
+        <Kpi label="Target bulan ini" value={totals ? compactRp(totals.tgt) : "–"} hint="Dari Sheet PCP" />
+        <Kpi label="Pencapaian" value={totals ? pctText(totals.pct) : "–"} hint="Aktual vs target" color={tone(totals?.pct)} />
+        <Kpi label="Sisa kejar" value={totals ? compactRp(Math.max(0, totals.tgt - totals.act)) : "–"} hint="Menuju 100%" color={A.orange} />
+      </View>
+
+      <View style={s.grid}>
+        <Panel title={`Omset ${monthLabel(monthKeyWIB())}`} icon="trend" basis={620}>
+          {loadingPcp ? (
+            <Loading text="Menarik data PCP…" />
+          ) : pcpError || !totals ? (
+            <>
+              <Empty text="Data omset belum bisa ditarik dari Sheet PCP." />
+              <View style={s.actionsRow}>
+                <WebButton label="Buka Laporan PCP" icon="trend" onPress={() => router.push("/laporan-pcp" as any)} />
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={s.heroLine}>
+                <Text style={s.heroBig} numberOfLines={1}>{compactRp(totals.act)}</Text>
+                <Chip text={pctText(totals.pct)} bg={tone(totals.pct) + "18"} fg={tone(totals.pct)} />
+              </View>
+              <Text style={s.muted}>
+                dari target {rp(totals.tgt)}{totals.kejar > 0 ? ` • sisa ${compactRp(totals.kejar)}` : ""}
+              </Text>
+              <View style={{ marginTop: 10 }}><Bar pct={totals.pct} color={tone(totals.pct)} height={10} /></View>
+
+              <Text style={[s.panelLabel, { marginTop: 16 }]}>TREN MINGGUAN (PCP MINGGUAN)</Text>
+              {weeks.length === 0 ? (
+                <Text style={s.muted}>{mingguan.state === "loading" ? "Menarik tren mingguan…" : "Tren mingguan belum tersedia."}</Text>
+              ) : (
+                <View style={s.weekGrid}>
+                  {weeks.map((w) => (
+                    <View key={w.label} style={s.weekCol}>
+                      <Text style={s.weekPct}>{pctText(w.pct)}</Text>
+                      <View style={s.weekBarBg}>
+                        <View style={[s.weekBarFill, { height: `${Math.min(100, Math.max(4, w.pct ?? 0))}%`, backgroundColor: tone(w.pct) }]} />
+                      </View>
+                      <Text style={s.weekLabel}>{w.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              <Text style={s.note}>
+                Omset mingguan memakai rata-rata kiriman (9 kiriman/bulan). Rincian per SDM ada di PCP
+                Mingguan.
+              </Text>
+              <View style={s.actionsRow}>
+                <WebButton label="Laporan lengkap" icon="chart" onPress={() => router.push("/laporan" as any)} />
+                <WebButton label="PCP mingguan" icon="calendar" variant="ghost" onPress={() => router.push("/laporan-pcp-mingguan" as any)} />
+              </View>
+            </>
+          )}
+        </Panel>
+
+        <Panel title="Pencapaian per area" icon="map" basis={360} right={<WebButton label="Detail" icon="chevron" variant="ghost" onPress={() => router.push("/laporan-pcp" as any)} />}>
+          {bulanan.state === "loading" && areas.length === 0 ? (
+            <Loading text="Memuat area…" />
+          ) : areas.length === 0 ? (
+            <Empty text="Rincian area belum tersedia." />
+          ) : (
+            areas.map((a, i) => (
+              <View key={a.area} style={[s.areaRow, i === 0 && { borderTopWidth: 0, paddingTop: 0 }]}>
+                <View style={s.areaTop}>
+                  <Text style={s.areaName}>{a.area}</Text>
+                  {a.pct != null && a.pct < 70 ? (
+                    <Chip text="DI BAWAH TARGET" bg={A.orangeSoft} fg={A.orange} />
+                  ) : null}
+                  <View style={{ flex: 1 }} />
+                  <Text style={[s.areaPct, { color: tone(a.pct) }]}>{pctText(a.pct)}</Text>
+                </View>
+                <Bar pct={a.pct} color={tone(a.pct)} height={5} />
+                <Text style={s.small}>
+                  {compactRp(a.act)} dari {compactRp(a.tgt)} • {a.sdm} SDM
+                </Text>
+              </View>
+            ))
+          )}
+        </Panel>
+      </View>
+
+      <View style={s.grid}>
+        <Panel title="Tim" icon="users" basis={560} right={<WebButton label="Rapor sales" icon="star" variant="ghost" onPress={() => router.push("/spv-penilaian" as any)} />}>
+          {tim === undefined ? (
+            <Loading text="Memuat data tim…" />
+          ) : timRows.length === 0 ? (
+            <Empty text="Belum ada data sales bulan ini." />
+          ) : (
+            <>
+              <View style={s.triRow}>
+                <TriBox label="ON TRACK" value={onTrack} color={A.green} />
+                <TriBox label="DI BAWAH 70" value={timRows.length - onTrack} color={A.orange} />
+                <TriBox label="RATA-RATA SKOR" value={avgScore} color={A.ink} />
+              </View>
+              <View style={{ marginTop: 10 }}>
+                {timRows.slice(0, 5).map((r, i) => (
+                  <View key={String(r.salesId ?? i)} style={[s.tr, i === 0 && { borderTopWidth: 0 }]}>
+                    <Text style={[s.td, { flex: 1, fontWeight: "700" }]} numberOfLines={1}>{r.salesName}</Text>
+                    <Text style={[s.td, { width: 90 }]}>{r.area || "–"}</Text>
+                    <Text style={[s.td, { width: 100 }]}>{r.kunjungan} kunjungan</Text>
+                    <Text style={[s.td, { width: 60, textAlign: "right", fontWeight: "800", color: Number(r.skor) >= 70 ? A.green : A.orange }]}>
+                      {r.skor}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+        </Panel>
+
+        <Panel title="Operasional" icon="store" basis={360}>
+          <Line icon="store" label="FU Toko" value={fuToko ? `${fuToko.pending} belum` : "…"} hint={fuToko ? `${fuToko.open} OPEN • ${fuToko.inpg} INPG • ${fuToko.clsd} CLSD` : "Memuat…"} onPress={() => router.push("/toko-aktif" as any)} />
+          <Line icon="users" label="Sales on track" value={`${onTrack}/${timRows.length}`} hint="Skor kunjungan ≥ 70" onPress={() => router.push("/spv-penilaian" as any)} />
+          <Line icon="trend" label="Laporan PCP" value="Buka" hint="Bulanan, mingguan, target vs aktual" onPress={() => router.push("/laporan-pcp" as any)} />
+          <Line icon="chart" label="Laporan lengkap" value="Buka" hint="Semua rekap dalam satu tempat" onPress={() => router.push("/laporan" as any)} />
+          <Text style={s.note}>Angka omset bersumber dari Sheet PCP dan diperbarui otomatis setiap 5 menit.</Text>
+        </Panel>
+      </View>
+    </View>
+  );
+}
+
+// ===== Fallback role lain =====
+function FallbackHome() {
+  const router = useRouter();
+  return (
+    <View style={s.stack}>
+      <Panel title="Akses cepat" icon="grid">
+        <View style={s.quickGrid}>
+          <QuickLink icon="chart" label="Laporan" desc="PCP, DAP, target toko" bg={A.greenSoft} fg={A.green} onPress={() => router.push("/laporan" as any)} />
+          <QuickLink icon="store" label="Kelola Toko" desc="Cari & lihat data toko" bg={A.infoSoft} fg={A.info} onPress={() => router.push("/kelola-toko" as any)} />
+          <QuickLink icon="clipboard" label="SPK" desc="SPK Sales & SPK Admin" bg={A.brandSoft} fg={A.brand} onPress={() => router.push("/spk" as any)} />
+          <QuickLink icon="chat" label="Chat internal" desc="Pesan dengan tim" bg={A.purpleSoft} fg={A.purple} onPress={() => router.push("/chat" as any)} />
+        </View>
+      </Panel>
+    </View>
+  );
+}
+
+// ===== Komponen kecil =====
+function Loading({ text }: { text: string }) {
+  return (
+    <View style={s.loadingRow}>
+      <IOSSpinner size="small" color={A.brand} />
+      <Text style={s.muted}>{text}</Text>
+    </View>
+  );
+}
+function Empty({ text }: { text: string }) {
+  return <Text style={[s.muted, { paddingVertical: 6 }]}>{text}</Text>;
+}
+function QuickLink({ icon, label, desc, bg, fg, onPress }: any) {
+  return (
+    <TouchableOpacity style={s.quickLink} activeOpacity={0.82} onPress={onPress}>
+      <View style={[s.quickIcon, { backgroundColor: bg }]}>
+        <AppIcon name={icon} size={16} color={fg} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={s.quickLabel} numberOfLines={1}>{label}</Text>
+        <Text style={s.quickDesc} numberOfLines={1}>{desc}</Text>
+      </View>
+      <AppIcon name="chevron" size={14} color={A.mutedSoft} />
+    </TouchableOpacity>
+  );
+}
+function SplitBox({ label, value, sub, color }: any) {
+  return (
+    <View style={s.splitBox}>
+      <Text style={s.splitLabel}>{label}</Text>
+      <Text style={[s.splitValue, { color }]}>{value}</Text>
+      <Text style={s.small}>{sub}</Text>
+    </View>
+  );
+}
+function TriBox({ label, value, color }: any) {
+  return (
+    <View style={s.triBox}>
+      <Text style={[s.triValue, { color }]}>{value}</Text>
+      <Text style={s.triLabel}>{label}</Text>
+    </View>
+  );
+}
+function Line({ icon, label, value, hint, onPress }: any) {
+  return (
+    <TouchableOpacity style={s.line} activeOpacity={0.8} onPress={onPress} disabled={!onPress}>
+      <View style={s.lineIcon}><AppIcon name={icon} size={14} color={A.inkSoft} /></View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={s.lineLabel} numberOfLines={1}>{label}</Text>
+        {hint ? <Text style={s.lineHint} numberOfLines={1}>{hint}</Text> : null}
+      </View>
+      <Text style={s.lineValue} numberOfLines={1}>{value}</Text>
+      {onPress ? <AppIcon name="chevron" size={13} color={A.mutedSoft} style={{ marginLeft: 5 }} /> : null}
+    </TouchableOpacity>
+  );
+}
+
+const s = StyleSheet.create({
+  loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: A.page },
+  loadingRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
+  stack: { gap: 16 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 16, alignItems: "flex-start" },
+  kpiRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+
+  heroLine: { flexDirection: "row", alignItems: "flex-end", gap: 10, marginBottom: 4 },
+  heroBig: {
+    fontSize: 34,
+    fontWeight: "800",
+    color: A.ink,
+    letterSpacing: -1,
+    fontFamily: FONT,
   },
-  quickWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  quick: {
-    flexBasis: 210, flexGrow: 1, minWidth: 170,
-    backgroundColor: A.surface, borderWidth: 1, borderColor: A.border,
-    borderRadius: 10, padding: 12,
+  heroBigOf: { fontSize: 13, fontWeight: "700", color: A.muted, marginBottom: 5, fontFamily: FONT },
+  heroStore: { fontSize: 20, fontWeight: "800", color: A.ink, letterSpacing: -0.4, fontFamily: FONT, marginTop: 2 },
+
+  panelLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: A.muted,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    fontFamily: FONT,
   },
-  quickBubble: {
-    width: 32, height: 32, borderRadius: 8,
-    backgroundColor: A.blueSoft, borderWidth: 0,
-    alignItems: "center", justifyContent: "center", marginBottom: 9,
+  muted: { fontSize: 11.5, color: A.muted, lineHeight: 17, fontFamily: FONT, marginTop: 6 },
+  small: { fontSize: 10, color: A.muted, marginTop: 4, fontFamily: FONT },
+  note: {
+    fontSize: 10,
+    color: A.mutedSoft,
+    lineHeight: 15,
+    marginTop: 10,
+    paddingTop: 9,
+    borderTopWidth: 1,
+    borderTopColor: A.borderSoft,
+    fontFamily: FONT,
   },
-  quickLabel: { fontSize: 12, fontWeight: "700", color: A.ink },
-  quickDesc: { fontSize: 10.5, color: A.muted, marginTop: 2 },
+
+  actionsRow: { flexDirection: "row", gap: 8, marginTop: 12, flexWrap: "wrap" },
+
+  quickGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  quickLink: {
+    flexBasis: 220,
+    flexGrow: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: A.borderSoft,
+    backgroundColor: A.surface,
+  },
+  quickIcon: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  quickLabel: { fontSize: 11.5, fontWeight: "700", color: A.ink, fontFamily: FONT },
+  quickDesc: { fontSize: 9.5, color: A.muted, marginTop: 1, fontFamily: FONT },
+
+  splitRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  splitBox: {
+    flex: 1,
+    backgroundColor: A.surfaceAlt,
+    borderWidth: 1,
+    borderColor: A.borderSoft,
+    borderRadius: 8,
+    paddingVertical: 9,
+    alignItems: "center",
+  },
+  splitLabel: { fontSize: 8.5, fontWeight: "800", color: A.muted, letterSpacing: 0.4, fontFamily: FONT },
+  splitValue: { fontSize: 22, fontWeight: "800", marginTop: 2, fontFamily: FONT },
+
+  triRow: { flexDirection: "row", gap: 8 },
+  triBox: { flex: 1, backgroundColor: A.surfaceAlt, borderRadius: 8, paddingVertical: 9, alignItems: "center" },
+  triValue: { fontSize: 19, fontWeight: "800", fontFamily: FONT },
+  triLabel: { fontSize: 8, fontWeight: "800", color: A.muted, letterSpacing: 0.35, marginTop: 1, fontFamily: FONT, textAlign: "center" },
+
+  tableHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingBottom: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: A.border,
+    marginBottom: 2,
+  },
+  th: { fontSize: 8.5, fontWeight: "800", color: A.muted, letterSpacing: 0.6, fontFamily: FONT },
+  tr: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: A.borderSoft,
+  },
+  td: { fontSize: 11, color: A.inkSoft, fontFamily: FONT },
+  tdName: { fontSize: 11.5, fontWeight: "700", color: A.ink, fontFamily: FONT },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+
+  excRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingVertical: 8,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    backgroundColor: A.surfaceAlt,
+    borderWidth: 1,
+    borderColor: A.borderSoft,
+    marginBottom: 6,
+  },
+  excIcon: { width: 26, height: 26, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  excTitle: { fontSize: 11.5, fontWeight: "800", color: A.ink, fontFamily: FONT },
+  excDesc: { fontSize: 10.5, color: A.muted, marginTop: 1, fontFamily: FONT },
+
+  okBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: A.greenSoft,
+    borderWidth: 1,
+    borderColor: A.greenBorder,
+  },
+  okTitle: { fontSize: 12, fontWeight: "800", color: A.green, fontFamily: FONT },
+
+  line: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: A.borderSoft,
+  },
+  lineIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: A.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 9,
+  },
+  lineLabel: { fontSize: 11, fontWeight: "700", color: A.ink, fontFamily: FONT },
+  lineHint: { fontSize: 9.5, color: A.muted, marginTop: 1, fontFamily: FONT },
+  lineValue: { fontSize: 11.5, fontWeight: "800", color: A.inkSoft, marginLeft: 8, maxWidth: 120, fontFamily: FONT },
+
+  weekGrid: { flexDirection: "row", gap: 10, marginTop: 8 },
+  weekCol: { flex: 1, alignItems: "center" },
+  weekPct: { fontSize: 11, fontWeight: "800", color: A.ink, fontFamily: FONT },
+  weekBarBg: {
+    width: "100%",
+    height: 58,
+    borderRadius: 5,
+    backgroundColor: "#F3ECE8",
+    justifyContent: "flex-end",
+    overflow: "hidden",
+    marginTop: 4,
+  },
+  weekBarFill: { width: "100%", borderRadius: 5 },
+  weekLabel: { fontSize: 9, fontWeight: "800", color: A.muted, marginTop: 5, letterSpacing: 0.4, fontFamily: FONT },
+
+  areaRow: {
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: A.borderSoft,
+  },
+  areaTop: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  areaName: { fontSize: 11.5, fontWeight: "800", color: A.ink, fontFamily: FONT },
+  areaPct: { fontSize: 13, fontWeight: "800", fontFamily: FONT },
 });

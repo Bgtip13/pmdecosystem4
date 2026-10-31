@@ -222,6 +222,18 @@ export default function TokoAktifDetail() {
           {t.sourceStatus ? <View style={styles.srcChip}><Text style={styles.srcText} numberOfLines={1}>{t.sourceStatus}</Text></View> : null}
         </View>
 
+        {/* ===== Sudah order otomatis dari ACT SPK Jadwal ===== */}
+        {data.sudahOrder ? (
+          <View style={styles.orderBox}>
+            <Text style={styles.orderTitle}>✅ Sudah order bulan ini</Text>
+            <Text style={styles.orderText}>
+              ACT {rupiah(data.act)} dari tarikan SPK Jadwal
+              {data.actTanggal ? ` (${data.actTanggal})` : ""}
+              {data.actNoSpk ? ` • ${data.actNoSpk}` : ""}. Toko ini tidak perlu di-FU untuk order lagi.
+            </Text>
+          </View>
+        ) : null}
+
         {/* ===== Data dari sheet ===== */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Data Toko (dari sheet)</Text>
@@ -238,6 +250,10 @@ export default function TokoAktifDetail() {
           <Row label="Jumlah dihubungi" value={`${t.callCount ?? 0}×`} />
           <Row label="Terakhir call" value={t.calledAt ? `${fmtDateTime(t.calledAt)} • ${data.calledByName || "-"}` : "Belum pernah"} />
           <Row label="Hasil" value={t.result ? (RESULT_LABEL[t.result] ?? t.result) : "-"} />
+          <Row
+            label="ACT (SPK Jadwal)"
+            value={data.act != null ? `${rupiah(data.act)}${data.actTanggal ? ` • ${data.actTanggal}` : ""}` : "-"}
+          />
           {t.result === "plan_order" ? <Row label="Rencana order" value={t.plannedOrderDate ?? "-"} /> : null}
           <Row label="Disimpan oleh" value={t.doneAt ? `${data.doneByName || "-"} • ${fmtDateTime(t.doneAt)}` : "-"} />
           <Row label="Direview" value={t.reviewedAt ? `${data.reviewerName || "-"} • ${fmtDateTime(t.reviewedAt)}` : "-"} />
@@ -447,6 +463,9 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 13, color: GRAY, flex: 1 },
   rowValue: { fontSize: 13, color: C.ink, fontWeight: "700", flexShrink: 1, textAlign: "right", marginLeft: 12 },
   para: { fontSize: 14, color: C.inkSoft, lineHeight: 20 },
+  orderBox: { backgroundColor: "#ECFDF3", borderWidth: 1, borderColor: "#ABEFC6", borderRadius: R.lg, padding: 14, marginTop: 12 },
+  orderTitle: { fontSize: 14, fontWeight: "800", color: "#067647", marginBottom: 4 },
+  orderText: { fontSize: 12, color: "#067647", lineHeight: 18 },
   hint: { fontSize: 12, color: GRAY, lineHeight: 17, marginTop: 2 },
 
   label: { fontSize: 12, fontWeight: "800", color: GRAY, marginTop: 14, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },

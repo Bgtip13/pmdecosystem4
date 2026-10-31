@@ -1,5 +1,6 @@
 import { action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import { loadJadwalAct, orderInfoOf } from "./lib/fuTokoAct";
 import { api, internal } from "./_generated/api";
 
 
@@ -309,6 +310,9 @@ export const raw = internalQuery({
       });
     }
 
+    // ACT bulan berjalan dari tarikan JADWAL → dasar penilaian "sudah order".
+    const jadwalAct = await loadJadwalAct(ctx, monthKey);
+
     // ---------- DATA HARIAN PER AREA (sekali baca untuk semua telemarketing) ----------
     const piutangDaily = new Map<string, Map<string, any[]>>();
     const followupDaily = new Map<string, Map<string, any[]>>();
@@ -379,10 +383,17 @@ export const raw = internalQuery({
         .withIndex("by_month_area", (q) => q.eq("monthKey", monthKey).eq("area", area as any))
         .collect();
       const fuHasil = fuRows.filter((r) => r.result != null);
-      const fuOrder = fuHasil.filter((r) => r.result === "order_masuk").length;
+      const fuManualOrder = fuHasil.filter((r) => r.result === "order_masuk").length;
+      // Toko yang ACT-nya sudah ada di SPK Jadwal dianggap order tanpa diisi manual.
+      const fuAutoRows = fuRows.filter((r) => orderInfoOf(jadwalAct, r.area, r.storeName).sudahOrder);
+      const fuAutoOrder = fuAutoRows.filter((r) => r.result == null).length;
+      const fuHandled = fuRows.filter(
+        (r) => r.result != null || orderInfoOf(jadwalAct, r.area, r.storeName).sudahOrder
+      );
+      const fuOrder = fuManualOrder + fuAutoOrder;
       const fuPlan = fuHasil.filter((r) => r.result === "plan_order").length;
       const fuNoRespon = fuHasil.filter((r) => r.result === "no_respon").length;
-      const fuTidakOrder = fuHasil.length - fuOrder - fuPlan - fuNoRespon;
+      const fuTidakOrder = fuHasil.length - fuManualOrder - fuPlan - fuNoRespon;
 
       // ===== SPK penagihan (riwayat piutang_tasks bulan ini) =====
       const pTasks = Array.from(piutangByArea.get(area)?.values() ?? []);
@@ -409,12 +420,14 @@ export const raw = internalQuery({
 
       return {
         area,
-        fuTotal: fuHasil.length,
+        fuTotal: fuHandled.length,
         fuOrder,
+        fuAuto: fuAutoRows.length,
+        fuAutoOrder,
         fuPlan,
         fuNoRespon,
         fuTidakOrder,
-        fuPct: fuHasil.length > 0 ? Math.round(((fuOrder + fuPlan * 0.5) / fuHasil.length) * 100) : null,
+        fuPct: fuHandled.length > 0 ? Math.round(((fuOrder + fuPlan * 0.5) / fuHandled.length) * 100) : null,
         tagihTotal: pTasks.length,
         tagihClosed: pClosed,
         tagihInpg: pInpg,
@@ -448,7 +461,7 @@ export const raw = internalQuery({
         name: u.name ?? "",
         area: u.area ?? "",
         ...(m ?? {
-          fuTotal: 0, fuOrder: 0, fuPlan: 0, fuNoRespon: 0, fuTidakOrder: 0, fuPct: null,
+          fuTotal: 0, fuOrder: 0, fuAuto: 0, fuAutoOrder: 0, fuPlan: 0, fuNoRespon: 0, fuTidakOrder: 0, fuPct: null,
           tagihTotal: 0, tagihClosed: 0, tagihInpg: 0, tagihOpen: 0, tagihPct: null,
           tagihLunas: 0, tagihCicil: 0, tagihJanji: 0, tagihNoRespon: 0,
           spkTotal: 0, spkClosed: 0, spkInpg: 0, spkOpen: 0, spkOrder: 0, spkPct: null,
@@ -570,11 +583,12 @@ async function computeMonthly(ctx: any, monthKey: string) {
           pct: t.fuPct,
           nilai: `${t.fuOrder} order + ${t.fuPlan} rencana / ${t.fuTotal} FU`,
           target: "Order & rencana order dihargai",
-          sumber: "Sheet Toko Aktif",
+          sumber: "Sheet Toko Aktif + tarikan SPK Jadwal (ACT)",
           penjelasan:
-            `Hasil FU bulan ini: ${t.fuOrder} order, ${t.fuPlan} rencana order, ` +
-            `${t.fuNoRespon} no respon, ${t.fuTidakOrder} tidak order. ` +
-            "Rencana order dihargai separuh.",
+            `Hasil FU bulan ini: ${t.fuOrder} order (${t.fuAutoOrder} otomatis dari ACT), ` +
+            `${t.fuPlan} rencana order, ${t.fuNoRespon} no respon, ${t.fuTidakOrder} tidak order. ` +
+            `Toko yang nama+areanya terhubung dengan SPK Jadwal dan ACT-nya > 0 otomatis ` +
+            `dihitung order, jadi tidak perlu diisi manual. Rencana order dihargai separuh.`,
         },
         {
           key: "spk_penagihan",

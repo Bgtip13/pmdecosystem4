@@ -55,6 +55,8 @@ export default function TokoAktifList() {
   const [wf, setWf] = useState<"ALL" | "OPEN" | "INPG" | "CLSD">("ALL");
   const [q, setQ] = useState("");
   const [syncing, setSyncing] = useState(false);
+  // Filter turunan: toko yang ACT-nya sudah ada di SPK Jadwal = sudah order.
+  const [orderFilter, setOrderFilter] = useState<"ALL" | "ORDER" | "BELUM">("ALL");
 
   const list = useQuery(
     api.activeStores.list,
@@ -92,8 +94,13 @@ export default function TokoAktifList() {
   }
 
   const items = list?.items ?? [];
-  const total = counts?.total ?? { open: 0, inpg: 0, closed: 0, all: 0 };
+  const total = counts?.total ?? { open: 0, inpg: 0, closed: 0, all: 0, sudahOrder: 0 };
   const inpgIds = (items as any[]).filter((t: any) => t.workflowStatus === "INPG").map((t: any) => t._id);
+
+  const autoCount = counts?.total?.sudahOrder ?? (items as any[]).filter((t: any) => t.sudahOrder).length;
+  const shownItems = (items as any[]).filter((t: any) =>
+    orderFilter === "ALL" ? true : orderFilter === "ORDER" ? !!t.sudahOrder : !t.sudahOrder
+  );
 
   const onSync = async () => {
     setSyncing(true);
@@ -167,11 +174,12 @@ export default function TokoAktifList() {
   // ← BARU: ekspor CSV sesuai filter yang sedang aktif
   const onExport = async () => {
     try {
-      const rows = items as any[];
+      const rows = shownItems as any[];
       const header = [
         "Area", "Pelanggan", "Kelas Toko", "Kelas Bayar", "Target",
         "Status", "Status Sheet", "Jml Dihubungi", "Hasil", "Rencana Order",
         "Disimpan oleh", "Disimpan pada", "Catatan Review",
+        "Sudah Order (ACT)", "ACT (SPK Jadwal)", "Tanggal ACT",
       ];
       const body = rows.map((t) => [
         t.area, t.storeName, t.storeClass ?? "", t.paymentClass ?? "", t.target ?? "",
@@ -179,6 +187,7 @@ export default function TokoAktifList() {
         RESULT_LABEL[t.result] ?? "", t.plannedOrderDate ?? "",
         t.doneByName ?? "", t.doneAt ? new Date(t.doneAt).toLocaleString("id-ID") : "",
         t.reviewNote ?? "",
+        t.sudahOrder ? "Ya" : "Tidak", t.act ?? "", t.actTanggal ?? "",
       ]);
       const res = await exportCsv({
         fileName: `fu-toko_${list?.monthKey ?? "bulan"}`,
@@ -216,6 +225,11 @@ export default function TokoAktifList() {
 
           <View style={styles.chipRow}>
             <SpkStatusBadge status={wfs} />
+            {t.sudahOrder ? (
+              <View style={[styles.srcChip, styles.orderChip]}>
+                <Text style={[styles.srcText, { color: "#067647" }]}>Sudah order (ACT)</Text>
+              </View>
+            ) : null}
             {t.sourceStatus ? (
               <View style={styles.srcChip}><Text style={styles.srcText} numberOfLines={1}>{t.sourceStatus}</Text></View>
             ) : null}
@@ -224,11 +238,17 @@ export default function TokoAktifList() {
           </View>
 
           <Text style={styles.sub}>Target {rupiah(t.target)}</Text>
+          {t.sudahOrder ? (
+            <Text style={styles.orderText}>
+              ✅ Sudah order — ACT {rupiah(t.act)} dari tarikan SPK Jadwal
+              {t.actTanggal ? ` (${t.actTanggal})` : ""}. Tidak perlu di-FU untuk order.
+            </Text>
+          ) : null}
           {sudahCall ? (
             <Text style={styles.sub2}>
               📞 Dihubungi {t.callCount ?? 1}× • {t.calledByName || "-"}
             </Text>
-          ) : (
+          ) : t.sudahOrder ? null : (
             <Text style={styles.warnText}>Belum ditelepon</Text>
           )}
           {wfs === "INPG" ? (
@@ -245,11 +265,13 @@ export default function TokoAktifList() {
         {/* Aksi per baris disembunyikan saat mode pilih */}
         {wfs !== "CLSD" && !bulk.pilih ? (
           <View style={styles.actRow}>
-            <TouchableOpacity style={styles.actBtn} onPress={() => onQuickCall(t)}>
-              <Text style={styles.actBtnText}>📞 Call</Text>
-            </TouchableOpacity>
+            {!t.sudahOrder ? (
+              <TouchableOpacity style={styles.actBtn} onPress={() => onQuickCall(t)}>
+                <Text style={styles.actBtnText}>📞 Call</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity style={[styles.actBtn, styles.actBtnPrimary]} onPress={dibuka}>
-              <Text style={[styles.actBtnText, { color: "#fff" }]}>Isi Hasil</Text>
+              <Text style={[styles.actBtnText, { color: "#fff" }]}>{t.sudahOrder ? "Buka detail" : "Isi Hasil"}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -276,7 +298,7 @@ export default function TokoAktifList() {
       </View>
 
       <FlatList
-        data={list === undefined ? [] : items}
+        data={list === undefined ? [] : shownItems}
         keyExtractor={(t: any) => t._id}
         renderItem={renderCard}
         contentContainerStyle={{ padding: 16, paddingBottom: bulk.pilih ? 190 : 40 }}
@@ -303,6 +325,21 @@ export default function TokoAktifList() {
                     key={k}
                     style={[styles.chip, on && styles.chipOn]}
                     onPress={() => { if (!bulk.pilih) setWf(k); }}
+                  >
+                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{l}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.filterRow}>
+              {([["ALL", "Semua"], ["ORDER", `Sudah order (${autoCount})`], ["BELUM", "Belum order"]] as any[]).map(([k, l]) => {
+                const on = orderFilter === k;
+                return (
+                  <TouchableOpacity
+                    key={k}
+                    style={[styles.chip, on && styles.chipOn]}
+                    onPress={() => { if (!bulk.pilih) setOrderFilter(k); }}
                   >
                     <Text style={[styles.chipText, on && styles.chipTextOn]}>{l}</Text>
                   </TouchableOpacity>
@@ -339,7 +376,9 @@ export default function TokoAktifList() {
             />
 
             {list === undefined ? null : (
-              <Text style={styles.listMeta}>{items.length} toko • {monthLabel(list?.monthKey)}</Text>
+              <Text style={styles.listMeta}>
+                {shownItems.length} toko • {autoCount} sudah order • {monthLabel(list?.monthKey)}
+              </Text>
             )}
 
             {/* ← BARU: tombol Pilih (supervisor saja) */}
@@ -354,7 +393,7 @@ export default function TokoAktifList() {
 
             {list === undefined || bulk.pilih ? null : (
               <TouchableOpacity style={styles.exportBtn} onPress={onExport}>
-                <Text style={styles.exportBtnText}>⬇️ Ekspor CSV ({items.length})</Text>
+                <Text style={styles.exportBtnText}>⬇️ Ekspor CSV ({shownItems.length})</Text>
               </TouchableOpacity>
             )}
           </>
@@ -434,6 +473,8 @@ const styles = StyleSheet.create({
   sub: { fontSize: 12, color: C.inkSoft, fontWeight: "700", marginTop: 8 },
   sub2: { fontSize: 12, color: GRAY, marginTop: 4 },
   warnText: { fontSize: 12, color: "#B54708", fontWeight: "700", marginTop: 4 },
+  orderChip: { backgroundColor: "#ECFDF3" },
+  orderText: { fontSize: 12, color: "#067647", fontWeight: "800", marginTop: 6, lineHeight: 17 },
   note: { fontSize: 12, color: "#5B21B6", marginTop: 6 },
 
   actRow: { flexDirection: "row", marginTop: 10 },

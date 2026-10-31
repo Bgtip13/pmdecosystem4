@@ -175,6 +175,16 @@ export default function TokoAktifDetailWeb() {
 
       {notice ? <Notice tone={notice.tone} text={notice.text} /> : null}
 
+      {data.sudahOrder ? (
+        <Panel title="Sudah order bulan ini" icon="check">
+          <Text style={s.orderText}>
+            ACT {rupiah(data.act)} dari tarikan SPK Jadwal
+            {data.actTanggal ? ` (${data.actTanggal})` : ""}
+            {data.actNoSpk ? ` • ${data.actNoSpk}` : ""}. Toko ini tidak perlu di-FU untuk order lagi.
+          </Text>
+        </Panel>
+      ) : null}
+
       <Cols
         main={
           <>
@@ -184,6 +194,11 @@ export default function TokoAktifDetailWeb() {
               <Field label="Kelas bayar" value={t.paymentClass} />
               <Field label="Status sheet" value={t.sourceStatus} />
               <Field label="Periode" value={t.monthKey} />
+              <Field
+                label="ACT (SPK Jadwal)"
+                value={data.act != null ? `${rupiah(data.act)}${data.actTanggal ? ` • ${data.actTanggal}` : ""}` : ""}
+              />
+              <Field label="Status order" value={data.sudahOrder ? "Sudah order otomatis" : "Belum ada ACT"} strong />
             </Panel>
 
             <Panel title="Progres" icon="trend">
@@ -348,6 +363,7 @@ const s = StyleSheet.create({
   kpiRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
 
   para: { fontSize: 11.5, color: A.inkSoft, lineHeight: 18, fontFamily: FONT },
+  orderText: { fontSize: 11.5, color: "#067647", lineHeight: 18, fontFamily: FONT, fontWeight: "700" },
   photo: {
     width: "100%", height: 260, borderRadius: 9,
     backgroundColor: A.surfaceAlt, borderWidth: 1, borderColor: A.borderSoft,

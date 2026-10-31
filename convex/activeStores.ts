@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { logAudit } from "./lib/audit";
+import { loadJadwalAct, orderInfoOf } from "./lib/fuTokoAct";
 
 const AREA_V = v.union(v.literal("SOLO"), v.literal("DIY"), v.literal("SEMARANG"));
 const WF_V = v.union(v.literal("OPEN"), v.literal("INPG"), v.literal("CLSD"));
@@ -69,6 +70,9 @@ export const list = query({
       a.area.localeCompare(b.area) ||
       a.storeName.localeCompare(b.storeName));
 
+    // ACT bulan berjalan dari tarikan JADWAL → penanda "sudah order" otomatis.
+    const actMap = await loadJadwalAct(ctx, mk);
+
     const ids = new Set<string>();
     for (const r of rows) {
       if (r.calledBy) ids.add(String(r.calledBy));
@@ -85,6 +89,7 @@ export const list = query({
       monthKey: mk,
       items: rows.map((r) => ({
         ...r,
+        ...orderInfoOf(actMap, r.area, r.storeName),
         calledByName: r.calledBy ? nameMap.get(String(r.calledBy)) ?? "" : "",
         doneByName: r.doneBy ? nameMap.get(String(r.doneBy)) ?? "" : "",
         reviewerName: r.reviewedBy ? nameMap.get(String(r.reviewedBy)) ?? "" : "",
@@ -131,13 +136,18 @@ export const counts = query({
       .collect();
     if (role === "telemarketing") rows = rows.filter((r) => r.area === me.area);
 
-    const blank = () => ({ open: 0, inpg: 0, closed: 0, all: 0 });
+    const actMap = await loadJadwalAct(ctx, mk);
+    const blank = () => ({ open: 0, inpg: 0, closed: 0, all: 0, sudahOrder: 0 });
     const total = blank();
     const map = new Map<string, any>();
 
     for (const r of rows) {
       const a = map.get(r.area) ?? { area: r.area, ...blank() };
       total.all++;
+      if (orderInfoOf(actMap, r.area, r.storeName).sudahOrder) {
+        total.sudahOrder++;
+        a.sudahOrder++;
+      }
       if (r.workflowStatus === "CLSD") { total.closed++; a.closed++; }
       else if (r.workflowStatus === "INPG") { total.inpg++; a.inpg++; }
       else { total.open++; a.open++; }
@@ -164,9 +174,13 @@ export const getTask = query({
     const chatProofUrl = task.chatProof ? await ctx.storage.getUrl(task.chatProof as any) : null;
     const nameOf = async (id: any) => (id ? ((await ctx.db.get(id)) as any)?.name ?? "" : "");
 
+    // ACT dari tarikan JADWAL untuk bulan tugas ini.
+    const actMap = await loadJadwalAct(ctx, task.monthKey);
+
     return {
       task,
       chatProofUrl,
+      ...orderInfoOf(actMap, task.area, task.storeName),
       calledByName: await nameOf(task.calledBy),
       doneByName: await nameOf(task.doneBy),
       reviewerName: await nameOf(task.reviewedBy),

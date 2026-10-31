@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { loadJadwalAct, orderInfoOf } from "./lib/fuTokoAct";
 
 const AREA = v.union(v.literal("SOLO"), v.literal("DIY"), v.literal("SEMARANG"));
 const MIN_VISITS = 7;          // target minimal kunjungan / hari
@@ -236,9 +237,13 @@ export const todaySpkExceptions = query({
       const ast = await ctx.db.query("active_store_tasks")
         .withIndex("by_month", (q) => q.eq("monthKey", mk))
         .collect();
+      // Toko yang sudah ada ACT bulan ini tidak dihitung "belum dihubungi".
+      const actMap = await loadJadwalAct(ctx, mk);
       const mine = ast.filter((r: any) => !area || r.area === area);
       const inpg = mine.filter((r: any) => r.workflowStatus === "INPG").length;
-      const open = mine.filter((r: any) => r.workflowStatus === "OPEN").length;
+      const open = mine.filter(
+        (r: any) => r.workflowStatus === "OPEN" && !orderInfoOf(actMap, r.area, r.storeName).sudahOrder
+      ).length;
 
       if (inpg > 0) {
         items.push({
@@ -295,11 +300,18 @@ export const activeStoreMonthly = query({
     const myArea = role === "telemarketing" ? (me?.area ?? null) : (area ?? null);
     if (myArea) rows = rows.filter((r) => r.area === myArea);
 
+    // ACT bulan berjalan dari tarikan JADWAL → toko dianggap sudah order.
+    const actMap = await loadJadwalAct(ctx, mk);
+    const isOrdered = (r: any) => orderInfoOf(actMap, r.area, r.storeName).sudahOrder;
+
     const open = rows.filter((r) => r.workflowStatus === "OPEN").length;
     const inpg = rows.filter((r) => r.workflowStatus === "INPG").length;
     const clsd = rows.filter((r) => r.workflowStatus === "CLSD").length;
+    const sudahOrder = rows.filter(isOrdered).length;
+    // Yang sudah order otomatis tidak perlu di-FU lagi → tidak dihitung pending.
+    const pending = rows.filter((r) => r.workflowStatus !== "CLSD" && !isOrdered(r)).length;
 
-    return { monthKey: mk, area: myArea ?? null, total: rows.length, open, inpg, clsd, pending: open + inpg };
+    return { monthKey: mk, area: myArea ?? null, total: rows.length, open, inpg, clsd, sudahOrder, pending };
   },
 });
 // ===== LAPORAN: rekap FU Toko per area (satu bulan) =====

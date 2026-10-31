@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { dayKeyWIB, minPerDay, noSpkOf } from "./lib/jadwalRules";
+import { dayKeyWIB, isValidDateKey, minPerDay, noSpkOf, tanggalOf } from "./lib/jadwalRules";
+import { logAudit } from "./lib/audit";
 
 // ==========================================================================
 // Modul ini = SISI BACA + AKSI LAPANGAN (check-in).
@@ -550,6 +551,7 @@ export const searchStores = query({
 
     const today = dayKeyWIB();
     const { start, end } = monthRangeMs(today);
+    const monthKey = today.slice(0, 7);
 
     const out: any[] = [];
     for (const s of found) {
@@ -557,6 +559,14 @@ export const searchStores = query({
         .withIndex("by_store_checkin", (x) => x.eq("storeId", s._id).gte("checkinAt", start))
         .collect();
       const inMonth = (vs as any[]).filter((v) => v.status === "done" && v.checkinAt < end);
+
+      // ← BARU: sudah ada di jadwal bulan ini? Supaya layar "tambah toko"
+      //   tidak menawarkan toko yang sudah terjadwal (1 toko = 1 baris/bulan).
+      const storeKey = s.area + "||" + nameKeyOf(s.name);
+      const sched: any = await ctx.db.query("visit_schedules")
+        .withIndex("by_month_store_key", (q: any) => q.eq("monthKey", monthKey).eq("storeKey", storeKey))
+        .first();
+
       out.push({
         _id: s._id,
         name: s.name,
@@ -566,6 +576,16 @@ export const searchStores = query({
         lng: s.lng ?? null,
         kunjunganBulanIni: inMonth.length,
         sudahDikunjungi: inMonth.some((v) => (v.metWith ?? "") !== "toko_tutup"),
+        jadwalBulanIni:
+          sched && sched.status !== "CANCELLED"
+            ? {
+                scheduleId: sched._id,
+                dateKey: sched.dateKey,
+                tanggal: sched.tanggal,
+                status: sched.status,
+                isAdHoc: sched.isAdHoc === true,
+              }
+            : null,
       });
     }
     return out;
@@ -688,6 +708,150 @@ export const adHocCheckIn = mutation({
     }
 
     return { visitId, scheduleId, jarakM, diLuarRadius: false };
+  },
+});
+
+// ==========================================================================
+// TAMBAH TOKO DI LUAR JADWAL — HANYA MENAMBAH, TANPA CHECK-IN
+//
+// Dulu satu-satunya jalan adalah "check-in luar jadwal", jadi sales harus
+// sudah berada di toko (dan lolos radius GPS) hanya untuk menambah rencana.
+// Sekarang: toko ditambahkan sebagai baris PLANNED seperti jadwal biasa,
+// lalu check-in dilakukan kapan saja dari kartu SPK-nya.
+// ==========================================================================
+export const addAdHocSchedule = mutation({
+  args: {
+    storeId: v.id("stores"),
+    dateKey: v.optional(v.string()),
+    note: v.optional(v.string()),
+    salesId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, { storeId, dateKey, note, salesId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Belum login.");
+
+    const me: any = await ctx.db.get(userId);
+    const role = me?.role;
+    if (role !== "field" && role !== "supervisor" && role !== "owner") {
+      throw new Error("Hanya sales lapangan dan supervisor yang bisa menambah kunjungan.");
+    }
+
+    const store: any = await ctx.db.get(storeId);
+    if (!store) throw new Error("Toko tidak ditemukan.");
+    if (store.status !== "active") throw new Error("Toko tidak aktif.");
+    if (role === "field" && me.area && store.area !== me.area) {
+      throw new Error("Toko ini di luar area kamu (" + store.area + ").");
+    }
+
+    const today = dayKeyWIB();
+    const dk = dateKey ?? today;
+    if (!isValidDateKey(dk)) throw new Error("Tanggal tidak valid.");
+    if (dk < START_DATE_KEY) throw new Error("Jadwal baru aktif mulai 1 Oktober.");
+    if (dk < today) throw new Error("Tidak bisa menambah ke tanggal yang sudah lewat.");
+
+    // Siapa sales pemilik baris ini.
+    let ownerSalesId: any = role === "field" ? userId : (salesId ?? null);
+    if (!ownerSalesId) {
+      const users: any[] = await ctx.db.query("users").collect();
+      const candidates = users.filter((u) => u.role === "field" && u.area === store.area);
+      if (candidates.length === 1) ownerSalesId = candidates[0]._id;
+    }
+
+    const monthKey = dk.slice(0, 7);
+    const nk = nameKeyOf(store.name);
+    const storeKey = store.area + "||" + nk;
+
+    // 1 toko = 1x kunjungan per bulan (pengecualian: kunjungan terakhir "toko tutup").
+    const { start, end } = monthRangeMs(dk);
+    const vs = await ctx.db.query("visits")
+      .withIndex("by_store_checkin", (q) => q.eq("storeId", storeId).gte("checkinAt", start))
+      .collect();
+    const inMonth = (vs as any[]).filter((v) => v.status === "done" && v.checkinAt < end);
+    if (inMonth.some((v) => (v.metWith ?? "") !== "toko_tutup")) {
+      throw new Error("Toko ini sudah dikunjungi bulan ini (aturan 1 toko 1x per bulan).");
+    }
+
+    // Toko mungkin sudah punya baris jadwal bulan ini → satu baris per bulan.
+    const existing: any = await ctx.db.query("visit_schedules")
+      .withIndex("by_month_store_key", (q) => q.eq("monthKey", monthKey).eq("storeKey", storeKey))
+      .first();
+
+    if (existing && existing.status !== "CANCELLED") {
+      throw new Error(
+        `Toko ini sudah ada di jadwal bulan ini (${existing.tanggal}). ` +
+        `Kalau mau dipindah, buka kartu SPK-nya lalu ajukan geser tanggal.`
+      );
+    }
+
+    const now = Date.now();
+    const catatan = (note ?? "").trim();
+
+    let scheduleId: any;
+    if (existing) {
+      // Baris yang pernah dihapus → dipakai ulang, tidak membuat baris kedua.
+      await ctx.db.patch(existing._id, {
+        dateKey: dk,
+        tanggal: tanggalOf(dk),
+        salesId: existing.salesId ?? ownerSalesId ?? undefined,
+        storeId,
+        status: "PLANNED",
+        visitId: undefined,
+        isAdHoc: true,
+        catatan: catatan || existing.catatan,
+        dateLocked: true,
+        editedAt: now,
+        editedBy: userId,
+        editKind: "move",
+        editReason: "Ditambahkan lagi dari aplikasi",
+        updatedAt: now,
+      } as any);
+      scheduleId = existing._id;
+    } else {
+      scheduleId = await ctx.db.insert("visit_schedules", {
+        monthKey,
+        dateKey: dk,
+        tanggal: tanggalOf(dk),
+        area: store.area,
+        storeKey,
+        storeName: store.name,
+        nameKey: nk,
+        salesId: ownerSalesId ?? undefined,
+        storeId,
+        status: "PLANNED",
+        isAdHoc: true,
+        catatan: catatan || undefined,
+        createdAt: now,
+      } as any);
+    }
+
+    // Kalau supervisor menambah untuk sales lain, beri tahu sales-nya.
+    if (ownerSalesId && String(ownerSalesId) !== String(userId)) {
+      await ctx.db.insert("notifications", {
+        userId: ownerSalesId,
+        fromUserId: userId,
+        fromName: me?.name ?? "Supervisor",
+        title: "Toko ditambahkan ke jadwal",
+        body: `${store.name} (${store.area}) ditambahkan ke ${tanggalOf(dk)}.`,
+        kind: "jadwal_added",
+        link: `/jadwal/${scheduleId}`,
+        createdAt: now,
+      });
+    }
+
+    await logAudit(ctx, {
+      actorId: userId,
+      actorName: me?.name ?? "Sales",
+      actorRole: role,
+      action: "jadwal.add_ad_hoc",
+      entityType: "visit_schedule",
+      entityId: String(scheduleId),
+      area: store.area,
+      summary: `Tambah toko luar jadwal ${store.name} (${store.area}) ke ${tanggalOf(dk)}` + (catatan ? ` — ${catatan}` : ""),
+      after: { dateKey: dk, storeName: store.name },
+      metadata: { reusedRow: existing ? true : false },
+    });
+
+    return { ok: true, scheduleId, dateKey: dk };
   },
 });
 

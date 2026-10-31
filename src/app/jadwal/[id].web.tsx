@@ -45,6 +45,12 @@ const ALASAN = [
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const todayKeyWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 
+function addDayKey(dk: string, n: number) {
+  const [y, m, d] = dk.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+}
+
 function fmtTanggal(dk?: string) {
   if (!dk) return "-";
   const [y, m, d] = dk.split("-").map(Number);
@@ -67,9 +73,19 @@ export default function JadwalKartuWeb() {
   const checkIn = useMutation(api.jadwal.checkIn);
   const moveSchedule = useMutation(api.jadwalEdit.moveSchedule);
   const cancelSchedule = useMutation(api.jadwalEdit.cancelSchedule);
+  // ← Sales mengajukan, supervisor/owner memutuskan.
+  const requestMove = useMutation(api.jadwalRequests.requestMove);
+  const requestCancel = useMutation(api.jadwalRequests.requestCancel);
+  const withdrawRequest = useMutation(api.jadwalRequests.withdraw);
+  const decideRequest = useMutation(api.jadwalRequests.decide);
+  const reqList = useQuery(
+    api.jadwalRequests.list,
+    id ? ({ scheduleId: id as any } as any) : "skip"
+  ) as any;
 
-  const isSuper = viewer?.role === "supervisor";
-  const bolehCheckIn = viewer?.role === "field" || isSuper;
+  const isSuper = viewer?.role === "supervisor" || viewer?.role === "owner";
+  const isSales = viewer?.role === "field";
+  const bolehCheckIn = isSales || isSuper;
 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "err" | "info"; text: string } | null>(null);
@@ -114,6 +130,44 @@ export default function JadwalKartuWeb() {
   const sudahSelesai = status === "DONE";
   const sedangBerjalan = status === "ONGOING" && sc.visitId;
   const bisaDiubah = isSuper && status === "PLANNED";
+  const scheduleReqs: any[] = (reqList ?? []) as any[];
+  const pendingReq = scheduleReqs.find((r: any) => r.status === "pending") ?? null;
+
+  const doWithdraw = async () => {
+    if (!pendingReq) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await withdrawRequest({ requestId: pendingReq._id });
+      setNotice({ tone: "ok", text: "Pengajuan ditarik. Jadwal tidak berubah." });
+    } catch (e: any) {
+      setNotice({ tone: "err", text: toFriendlyError(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDecide = async (approve: boolean, ignoreMinimum = false) => {
+    if (!pendingReq) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await decideRequest({ requestId: pendingReq._id, approve, ignoreMinimum });
+      setNotice({
+        tone: "ok",
+        text: approve ? "Pengajuan disetujui. Jadwal sudah diperbarui." : "Pengajuan ditolak. Jadwal tidak diubah.",
+      });
+    } catch (e: any) {
+      const msg = toFriendlyError(e);
+      if (approve && !ignoreMinimum && msg.includes("di bawah minimal")) {
+        setNotice({ tone: "err", text: `${msg} Klik "Tetap setujui" kalau memang disengaja.` });
+      } else {
+        setNotice({ tone: "err", text: msg });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const openMaps = () => {
     if (store?.lat == null || store?.lng == null) {
@@ -146,7 +200,8 @@ export default function JadwalKartuWeb() {
   };
 
   const openMove = () => {
-    const mulai = sc.dateKey >= todayKeyWIB() ? sc.dateKey : todayKeyWIB();
+    const base = sc.dateKey >= todayKeyWIB() ? sc.dateKey : todayKeyWIB();
+    const mulai = isSales ? addDayKey(base, 1) : base;
     setReason("");
     setNote("");
     setForceMove(false);
@@ -155,10 +210,25 @@ export default function JadwalKartuWeb() {
   };
 
   const submitMove = async (ignoreMinimum = false) => {
+    if (!targetDate) {
+      setNotice({ tone: "err", text: "Pilih tanggal tujuan dulu." });
+      return;
+    }
     setBusy(true);
     setNotice(null);
     try {
       const alasan = [reason, note.trim()].filter(Boolean).join(" — ");
+      if (isSales) {
+        await requestMove({
+          scheduleId: sc._id,
+          toDateKey: targetDate,
+          reason: reason || undefined,
+          note: note.trim() || undefined,
+        });
+        setMoveOpen(false);
+        setNotice({ tone: "ok", text: `Pengajuan geser ke ${fmtTanggal(targetDate)} terkirim. Menunggu persetujuan supervisor.` });
+        return;
+      }
       await moveSchedule({
         scheduleId: sc._id,
         toDateKey: targetDate,
@@ -169,7 +239,7 @@ export default function JadwalKartuWeb() {
       setNotice({ tone: "ok", text: `Jadwal digeser ke ${fmtTanggal(targetDate)}.` });
     } catch (e: any) {
       const msg = toFriendlyError(e);
-      if (!ignoreMinimum && msg.includes("di bawah minimal")) {
+      if (!isSales && !ignoreMinimum && msg.includes("di bawah minimal")) {
         // Tawarkan lanjut (dua langkah), tanpa Alert karena web tidak menampilkannya.
         setNotice({ tone: "err", text: `${msg} Klik "Tetap geser" kalau memang disengaja.` });
         setForceMove(true);
@@ -190,12 +260,18 @@ export default function JadwalKartuWeb() {
     setNotice(null);
     try {
       const alasan = [reason, note.trim()].filter(Boolean).join(" — ");
+      if (isSales) {
+        await requestCancel({ scheduleId: sc._id, reason: alasan, note: note.trim() || undefined });
+        setCancelOpen(false);
+        setNotice({ tone: "ok", text: "Pengajuan hapus terkirim. Menunggu persetujuan supervisor." });
+        return;
+      }
       await cancelSchedule({ scheduleId: sc._id, reason: alasan, ignoreMinimum });
       setCancelOpen(false);
-      setNotice({ tone: "ok", text: "Jadwal dibatalkan. Baris tetap tersimpan sebagai riwayat." });
+      setNotice({ tone: "ok", text: "Jadwal dihapus dari daftar. Baris tetap tersimpan sebagai riwayat." });
     } catch (e: any) {
       const msg = toFriendlyError(e);
-      if (!ignoreMinimum && msg.includes("di bawah minimal")) {
+      if (!isSales && !ignoreMinimum && msg.includes("di bawah minimal")) {
         setForceCancel(true);
       }
       setNotice({ tone: "err", text: msg });
@@ -336,19 +412,39 @@ export default function JadwalKartuWeb() {
                 <Hint>Check-in hanya untuk sales lapangan & supervisor.</Hint>
               )}
 
+              {isSales && status === "PLANNED" ? (
+                <>
+                  <View style={{ height: 10 }} />
+                  <Hint>
+                    Perlu geser tanggal atau toko ini tutup? Ajukan perubahan — supervisor yang menyetujui.
+                    Jadwal tidak berubah sebelum disetujui.
+                  </Hint>
+                  <View style={{ height: 8 }} />
+                  <ActionRow>
+                    <ActionButton label="Ajukan geser" icon="calendar" onPress={openMove} />
+                    <ActionButton
+                      label="Ajukan hapus"
+                      icon="trash"
+                      tone="danger"
+                      onPress={() => { setReason(""); setNote(""); setForceCancel(false); setCancelOpen(true); }}
+                    />
+                  </ActionRow>
+                </>
+              ) : null}
+
               {bisaDiubah ? (
                 <>
                   <View style={{ height: 10 }} />
                   <Hint>
-                    Sheet hanya untuk input. Geser atau batalkan di sini supaya tarik jadwal
-                    berikutnya tidak mengembalikan tanggalnya.
+                    Perubahan langsung berlaku dan tidak akan ditimpa tarik jadwal berikutnya.
+                    Pengajuan dari sales muncul di panel “Pengajuan Menunggu”.
                   </Hint>
                   <View style={{ height: 8 }} />
                   <ActionRow>
                     <ActionButton label="Geser tanggal" icon="calendar" onPress={openMove} />
                     <ActionButton
-                      label="Batalkan"
-                      icon="close"
+                      label="Hapus dari jadwal"
+                      icon="trash"
                       tone="danger"
                       onPress={() => { setReason(""); setNote(""); setForceCancel(false); setCancelOpen(true); }}
                     />
@@ -356,6 +452,35 @@ export default function JadwalKartuWeb() {
                 </>
               ) : null}
             </Panel>
+
+            {pendingReq ? (
+              <Panel title="Pengajuan Menunggu" icon="clock">
+                <Field
+                  label="Jenis"
+                  value={pendingReq.kind === "move" ? "Geser tanggal" : "Hapus dari jadwal"}
+                  strong
+                />
+                <Field label="Diajukan oleh" value={pendingReq.requestedByName} />
+                {pendingReq.toDateKey ? <Field label="Tanggal tujuan" value={fmtTanggal(pendingReq.toDateKey)} /> : null}
+                <Field label="Alasan" value={pendingReq.reason || "-"} />
+                {pendingReq.note ? <Field label="Catatan" value={pendingReq.note} /> : null}
+                <View style={{ height: 10 }} />
+                {isSales ? (
+                  <ActionButton label="Tarik pengajuan" icon="close" tone="danger" onPress={doWithdraw} disabled={busy} />
+                ) : (
+                  <ActionRow>
+                    <ActionButton label="Setujui" icon="check" tone="green" onPress={() => onDecide(true)} disabled={busy} />
+                    <ActionButton label="Tolak" icon="close" tone="danger" onPress={() => onDecide(false)} disabled={busy} />
+                  </ActionRow>
+                )}
+                {isSuper && pendingReq.kind === "move" ? (
+                  <Hint>
+                    Kalau persetujuan ditahan karena kuota minimal harian, klik Setujui sekali lagi setelah
+                    pesan konfirmasi muncul untuk tetap melanjutkan.
+                  </Hint>
+                ) : null}
+              </Panel>
+            ) : null}
 
             <Panel title="Beban Hari Ini" icon="chart">
               <Field
@@ -380,8 +505,11 @@ export default function JadwalKartuWeb() {
       <Modal visible={moveOpen} transparent animationType="fade" onRequestClose={() => setMoveOpen(false)}>
         <Pressable style={s.modalBg} onPress={() => setMoveOpen(false)}>
           <Pressable style={s.modalCard} onPress={() => {}}>
-            <Text style={s.modalTitle}>Geser tanggal</Text>
-            <Text style={s.modalSub}>{sc.storeName} • sekarang {fmtTanggal(sc.dateKey)}</Text>
+            <Text style={s.modalTitle}>{isSales ? "Ajukan geser tanggal" : "Geser tanggal"}</Text>
+            <Text style={s.modalSub}>
+              {sc.storeName} • sekarang {fmtTanggal(sc.dateKey)}
+              {isSales ? " — pengajuan dikirim ke supervisor" : ""}
+            </Text>
 
             <View style={{ marginTop: 12 }}>
               <ActionButton label={targetDate ? fmtTanggal(targetDate) : "Pilih tanggal"} icon="calendar" onPress={() => setCalOpen(true)} />
@@ -402,7 +530,7 @@ export default function JadwalKartuWeb() {
               {forceMove ? (
                 <ActionButton label="Tetap geser" icon="warn" tone="primary" onPress={() => submitMove(true)} disabled={busy} />
               ) : (
-                <ActionButton label={busy ? "Menyimpan…" : "Geser"} icon="check" tone="primary" onPress={() => submitMove(false)} disabled={busy} />
+                <ActionButton label={busy ? "Menyimpan…" : isSales ? "Kirim pengajuan" : "Geser"} icon="check" tone="primary" onPress={() => submitMove(false)} disabled={busy} />
               )}
             </View>
           </Pressable>
@@ -421,11 +549,12 @@ export default function JadwalKartuWeb() {
       <Modal visible={cancelOpen} transparent animationType="fade" onRequestClose={() => setCancelOpen(false)}>
         <Pressable style={s.modalBg} onPress={() => setCancelOpen(false)}>
           <Pressable style={s.modalCard} onPress={() => {}}>
-            <Text style={s.modalTitle}>Batalkan jadwal</Text>
+            <Text style={s.modalTitle}>{isSales ? "Ajukan hapus jadwal" : "Hapus dari jadwal"}</Text>
             <Text style={s.modalSub}>{sc.storeName} • {fmtTanggal(sc.dateKey)}</Text>
             <Hint>
-              Baris tidak dihapus — tetap tersimpan sebagai dibatalkan beserta alasannya, jadi masih
-              bisa ditelusuri kapan saja.
+              {isSales
+                ? "Pengajuan dikirim ke supervisor. Jadwal baru hilang setelah disetujui, dan alasannya tetap tersimpan sebagai riwayat."
+                : "Baris tidak dihapus permanen — tetap tersimpan sebagai dibatalkan beserta alasannya, jadi masih bisa ditelusuri kapan saja."}
             </Hint>
 
             <Text style={s.modalLabel}>Alasan (wajib)</Text>
@@ -443,7 +572,7 @@ export default function JadwalKartuWeb() {
               {forceCancel ? (
                 <ActionButton label="Tetap batalkan" icon="warn" tone="danger" onPress={() => submitCancel(true)} disabled={busy} />
               ) : (
-                <ActionButton label={busy ? "Menyimpan…" : "Batalkan"} icon="close" tone="danger" onPress={() => submitCancel(false)} disabled={busy} />
+                <ActionButton label={busy ? "Menyimpan…" : isSales ? "Kirim pengajuan" : "Hapus"} icon="close" tone="danger" onPress={() => submitCancel(false)} disabled={busy} />
               )}
             </View>
           </Pressable>

@@ -14,6 +14,8 @@ const { colors: C, radius: R } = theme;
 const RED = C.primary;
 const GRAY = C.inkMuted;
 const GREEN = "#067647";
+const BLUE = "#175CD3";
+const ORANGE = "#B54708";
 
 const AREAS = ["SOLO", "DIY", "SEMARANG"] as const;
 const AREA_ALL = "ALL";
@@ -24,11 +26,20 @@ const BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "
 const BULAN_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 const STATUS_META: any = {
-  PLANNED: { label: "Belum", bg: "#F2F4F7", fg: "#475467" },
-  ONGOING: { label: "Berjalan", bg: "#FEF0C7", fg: "#B54708" },
-  DONE: { label: "Selesai", bg: "#DCFAE6", fg: "#067647" },
-  CANCELLED: { label: "Dibatalkan", bg: "#FEE4E2", fg: "#B42318" },
+  PLANNED: { label: "Belum", bg: "#F2F4F7", fg: "#475467", bar: "#98A2B3" },
+  ONGOING: { label: "Berjalan", bg: "#FEF0C7", fg: "#B54708", bar: "#F79009" },
+  DONE: { label: "Selesai", bg: "#DCFAE6", fg: "#067647", bar: "#12B76A" },
+  CANCELLED: { label: "Dibatalkan", bg: "#FEE4E2", fg: "#B42318", bar: "#F04438" },
 };
+
+type Filter = "ALL" | "PLANNED" | "ONGOING" | "DONE";
+
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "ALL", label: "Semua" },
+  { key: "PLANNED", label: "Belum" },
+  { key: "ONGOING", label: "Berjalan" },
+  { key: "DONE", label: "Selesai" },
+];
 
 const todayKeyWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 
@@ -53,7 +64,6 @@ function addMonths(ym: string, n: number) {
 }
 
 const rupiah = (n: any) => (n == null ? "-" : "Rp" + Number(n).toLocaleString("id-ID"));
-
 const fmtTime = (ms?: number | null) =>
   ms ? new Date(ms).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "";
 
@@ -63,6 +73,16 @@ function Chip({ label, on, onPress }: any) {
     <TouchableOpacity style={[styles.chip, on && styles.chipOn]} onPress={onPress} activeOpacity={0.8}>
       <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
     </TouchableOpacity>
+  );
+}
+
+// ===== Kotak angka ringkas =====
+function Stat({ label, value, color }: any) {
+  return (
+    <View style={styles.stat}>
+      <Text style={[styles.statValue, color ? { color } : null]}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -148,10 +168,11 @@ export default function JadwalList() {
   const viewer = useQuery(api.users.viewer) as any;
   const [dk, setDk] = useState(todayKeyWIB());
   const [area, setArea] = useState<string>(AREA_ALL);
+  const [statusFilter, setStatusFilter] = useState<Filter>("ALL");
   const [calOpen, setCalOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  // ← BARU: penyambungan nama toko ↔ master toko (Kelola Toko)
+  // ← penyambungan nama toko ↔ master toko (Kelola Toko)
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [linkRow, setLinkRow] = useState<any>(null);
   const [storeQ, setStoreQ] = useState("");
@@ -161,7 +182,9 @@ export default function JadwalList() {
   const role = viewer?.role;
   const isField = role === "field";
   const isSuper = role === "supervisor";
-  const canLink = role === "supervisor" || role === "owner";
+  const isOwner = role === "owner";
+  const canLink = isSuper || isOwner;
+  const canAdd = isField || isSuper || isOwner;
 
   // Sales: server otomatis mengunci ke dirinya sendiri (area tidak berpengaruh)
   const qArgs: any = { dateKey: dk };
@@ -171,6 +194,12 @@ export default function JadwalList() {
   const doSync = useAction(api.jadwalSync.manualSync);
   const linkStore = useMutation(api.jadwal.linkStore);
   const linkMissing = useMutation(api.jadwal.linkMissing);
+
+  // Pengajuan yang masih menunggu → lencana di kartu + banner.
+  // Sales hanya menerima pengajuannya sendiri (disaring di server).
+  const pendingRequests = useQuery(api.jadwalRequests.list, { status: "pending" } as any) as any;
+  const pendingMap = new Map<string, any>();
+  for (const r of pendingRequests ?? []) pendingMap.set(String(r.scheduleId), r);
 
   // Kandidat toko master: HANYA ditarik saat modal benar-benar terbuka
   const q = storeQ.trim();
@@ -210,7 +239,6 @@ export default function JadwalList() {
       setSyncing(false);
     }
   };
-
 
   // ===== Buka / tutup modal penyambungan =====
   const openLink = (row: any) => { setStoreQ(""); setLinkRow(row); };
@@ -268,54 +296,84 @@ export default function JadwalList() {
     return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
   }
 
+  if (!isField && !isSuper && !isOwner) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.emptyTitle}>Bukan halaman kamu</Text>
+        <Text style={styles.emptySub}>SPK Jadwal dipakai sales lapangan, supervisor, dan owner.</Text>
+        <TouchableOpacity style={styles.linkBtn} onPress={() => router.replace("/beranda" as any)}>
+          <Text style={styles.linkBtnText}>Kembali ke Beranda</Text>
+        </TouchableOpacity>
+        <TabBar active="spk" />
+      </View>
+    );
+  }
+
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
-  const selesai = (data?.done ?? 0) + (data?.ongoing ?? 0);
-  const persen = total > 0 ? Math.round((selesai / total) * 100) : 0;
+  const done = data?.done ?? 0;
+  const ongoing = data?.ongoing ?? 0;
+  const planned = data?.planned ?? 0;
+  const persen = total > 0 ? Math.round(((done + ongoing) / total) * 100) : 0;
   // Kuota MINIMAL harian: 7 toko (Sabtu 3) — dihitung per area = per sales.
   const minHari = data?.minPerDay ?? 7;
   const kurang = Math.max(0, minHari - total);
 
   const missingCount = rows.filter((r: any) => r.storeMissing).length;
-  const shown = onlyMissing ? rows.filter((r: any) => r.storeMissing) : rows;
+  const pendingCount = (pendingRequests ?? []).length;
+
+  const countBy: any = { ALL: rows.length, PLANNED: planned, ONGOING: ongoing, DONE: done };
+  let shown = statusFilter === "ALL" ? rows : rows.filter((r: any) => r.status === statusFilter);
+  if (onlyMissing) shown = shown.filter((r: any) => r.storeMissing);
 
   const renderRow = ({ item }: any) => {
     const meta = STATUS_META[item.status] ?? STATUS_META.PLANNED;
     const bisaHubung = canLink && item.storeMissing;
+    const req = pendingMap.get(String(item._id));
     return (
       <TouchableOpacity
-        style={[styles.card, bisaHubung && styles.cardNeedLink]}
+        style={[styles.card, { borderLeftColor: meta.bar }]}
         activeOpacity={0.85}
         onPress={() => (bisaHubung ? openLink(item) : router.push(`/jadwal/${item._id}?dk=${dk}` as any))}
       >
-        <View style={{ flex: 1 }}>
-          <Text style={styles.storeName} numberOfLines={2}>{item.storeName}</Text>
-
-          <View style={styles.badgeRow}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={styles.cardTop}>
+            <Text style={styles.storeName} numberOfLines={2}>{item.storeName}</Text>
             <View style={[styles.badge, { backgroundColor: meta.bg }]}>
               <Text style={[styles.badgeText, { color: meta.fg }]}>{meta.label}</Text>
             </View>
-            {!isField && item.area ? (
-              <View style={[styles.badge, { backgroundColor: "#F2F4F7", marginLeft: 6 }]}>
-                <Text style={[styles.badgeText, { color: GRAY }]}>{item.area}</Text>
-              </View>
-            ) : null}
-            {item.isAdHoc ? (
-              <View style={[styles.badge, { backgroundColor: "#FEF0C7", marginLeft: 6 }]}>
-                <Text style={[styles.badgeText, { color: "#B54708" }]}>Luar jadwal</Text>
-              </View>
-            ) : null}
-            {item.edited ? (
-              <View style={[styles.badge, { backgroundColor: "#EFF8FF", marginLeft: 6 }]}>
-                <Text style={[styles.badgeText, { color: "#175CD3" }]}>Digeser</Text>
-              </View>
-            ) : null}
-            {item.storeMissing ? (
-              <View style={[styles.badge, { backgroundColor: "#FEE4E2", marginLeft: 6 }]}>
-                <Text style={[styles.badgeText, { color: "#B42318" }]}>Nama belum terhubung</Text>
-              </View>
-            ) : null}
           </View>
+
+          <Text style={styles.spkNo} numberOfLines={1}>
+            {item.noSpk}{!isField && item.area ? ` · ${item.area}` : ""}
+          </Text>
+
+          {item.isAdHoc || item.edited || item.storeMissing || req ? (
+            <View style={styles.badgeRow}>
+              {item.isAdHoc ? (
+                <View style={[styles.badge, { backgroundColor: "#FEF0C7" }]}>
+                  <Text style={[styles.badgeText, { color: ORANGE }]}>Luar jadwal</Text>
+                </View>
+              ) : null}
+              {item.edited ? (
+                <View style={[styles.badge, { backgroundColor: "#EFF8FF" }]}>
+                  <Text style={[styles.badgeText, { color: BLUE }]}>Diubah</Text>
+                </View>
+              ) : null}
+              {item.storeMissing ? (
+                <View style={[styles.badge, { backgroundColor: "#FEE4E2" }]}>
+                  <Text style={[styles.badgeText, { color: "#B42318" }]}>Belum terhubung</Text>
+                </View>
+              ) : null}
+              {req ? (
+                <View style={[styles.badge, { backgroundColor: "#F4EBFF" }]}>
+                  <Text style={[styles.badgeText, { color: "#6941C6" }]}>
+                    {isField ? "Menunggu persetujuan" : `Pengajuan ${req.kind === "move" ? "geser" : "hapus"}`}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           <View style={styles.miniRow}>
             <View style={styles.miniBox}>
@@ -331,15 +389,25 @@ export default function JadwalList() {
           {item.checkinAt ? (
             <Text style={styles.subTime}>
               Masuk {fmtTime(item.checkinAt)}
-              {item.checkoutAt ? ` · Keluar ${fmtTime(item.checkoutAt)}` : " (berjalan)"}
+              {item.checkoutAt ? ` · Keluar ${fmtTime(item.checkoutAt)}` : " · masih berjalan"}
             </Text>
-          ) : null}
+          ) : (
+            <Text style={styles.subTime}>Belum check-in</Text>
+          )}
 
           {item.storeMissing ? (
             <Text style={styles.linkHint}>
               {canLink
                 ? "Nama di sheet JADWAL beda dengan master toko. Ketuk kartu ini untuk memilih toko yang benar."
                 : "Nama di sheet JADWAL beda dengan master toko. Minta supervisor menyambungkannya."}
+            </Text>
+          ) : null}
+
+          {req ? (
+            <Text style={styles.reqHint}>
+              {req.kind === "move"
+                ? `Diajukan geser ke ${fmtShort(req.toDateKey)}${req.reason ? ` — ${req.reason}` : ""}`
+                : `Diajukan hapus${req.reason ? ` — ${req.reason}` : ""}`}
             </Text>
           ) : null}
         </View>
@@ -353,12 +421,11 @@ export default function JadwalList() {
     <View style={styles.screen}>
       <View style={styles.topbar}>
         <View style={styles.titleRow}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.brand}>PMD Ecosystem 4.0</Text>
             <Text style={styles.title}>SPK Jadwal</Text>
             <Text style={styles.meta}>
-              {selesai} dari {total} selesai
-              {missingCount > 0 ? `  •  ${missingCount} nama belum terhubung` : ""}
+              {done + ongoing} dari {total} toko sudah dikunjungi · {persen}%
             </Text>
           </View>
 
@@ -374,18 +441,6 @@ export default function JadwalList() {
                 disabled={syncing}
               >
                 <AppIcon name="refresh" size={17} color={RED} />
-              </TouchableOpacity>
-            </>
-          ) : null}
-
-          {/* Luar jadwal & toko baru — sales & supervisor */}
-          {isField || isSuper ? (
-            <>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/jadwal/luar" as any)}>
-                <AppIcon name="location" size={17} color={RED} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/toko-baru")}>
-                <AppIcon name="plus" size={17} color={RED} />
               </TouchableOpacity>
             </>
           ) : null}
@@ -405,7 +460,7 @@ export default function JadwalList() {
                 {dk === todayKeyWIB() ? "Hari ini" : fmtTanggal(dk)}
               </Text>
             </View>
-            <Text style={styles.dateBtnHint}>Pilih tanggal</Text>
+            <Text style={styles.dateBtnHint}>Ubah</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.arrowBtn} onPress={() => shiftDay(1)}>
@@ -413,10 +468,68 @@ export default function JadwalList() {
           </TouchableOpacity>
         </View>
 
-        {/* ===== Filter area — sales tidak perlu (otomatis dirinya sendiri) ===== */}
+        {/* ===== Aksi utama: tambah toko di luar jadwal ===== */}
+        {canAdd ? (
+          <TouchableOpacity style={styles.addBtn} onPress={() => router.push("/jadwal/luar" as any)} activeOpacity={0.85}>
+            <AppIcon name="plus" size={16} color={RED} style={{ marginRight: 6 }} />
+            <Text style={styles.addBtnText}>Tambah toko di luar jadwal</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <View style={styles.statRow}>
+        <Stat label="TOTAL" value={total} />
+        <Stat label="SELESAI" value={done} color={GREEN} />
+        <Stat label="BERJALAN" value={ongoing} color={ORANGE} />
+        <Stat label="BELUM" value={planned} color={BLUE} />
+      </View>
+
+      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: (`${persen}%`) as any }]} />
+        </View>
+        <Text style={[styles.minHint, kurang > 0 && total > 0 ? null : { color: GRAY }]}>
+          {total === 0
+            ? `Belum ada toko terjadwal. Minimal ${minHari} toko/hari.`
+            : kurang > 0
+              ? `${total} toko pada tanggal ini — kurang ${kurang} dari minimal ${minHari} toko/hari.`
+              : `${total} toko pada tanggal ini — sudah memenuhi minimal ${minHari} toko/hari.`}
+        </Text>
+      </View>
+
+      {/* ← Pengajuan perubahan jadwal */}
+      {pendingCount > 0 ? (
+        <TouchableOpacity
+          style={styles.pendingBanner}
+          activeOpacity={0.85}
+          onPress={() => (canLink ? router.push("/spv-approval?tab=jadwal" as any) : undefined)}
+          disabled={!canLink}
+        >
+          <AppIcon name="clock" size={15} color="#6941C6" style={{ marginRight: 8 }} />
+          <Text style={styles.pendingText}>
+            {canLink
+              ? `${pendingCount} pengajuan perubahan jadwal menunggu persetujuan. Ketuk untuk meninjau.`
+              : `${pendingCount} pengajuanmu masih menunggu persetujuan supervisor.`}
+          </Text>
+          {canLink ? <AppIcon name="chevron" size={15} color="#6941C6" /> : null}
+        </TouchableOpacity>
+      ) : null}
+
+      {/* ===== Filter status + area ===== */}
+      <View style={styles.filterWrap}>
+        <View style={styles.chipRow}>
+          {FILTERS.map((f) => (
+            <Chip
+              key={f.key}
+              label={f.key === "ALL" ? `${f.label} (${countBy.ALL})` : `${f.label} (${countBy[f.key] ?? 0})`}
+              on={statusFilter === f.key}
+              onPress={() => setStatusFilter(f.key)}
+            />
+          ))}
+        </View>
         {!isField ? (
           <View style={styles.chipRow}>
-            <Chip label="Semua" on={area === AREA_ALL} onPress={() => setArea(AREA_ALL)} />
+            <Chip label="Semua area" on={area === AREA_ALL} onPress={() => setArea(AREA_ALL)} />
             {AREAS.map((a) => (
               <Chip key={a} label={a} on={area === a} onPress={() => setArea(a)} />
             ))}
@@ -431,18 +544,7 @@ export default function JadwalList() {
         ) : null}
       </View>
 
-      <View style={styles.progressBox}>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: (`${persen}%`) as any }]} />
-        </View>
-        {total > 0 && kurang > 0 ? (
-          <Text style={styles.minHint}>
-            {total} toko pada tanggal ini — kurang {kurang} dari minimal {minHari} toko/hari.
-          </Text>
-        ) : null}
-      </View>
-
-      {/* ← BARU: sambungkan otomatis (supervisor/owner) — tanpa buka satu-satu */}
+      {/* ← sambungkan otomatis (supervisor/owner) — tanpa buka satu-satu */}
       {canLink && missingCount > 0 ? (
         <View style={styles.autoRow}>
           <TouchableOpacity
@@ -461,14 +563,20 @@ export default function JadwalList() {
       {shown.length === 0 ? (
         <ScrollView contentContainerStyle={{ padding: 24 }}>
           <Text style={styles.emptyTitle}>
-            {onlyMissing ? "Semua nama toko sudah terhubung" : "Belum ada SPK untuk tanggal ini"}
+            {onlyMissing
+              ? "Semua nama toko sudah terhubung"
+              : statusFilter !== "ALL"
+                ? `Tidak ada toko berstatus "${FILTERS.find((f) => f.key === statusFilter)?.label}"`
+                : "Belum ada SPK untuk tanggal ini"}
           </Text>
           <Text style={styles.emptySub}>
             {onlyMissing
               ? `Tidak ada lagi nama toko di sheet JADWAL yang belum punya pasangan di Kelola Toko untuk ${fmtShort(dk)}.`
-              : isField
-                ? "Jadwalnya ditarik dari tab JADWAL setiap pukul 08.00. Kalau kamu perlu menambah kunjungan, tekan tombol + di kanan atas untuk daftarkan toko baru."
-                : `Tidak ada baris jadwal${area === AREA_ALL ? "" : ` untuk area ${area}`} pada ${fmtShort(dk)}. Kalau jadwal baru saja diubah di sheet, tekan tombol tarik (⟳) di kanan atas.`}
+              : statusFilter !== "ALL"
+                ? "Coba pilih filter “Semua” untuk melihat seluruh jadwal hari itu."
+                : isField
+                  ? "Jadwal ditarik dari sheet setiap pukul 08.00. Kalau perlu menambah toko, tekan “Tambah toko di luar jadwal”."
+                  : `Tidak ada baris jadwal${area === AREA_ALL ? "" : ` untuk area ${area}`} pada ${fmtShort(dk)}. Kalau jadwal baru saja diubah di sheet, tekan tombol tarik (⟳) di kanan atas.`}
           </Text>
         </ScrollView>
       ) : (
@@ -565,7 +673,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF7F5",
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 14,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     shadowColor: "#101828",
@@ -577,11 +685,11 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center" },
   brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
   title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
+  meta: { fontSize: 12.5, color: "#667085", marginTop: 3, lineHeight: 18 },
   iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", marginLeft: 8 },
 
   // ===== pemilih tanggal =====
-  dateRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
+  dateRow: { flexDirection: "row", alignItems: "center", marginTop: 12 },
   arrowBtn: { width: 38, height: 44, borderRadius: R.md, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   arrowBtnText: { fontSize: 22, fontWeight: "800", color: RED, lineHeight: 24 },
   dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", height: 44, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, marginHorizontal: 8 },
@@ -589,28 +697,46 @@ const styles = StyleSheet.create({
   dateBtnSub: { fontSize: 11, color: GRAY, marginTop: 1 },
   dateBtnHint: { fontSize: 10, fontWeight: "800", color: RED, backgroundColor: "#FDE8E6", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
 
-  // ===== chip area =====
-  chipRow: { flexDirection: "row", flexWrap: "wrap", marginTop: 10 },
-  chip: { borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff", paddingHorizontal: 14, paddingVertical: 7, marginRight: 8, marginBottom: 8 },
-  chipOn: { backgroundColor: RED, borderColor: RED },
-  chipText: { fontSize: 12, fontWeight: "800", color: GRAY },
-  chipTextOn: { color: "#fff" },
+  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: "#FECDCA", borderRadius: R.md, paddingVertical: 10, marginTop: 10 },
+  addBtnText: { fontSize: 12.5, fontWeight: "800", color: "#B42318" },
+  linkBtn: { marginTop: 16, backgroundColor: RED, borderRadius: R.md, paddingHorizontal: 24, paddingVertical: 12 },
+  linkBtnText: { color: "#fff", fontWeight: "800" },
 
-  progressBox: { paddingHorizontal: 16, paddingTop: 10 },
+  // ===== ringkasan =====
+  statRow: { flexDirection: "row", paddingHorizontal: 16, paddingTop: 12, gap: 8 },
+  stat: { flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingVertical: 9, alignItems: "center" },
+  statValue: { fontSize: 19, fontWeight: "900", color: C.ink },
+  statLabel: { fontSize: 8.5, fontWeight: "800", color: GRAY, letterSpacing: 0.4, marginTop: 1 },
+
   progressTrack: { height: 6, borderRadius: 999, backgroundColor: "#F2E3E0", overflow: "hidden" },
   progressFill: { height: 6, borderRadius: 999, backgroundColor: GREEN },
-  minHint: { fontSize: 11.5, fontWeight: "700", color: "#B54708", marginTop: 6 },
+  minHint: { fontSize: 11.5, fontWeight: "700", color: "#B54708", marginTop: 6, lineHeight: 16 },
+
+  // ===== pengajuan =====
+  pendingBanner: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginTop: 10, backgroundColor: "#F4EBFF", borderWidth: 1, borderColor: "#D9D6FE", borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10 },
+  pendingText: { flex: 1, fontSize: 11.5, fontWeight: "700", color: "#6941C6", lineHeight: 16 },
+  reqHint: { fontSize: 11, color: "#6941C6", fontWeight: "700", marginTop: 5, lineHeight: 16 },
+
+  // ===== filter =====
+  filterWrap: { paddingHorizontal: 16, paddingTop: 10 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", marginBottom: 2 },
+  chip: { borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, marginRight: 7, marginBottom: 7 },
+  chipOn: { backgroundColor: RED, borderColor: RED },
+  chipText: { fontSize: 11.5, fontWeight: "800", color: GRAY },
+  chipTextOn: { color: "#fff" },
 
   // ===== sambungkan otomatis =====
-  autoRow: { paddingHorizontal: 16, paddingTop: 10 },
-  autoBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#ECFDF3", borderWidth: 1, borderColor: "#ABEFC6", borderRadius: R.md, paddingVertical: 11 },
-  autoBtnText: { fontSize: 13, fontWeight: "800", color: GREEN },
+  autoRow: { paddingHorizontal: 16, paddingTop: 6 },
+  autoBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#ECFDF3", borderWidth: 1, borderColor: "#ABEFC6", borderRadius: R.md, paddingVertical: 10 },
+  autoBtnText: { fontSize: 12.5, fontWeight: "800", color: GREEN },
 
-  card: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: R.lg, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: C.border },
-  cardNeedLink: { borderColor: "#FECDCA", backgroundColor: "#FFFBFB" },
-  storeName: { fontSize: 15, fontWeight: "800", color: C.ink },
-  badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", marginTop: 5 },
-  badge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  // ===== kartu =====
+  card: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: R.lg, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: C.border, borderLeftWidth: 4 },
+  cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  storeName: { flex: 1, fontSize: 15, fontWeight: "800", color: C.ink },
+  spkNo: { fontSize: 10.5, fontWeight: "700", color: C.inkFaint, marginTop: 3 },
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", marginTop: 6 },
+  badge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginRight: 5 },
   badgeText: { fontSize: 10, fontWeight: "800" },
 
   miniRow: { flexDirection: "row", marginTop: 8 },
@@ -618,7 +744,7 @@ const styles = StyleSheet.create({
   miniLabel: { fontSize: 9.5, fontWeight: "800", color: GRAY, letterSpacing: 0.3 },
   miniValue: { fontSize: 12.5, fontWeight: "800", color: C.ink, marginTop: 1 },
 
-  subTime: { fontSize: 11, color: GRAY, marginTop: 6 },
+  subTime: { fontSize: 11, color: GRAY, marginTop: 7 },
   linkHint: { fontSize: 11, color: "#B42318", fontWeight: "700", marginTop: 6, lineHeight: 16 },
   arrow: { fontSize: 22, color: "#98A2B3", fontWeight: "800", marginLeft: 6 },
 

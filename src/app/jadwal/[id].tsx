@@ -75,10 +75,19 @@ export default function JadwalKartu() {
   const data = useQuery(api.jadwal.getCard, { scheduleId: id as any }) as any;
   const dayList = useQuery(api.jadwal.listDay, { dateKey: dk ?? undefined } as any) as any;
   const viewer = useQuery(api.users.viewer) as any;
+  const reqList = useQuery(
+    api.jadwalRequests.list,
+    id ? ({ scheduleId: id as any } as any) : "skip"
+  ) as any;
   const checkIn = useMutation(api.jadwal.checkIn);
   const requestLocationUpdate = useMutation(api.locationRequests.requestLocationUpdate);
   const moveSchedule = useMutation(api.jadwalEdit.moveSchedule);
   const cancelSchedule = useMutation(api.jadwalEdit.cancelSchedule);
+  // ← Sales mengajukan, supervisor/owner memutuskan (masuk menu Persetujuan).
+  const requestMove = useMutation(api.jadwalRequests.requestMove);
+  const requestCancel = useMutation(api.jadwalRequests.requestCancel);
+  const withdrawRequest = useMutation(api.jadwalRequests.withdraw);
+  const decideRequest = useMutation(api.jadwalRequests.decide);
 
   // ===== Supervisor: geser / batalkan jadwal dari app (sheet hanya untuk input) =====
   const [moveOpen, setMoveOpen] = useState(false);
@@ -209,7 +218,11 @@ export default function JadwalKartu() {
     }
   };
 
-  const isSuper = viewer?.role === "supervisor";
+  const isSuper = viewer?.role === "supervisor" || viewer?.role === "owner";
+  const isSales = viewer?.role === "field";
+  const scheduleReqs: any[] = (reqList ?? []) as any[];
+  const pendingReq = scheduleReqs.find((r: any) => r.status === "pending") ?? null;
+  const lastRejected = scheduleReqs.find((r: any) => r.status === "rejected" && r.reviewNote) ?? null;
 
   const openMove = () => {
     const mulai = s.dateKey >= todayKeyWIB() ? addDayKey(s.dateKey, 1) : todayKeyWIB();
@@ -227,6 +240,20 @@ export default function JadwalKartu() {
     setSavingEdit(true);
     try {
       const alasan = [reason, note.trim()].filter(Boolean).join(" — ");
+      if (isSales) {
+        await requestMove({
+          scheduleId: s._id,
+          toDateKey: targetDate,
+          reason: reason || undefined,
+          note: note.trim() || undefined,
+        });
+        setMoveOpen(false);
+        Alert.alert(
+          "Pengajuan terkirim ✅",
+          `${s.storeName}\n${fmtTanggal(s.dateKey)} → ${fmtTanggal(targetDate)}\n\nMenunggu persetujuan supervisor. Kamu tetap bisa membatalkan pengajuan dari kartu ini.`
+        );
+        return;
+      }
       await moveSchedule({
         scheduleId: s._id,
         toDateKey: targetDate,
@@ -238,7 +265,7 @@ export default function JadwalKartu() {
       back();
     } catch (e: any) {
       const msg = toFriendlyError(e);
-      if (!ignoreMinimum && msg.includes("di bawah minimal")) {
+      if (!isSales && !ignoreMinimum && msg.includes("di bawah minimal")) {
         Alert.alert("Di bawah minimal harian", msg, [
           { text: "Batal", style: "cancel" },
           { text: "Tetap lanjutkan", style: "destructive", onPress: () => submitMove(true) },
@@ -259,19 +286,66 @@ export default function JadwalKartu() {
     setSavingEdit(true);
     try {
       const alasan = [reason, note.trim()].filter(Boolean).join(" — ");
+      if (isSales) {
+        await requestCancel({ scheduleId: s._id, reason: alasan, note: note.trim() || undefined });
+        setCancelOpen(false);
+        Alert.alert(
+          "Pengajuan terkirim ✅",
+          `${s.storeName} (${fmtTanggal(s.dateKey)}) diajukan untuk dihapus dari jadwal.\n\nMenunggu persetujuan supervisor.`
+        );
+        return;
+      }
       await cancelSchedule({ scheduleId: s._id, reason: alasan, ignoreMinimum });
       setCancelOpen(false);
-      Alert.alert("Jadwal dibatalkan", `${s.storeName} (${fmtTanggal(s.dateKey)})`);
+      Alert.alert("Jadwal dihapus", `${s.storeName} (${fmtTanggal(s.dateKey)})`);
       back();
     } catch (e: any) {
       const msg = toFriendlyError(e);
-      if (!ignoreMinimum && msg.includes("di bawah minimal")) {
+      if (!isSales && !ignoreMinimum && msg.includes("di bawah minimal")) {
         Alert.alert("Di bawah minimal harian", msg, [
           { text: "Batal", style: "cancel" },
           { text: "Tetap lanjutkan", style: "destructive", onPress: () => submitCancel(true) },
         ]);
       } else {
         Alert.alert("Gagal membatalkan", msg);
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const doWithdraw = async () => {
+    if (!pendingReq) return;
+    setSavingEdit(true);
+    try {
+      await withdrawRequest({ requestId: pendingReq._id });
+      Alert.alert("Pengajuan ditarik", "Jadwal tidak berubah. Kamu bisa mengajukan lagi kalau perlu.");
+    } catch (e: any) {
+      Alert.alert("Gagal", toFriendlyError(e));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const onDecide = async (approve: boolean, ignoreMinimum = false) => {
+    if (!pendingReq) return;
+    setSavingEdit(true);
+    try {
+      await decideRequest({ requestId: pendingReq._id, approve, ignoreMinimum });
+      Alert.alert(
+        approve ? "Disetujui ✅" : "Ditolak",
+        approve ? "Jadwal sudah diperbarui sesuai pengajuan sales." : "Jadwal tidak diubah."
+      );
+      if (approve) back();
+    } catch (e: any) {
+      const msg = toFriendlyError(e);
+      if (approve && !ignoreMinimum && msg.includes("di bawah minimal")) {
+        Alert.alert("Di bawah minimal harian", msg, [
+          { text: "Batal", style: "cancel" },
+          { text: "Tetap setujui", style: "destructive", onPress: () => onDecide(true, true) },
+        ]);
+      } else {
+        Alert.alert("Gagal memproses", msg);
       }
     } finally {
       setSavingEdit(false);
@@ -450,15 +524,88 @@ export default function JadwalKartu() {
           </TouchableOpacity>
         )}
 
-        {/* ===== Kelola jadwal (supervisor) — sheet hanya untuk input ===== */}
+        {/* ===== Pengajuan yang menunggu keputusan ===== */}
+        {pendingReq ? (
+          <View style={[styles.card, { backgroundColor: "#F9F5FF", borderColor: "#D9D6FE" }]}>
+            <Text style={[styles.sectionTitle, { color: "#6941C6" }]}>PENGAJUAN MENUNGGU PERSETUJUAN</Text>
+            <Text style={styles.reqBody}>
+              {pendingReq.kind === "move"
+                ? `Geser ${fmtTanggal(pendingReq.fromDateKey)} → ${fmtTanggal(pendingReq.toDateKey)}`
+                : `Hapus dari jadwal ${fmtTanggal(pendingReq.fromDateKey)}`}
+              {pendingReq.reason ? `\nAlasan: ${pendingReq.reason}` : ""}
+              {pendingReq.note ? `\nCatatan: ${pendingReq.note}` : ""}
+              {`\nDiajukan oleh ${pendingReq.requestedByName}`}
+            </Text>
+            {isSales ? (
+              <TouchableOpacity
+                style={[styles.smallBtn, styles.cancelBtn, { marginTop: 10 }, savingEdit && { opacity: 0.6 }]}
+                onPress={doWithdraw}
+                disabled={savingEdit}
+              >
+                <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Tarik pengajuan</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.actRow}>
+                <TouchableOpacity
+                  style={[styles.approveBtn, savingEdit && { opacity: 0.6 }]}
+                  onPress={() => onDecide(true)}
+                  disabled={savingEdit}
+                >
+                  <Text style={styles.approveBtnText}>✓ Setujui</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.smallBtn, styles.cancelBtn, savingEdit && { opacity: 0.6 }]}
+                  onPress={() => onDecide(false)}
+                  disabled={savingEdit}
+                >
+                  <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Tolak</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : null}
+
+        {/* ===== Sales: ajukan geser / hapus ===== */}
+        {isSales && status === "PLANNED" && !pendingReq ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>AJUKAN PERUBAHAN JADWAL</Text>
+            <Text style={styles.editHint}>
+              Perlu geser tanggal atau toko ini tutup? Ajukan dari sini — supervisor yang menyetujui.
+              Jadwal tidak berubah sebelum disetujui, dan pengajuannya tercatat lengkap dengan alasan.
+            </Text>
+            <View style={styles.actRow}>
+              <TouchableOpacity style={styles.smallBtn} onPress={openMove}>
+                <Text style={[styles.smallBtnText, { color: C.status.info.fg }]}>Ajukan geser tanggal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.smallBtn, styles.cancelBtn]}
+                onPress={() => { setReason(""); setNote(""); setCancelOpen(true); }}
+              >
+                <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Ajukan hapus</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
+        {isSales && status !== "PLANNED" && !pendingReq ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>PERUBAHAN JADWAL</Text>
+            <Text style={styles.editHint}>
+              {status === "CANCELLED"
+                ? "Toko ini sudah dihapus dari jadwal atas persetujuan supervisor."
+                : "Jadwal yang sudah berjalan/selesai tidak bisa digeser atau dihapus."}
+            </Text>
+          </View>
+        ) : null}
+
         {isSuper ? (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>KELOLA JADWAL (SUPERVISOR)</Text>
             {status === "PLANNED" ? (
               <>
                 <Text style={styles.editHint}>
-                  Geser atau batalkan dari sini. Sheet JADWAL tidak perlu diubah, dan tarik jadwal
-                  berikutnya tidak akan menimpa keputusan ini.
+                  Perubahan langsung berlaku dan tidak akan ditimpa tarik jadwal berikutnya.
+                  Sales juga bisa mengajukan perubahan — pengajuannya muncul di kartu ini dan di menu Persetujuan.
                 </Text>
                 <View style={styles.actRow}>
                   <TouchableOpacity style={styles.smallBtn} onPress={openMove}>
@@ -468,17 +615,22 @@ export default function JadwalKartu() {
                     style={[styles.smallBtn, styles.cancelBtn]}
                     onPress={() => { setReason(""); setNote(""); setCancelOpen(true); }}
                   >
-                    <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Batalkan</Text>
+                    <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Hapus dari jadwal</Text>
                   </TouchableOpacity>
                 </View>
               </>
             ) : (
               <Text style={styles.editHint}>
                 {status === "CANCELLED"
-                  ? "Jadwal ini sudah dibatalkan supervisor."
-                  : "Jadwal yang sudah dikerjakan tidak bisa digeser atau dibatalkan."}
+                  ? "Jadwal ini sudah dihapus dari daftar."
+                  : "Jadwal yang sudah dikerjakan tidak bisa digeser atau dihapus."}
               </Text>
             )}
+            {lastRejected ? (
+              <Text style={{ fontSize: 10.5, color: GRAY, marginTop: 8, lineHeight: 15 }}>
+                Pengajuan terakhir ({lastRejected.requestedByName}) ditolak: {lastRejected.reviewNote}
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -522,8 +674,11 @@ export default function JadwalKartu() {
       <Modal visible={moveOpen} transparent animationType="fade" onRequestClose={() => setMoveOpen(false)}>
         <Pressable style={styles.modalBg} onPress={() => setMoveOpen(false)}>
           <Pressable style={styles.modalCard} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Geser tanggal</Text>
-            <Text style={styles.modalSub} numberOfLines={3}>{s.storeName} • {s.area}</Text>
+            <Text style={styles.modalTitle}>{isSales ? "Ajukan geser tanggal" : "Geser tanggal"}</Text>
+            <Text style={styles.modalSub} numberOfLines={3}>
+              {s.storeName} • {s.area}
+              {isSales ? "\nPengajuan akan dikirim ke supervisor untuk disetujui." : ""}
+            </Text>
 
             <TouchableOpacity style={styles.datePick} onPress={() => setCalOpen(true)}>
               <Text style={styles.datePickLabel}>Tanggal tujuan</Text>
@@ -568,7 +723,7 @@ export default function JadwalKartu() {
                 onPress={() => submitMove(false)}
                 disabled={savingEdit}
               >
-                <Text style={styles.modalBtnText}>{savingEdit ? "Menyimpan…" : "Geser"}</Text>
+                <Text style={styles.modalBtnText}>{savingEdit ? "Menyimpan…" : isSales ? "Kirim pengajuan" : "Geser"}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -587,11 +742,12 @@ export default function JadwalKartu() {
       <Modal visible={cancelOpen} transparent animationType="fade" onRequestClose={() => setCancelOpen(false)}>
         <Pressable style={styles.modalBg} onPress={() => setCancelOpen(false)}>
           <Pressable style={styles.modalCard} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Batalkan jadwal</Text>
+            <Text style={styles.modalTitle}>{isSales ? "Ajukan hapus jadwal" : "Hapus dari jadwal"}</Text>
             <Text style={styles.modalSub} numberOfLines={3}>{s.storeName} • {fmtTanggal(s.dateKey)}</Text>
             <Text style={styles.editHint}>
-              Barisnya tidak dihapus — tetap tersimpan sebagai dibatalkan beserta alasannya,
-              jadi masih bisa ditelusuri kapan saja.
+              {isSales
+                ? "Pengajuan dikirim ke supervisor. Jadwal baru hilang setelah disetujui, dan alasannya tetap tersimpan sebagai riwayat."
+                : "Barisnya tidak dihapus permanen — tetap tersimpan sebagai dibatalkan beserta alasannya, jadi masih bisa ditelusuri kapan saja."}
             </Text>
 
             <Text style={styles.modalLabel}>ALASAN (WAJIB)</Text>
@@ -625,7 +781,7 @@ export default function JadwalKartu() {
                 onPress={() => submitCancel(false)}
                 disabled={savingEdit}
               >
-                <Text style={styles.modalBtnText}>{savingEdit ? "Menyimpan…" : "Batalkan"}</Text>
+                <Text style={styles.modalBtnText}>{savingEdit ? "Menyimpan…" : isSales ? "Kirim pengajuan" : "Hapus"}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -696,6 +852,9 @@ const styles = StyleSheet.create({
 
   editHint: { fontSize: 12, color: GRAY, lineHeight: 18, marginTop: 4 },
   cancelBtn: { backgroundColor: "#FEF3F2", borderColor: "#FECDCA", marginLeft: 8 },
+  reqBody: { fontSize: 12, color: "#6941C6", lineHeight: 18, marginTop: 2 },
+  approveBtn: { backgroundColor: GREEN, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 8 },
+  approveBtnText: { fontSize: 12, fontWeight: "800", color: "#fff" },
 
   // ===== modal geser / batal =====
   modalBg: { flex: 1, backgroundColor: "rgba(16,24,40,0.45)", justifyContent: "center", padding: 20 },

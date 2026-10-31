@@ -106,6 +106,7 @@ export default function TeleHome({ viewer }: { viewer: any }) {
           { icon: "clipboard", label: "SPK Admin", color: C.role.telemarketing, bg: C.chip.warning.bg, to: "/spk?sec=admin" },
           { icon: "calendar", label: "Riwayat", color: C.chip.purple.fg, bg: C.chip.purple.bg, to: "/riwayat" },
           { icon: "store", label: "FU Toko", color: C.chip.success.fg, bg: C.chip.success.bg, to: "/toko-aktif" },
+          { icon: "star", label: "Nilai saya", color: C.chip.purple.fg, bg: C.chip.purple.bg, to: "/penilaian" },
         ]}
       />
 

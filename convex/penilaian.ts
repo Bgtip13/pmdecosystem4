@@ -636,14 +636,57 @@ async function computeMonthly(ctx: any, monthKey: string) {
     };
 }
 
-// ===== PENILAIAN BULANAN (dipanggil halaman SPV) =====
+// ===== PENILAIAN BULANAN =====
+// Supervisor & owner: daftar semua sales + rapor lengkap.
+// Sales lapangan & telemarketing: HANYA rapornya sendiri yang dikirim ke
+// perangkatnya. Penyaringan dilakukan di SERVER, bukan disembunyikan di UI,
+// supaya data orang lain tidak pernah sampai ke perangkat sales.
 export const monthly = action({
   args: { monthKey: v.optional(v.string()) },
   handler: async (ctx, { monthKey }) => {
     const viewer: any = await ctx.runQuery(api.users.viewer);
-    if (!viewer || (viewer.role !== "supervisor" && viewer.role !== "owner")) {
-      throw new Error("Khusus supervisor.");
+    if (!viewer) throw new Error("Belum login.");
+
+    const role = String(viewer.role ?? "");
+    const isManager = role === "supervisor" || role === "owner";
+    const isField = role === "field";
+    const isTele = role === "telemarketing";
+    if (!isManager && !isField && !isTele) {
+      throw new Error("Rapor penilaian hanya untuk sales, telemarketing, supervisor, dan owner.");
     }
-    return await computeMonthly(ctx, monthKey ?? dayKeyWIB().slice(0, 7));
+
+    const full: any = await computeMonthly(ctx, monthKey ?? dayKeyWIB().slice(0, 7));
+
+    if (isManager) {
+      return {
+        ...full,
+        scope: "all",
+        isManager: true,
+        viewerId: viewer._id,
+        viewerName: viewer.name ?? "",
+        viewerRole: role,
+      };
+    }
+
+    // ===== RAPOR SENDIRI =====
+    const list: any[] = isField ? (full.field ?? []) : (full.tele ?? []);
+    const mine = list.find((p) => String(p.id) === String(viewer._id)) ?? null;
+
+    return {
+      ...full,
+      field: isField && mine ? [mine] : [],
+      tele: isTele && mine ? [mine] : [],
+      summary: {
+        field: { total: isField && mine ? 1 : 0, onTrack: isField && mine && mine.skor >= ON_TRACK_MIN ? 1 : 0 },
+        tele: { total: isTele && mine ? 1 : 0, onTrack: isTele && mine && mine.skor >= ON_TRACK_MIN ? 1 : 0 },
+      },
+      scope: "self",
+      isManager: false,
+      viewerId: viewer._id,
+      viewerName: viewer.name ?? "",
+      viewerRole: role,
+      selfKind: isField ? "field" : "tele",
+      selfMissing: !mine,
+    };
   },
 });

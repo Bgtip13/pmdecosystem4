@@ -482,6 +482,41 @@ export default defineSchema({
     .index("by_store_month", ["storeId", "monthKey"])
     .index("by_visit", ["visitId"]),
 
+  // ===== PENGAJUAN PERUBAHAN JADWAL DARI SALES =====
+  // Sales mengajukan geser / hapus; supervisor atau owner memutuskan.
+  // Persetujuan memakai aturan yang sama dengan aksi langsung supervisor
+  // (lihat convex/lib/jadwalOps.ts) sehingga tidak ada dua versi aturan.
+  jadwal_requests: defineTable({
+    scheduleId: v.id("visit_schedules"),
+    kind: v.union(v.literal("move"), v.literal("cancel")),
+    area: AREA,
+    salesId: v.optional(v.id("users")),        // pemilik jadwal
+    requestedBy: v.id("users"),
+    requestedByName: v.string(),
+    requestedByRole: v.string(),
+    storeName: v.string(),
+    noSpk: v.optional(v.string()),
+    fromDateKey: v.string(),
+    toDateKey: v.optional(v.string()),          // wajib untuk kind = move
+    reason: v.string(),
+    note: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected"),
+    ),
+    reviewedBy: v.optional(v.id("users")),
+    reviewedByName: v.optional(v.string()),
+    reviewedAt: v.optional(v.number()),
+    reviewNote: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_status_created", ["status", "createdAt"])
+    .index("by_requested_created", ["requestedBy", "createdAt"])
+    .index("by_schedule", ["scheduleId"])
+    .index("by_from_date", ["fromDateKey"]),
+
   // ===== STATUS SINKRON JADWAL (cron 08.00 WIB + tombol manual supervisor) =====
   visit_schedule_sync_runs: defineTable({
     requestedBy: v.optional(v.id("users")), // kosong = dijalankan cron

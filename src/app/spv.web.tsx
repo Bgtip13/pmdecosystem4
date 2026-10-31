@@ -18,7 +18,8 @@ const GROUPS: any[] = [
   {
     title: "Persetujuan",
     items: [
-      { icon: "location", color: A.red, bg: "#FDF2F2", label: "Approval Lokasi Toko", desc: "Setujui / tolak usulan perbarui koordinat dari sales", to: "/spv-approval", badge: "pending" },
+      { icon: "calendar", color: A.purple, bg: "#F3EFFC", label: "Persetujuan Perubahan Jadwal", desc: "Setujui / tolak pengajuan geser tanggal & hapus jadwal dari sales", to: "/spv-approval?tab=jadwal", badge: "jadwal" },
+      { icon: "location", color: A.red, bg: "#FDF2F2", label: "Approval Lokasi Toko", desc: "Setujui / tolak usulan perbarui koordinat dari sales", to: "/spv-approval?tab=lokasi", badge: "pending" },
     ],
   },
   {
@@ -34,6 +35,7 @@ export default function SpvWeb() {
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const pending = useQuery(api.locationRequests.listPendingRequests) as any;
+  const jadwalPending = useQuery(api.jadwalRequests.pendingCount) as any;
 
   if (!viewer) {
     return <View style={s.center}><IOSSpinner size="large" color={A.blue} /></View>;
@@ -77,8 +79,10 @@ export default function SpvWeb() {
                   <Text style={s.label}>{m.label}</Text>
                   <Text style={s.desc} numberOfLines={2}>{m.desc}</Text>
                 </View>
-                {m.badge === "pending" && pendingCount ? (
-                  <View style={s.badge}><Text style={s.badgeText}>{pendingCount}</Text></View>
+                {(m.badge === "pending" && pendingCount) || (m.badge === "jadwal" && jadwalPending) ? (
+                  <View style={s.badge}>
+                    <Text style={s.badgeText}>{m.badge === "pending" ? pendingCount : jadwalPending}</Text>
+                  </View>
                 ) : null}
                 <AppIcon name="chevron" size={16} color={A.muted} style={{ marginLeft: 8 }} />
               </TouchableOpacity>

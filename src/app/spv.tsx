@@ -25,6 +25,7 @@ export default function SpvHub() {
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const pending = useQuery(api.locationRequests.listPendingRequests) as any;
+  const jadwalPending = useQuery(api.jadwalRequests.pendingCount) as any;
 
   if (!viewer) {
     return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
@@ -85,9 +86,15 @@ export default function SpvHub() {
 
         <Text style={styles.section}>Persetujuan</Text>
         <MenuCard
+          icon="calendar" color="#6941C6" bg="#F4EBFF"
+          label="Persetujuan Perubahan Jadwal" desc="Setujui / tolak pengajuan geser tanggal & hapus jadwal dari sales"
+          to="/spv-approval?tab=jadwal"
+          count={jadwalPending && jadwalPending > 0 ? jadwalPending : null}
+        />
+        <MenuCard
           icon="location" color={C.chip.danger.fg} bg={C.chip.danger.bg}
           label="Approval Lokasi Toko" desc="Setujui / tolak usulan perbarui koordinat dari sales"
-          to="/spv-approval"
+          to="/spv-approval?tab=lokasi"
           count={pendingCount && pendingCount > 0 ? pendingCount : null}
         />
 

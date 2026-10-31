@@ -13,17 +13,26 @@ import { toFriendlyError } from "../../lib/msg";
 
 // ===== SPK JADWAL (WEB) — versi desktop dari layar HP =====
 // Satu tanggal = satu daftar toko. Supervisor bisa menarik sheet, menyambungkan
-// nama toko, dan masuk ke kartu untuk menggeser/membatalkan.
+// nama toko, dan masuk ke kartu untuk menggeser/menghapus. Sales mengajukan
+// perubahan dari kartu, lalu supervisor menyetujuinya di menu Persetujuan.
 
 const AREAS = ["SOLO", "DIY", "SEMARANG"] as const;
 const AREA_ALL = "ALL";
 
 const STATUS: any = {
-  PLANNED: { label: "Belum", fg: A.muted, bg: A.surfaceAlt },
-  ONGOING: { label: "Berjalan", fg: A.orange, bg: A.orangeSoft },
-  DONE: { label: "Selesai", fg: A.green, bg: A.greenSoft },
-  CANCELLED: { label: "Dibatalkan", fg: A.red, bg: A.brandSoft },
+  PLANNED: { label: "Belum", fg: A.muted, bg: A.surfaceAlt, bar: A.mutedSoft },
+  ONGOING: { label: "Berjalan", fg: A.orange, bg: A.orangeSoft, bar: A.orange },
+  DONE: { label: "Selesai", fg: A.green, bg: A.greenSoft, bar: A.green },
+  CANCELLED: { label: "Dibatalkan", fg: A.red, bg: A.brandSoft, bar: A.red },
 };
+
+type Filter = "ALL" | "PLANNED" | "ONGOING" | "DONE";
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "ALL", label: "Semua" },
+  { key: "PLANNED", label: "Belum" },
+  { key: "ONGOING", label: "Berjalan" },
+  { key: "DONE", label: "Selesai" },
+];
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const todayKeyWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
@@ -34,12 +43,19 @@ function shiftDay(dk: string, n: number) {
   return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
 }
 
+const BULAN_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
 function fmtTanggal(dk: string) {
   const [y, m, d] = dk.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   const hari = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"][dt.getUTCDay()];
-  const bulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"][m - 1];
-  return `${hari}, ${pad2(d)} ${bulan} ${y}`;
+  return `${hari}, ${pad2(d)} ${BULAN_SHORT[m - 1]} ${y}`;
+}
+
+function fmtShort(dk?: string | null) {
+  if (!dk) return "-";
+  const [, m, d] = dk.split("-").map(Number);
+  return `${pad2(d)} ${BULAN_SHORT[m - 1]}`;
 }
 
 const rupiah = (n: any) => (n == null || isNaN(n) ? "-" : "Rp" + Number(n).toLocaleString("id-ID"));
@@ -53,10 +69,12 @@ export default function JadwalWeb() {
   const isField = role === "field";
   const isSuper = role === "supervisor";
   const canLink = isSuper || role === "owner";
-  const boleh = isField || isSuper || role === "owner";
+  const canAdd = isField || isSuper || role === "owner";
+  const boleh = canAdd;
 
   const [dk, setDk] = useState(todayKeyWIB());
   const [area, setArea] = useState<string>(AREA_ALL);
+  const [statusFilter, setStatusFilter] = useState<Filter>("ALL");
   const [calOpen, setCalOpen] = useState(false);
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -74,6 +92,7 @@ export default function JadwalWeb() {
   const doSync = useAction(api.jadwalSync.manualSync);
   const linkStore = useMutation(api.jadwal.linkStore);
   const linkMissing = useMutation(api.jadwal.linkMissing);
+  const pendingRows = useQuery(api.jadwalRequests.list, viewer && boleh ? ({ status: "pending" } as any) : "skip") as any;
 
   const q = storeQ.trim();
   const browse = useQuery(
@@ -103,7 +122,6 @@ export default function JadwalWeb() {
 
   const loading = data === undefined;
   const rows: any[] = data?.rows ?? [];
-  const shown = onlyMissing ? rows.filter((r) => r.storeMissing) : rows;
   const total = data?.total ?? 0;
   const done = data?.done ?? 0;
   const ongoing = data?.ongoing ?? 0;
@@ -112,6 +130,14 @@ export default function JadwalWeb() {
   const minHari = data?.minPerDay ?? 7;
   const kurang = Math.max(0, minHari - total);
   const persen = total > 0 ? Math.round(((done + ongoing) / total) * 100) : 0;
+
+  const countBy: any = { ALL: rows.length, PLANNED: planned, ONGOING: ongoing, DONE: done };
+  let shown = statusFilter === "ALL" ? rows : rows.filter((r) => r.status === statusFilter);
+  if (onlyMissing) shown = shown.filter((r) => r.storeMissing);
+
+  const pendingList: any[] = pendingRows ?? [];
+  const pendingMap = new Map<string, any>();
+  for (const r of pendingList) pendingMap.set(String(r.scheduleId), r);
 
   const onSync = async () => {
     setSyncing(true);
@@ -175,7 +201,7 @@ export default function JadwalWeb() {
       title="SPK Jadwal"
       subtitle={`${fmtTanggal(dk)} • ${isField ? `area ${viewer.area ?? "-"}` : area === AREA_ALL ? "semua area" : `area ${area}`}`}
       right={
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
           {isSuper ? (
             <>
               <WebButton
@@ -188,7 +214,9 @@ export default function JadwalWeb() {
               <WebButton label="Laporan" icon="chart" variant="ghost" onPress={() => router.push("/jadwal/laporan" as any)} />
             </>
           ) : null}
-          <WebButton label="Luar jadwal" icon="location" variant="ghost" onPress={() => router.push("/jadwal/luar" as any)} />
+          {canAdd ? (
+            <WebButton label="Tambah toko" icon="plus" onPress={() => router.push("/jadwal/luar" as any)} />
+          ) : null}
         </View>
       }
     >
@@ -229,24 +257,37 @@ export default function JadwalWeb() {
           </TouchableOpacity>
         </View>
 
-        {!isField ? (
-          <View style={s.chipRow}>
-            {([AREA_ALL, ...AREAS] as string[]).map((a) => {
-              const on = area === a;
-              return (
-                <TouchableOpacity key={a} style={[s.chip, on && s.chipOn]} onPress={() => setArea(a)}>
-                  <Text style={[s.chipText, on && s.chipTextOn]}>{a === AREA_ALL ? "Semua" : a}</Text>
-                </TouchableOpacity>
-              );
-            })}
-            {missing > 0 ? (
-              <TouchableOpacity style={[s.chip, onlyMissing && s.chipOn]} onPress={() => setOnlyMissing((v) => !v)}>
-                <Text style={[s.chipText, onlyMissing && s.chipTextOn]}>Belum terhubung ({missing})</Text>
+        <View style={s.chipRow}>
+          {FILTERS.map((f) => {
+            const on = statusFilter === f.key;
+            return (
+              <TouchableOpacity key={f.key} style={[s.chip, on && s.chipOn]} onPress={() => setStatusFilter(f.key)}>
+                <Text style={[s.chipText, on && s.chipTextOn]}>
+                  {f.label} ({countBy[f.key] ?? 0})
+                </Text>
               </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : null}
+            );
+          })}
+        </View>
       </View>
+
+      {!isField ? (
+        <View style={s.chipRow}>
+          {([AREA_ALL, ...AREAS] as string[]).map((a) => {
+            const on = area === a;
+            return (
+              <TouchableOpacity key={a} style={[s.chip, on && s.chipOn]} onPress={() => setArea(a)}>
+                <Text style={[s.chipText, on && s.chipTextOn]}>{a === AREA_ALL ? "Semua area" : a}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          {missing > 0 ? (
+            <TouchableOpacity style={[s.chip, onlyMissing && s.chipOn]} onPress={() => setOnlyMissing((v) => !v)}>
+              <Text style={[s.chipText, onlyMissing && s.chipTextOn]}>Belum terhubung ({missing})</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={s.progressCard}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -256,12 +297,48 @@ export default function JadwalWeb() {
           <Text style={[s.progressPct, { color: persen >= 100 ? A.green : A.brand }]}>{persen}%</Text>
         </View>
         <Bar pct={persen} color={persen >= 100 ? A.green : A.brand} height={6} />
-        {kurang > 0 && total > 0 ? (
-          <Text style={s.warnText}>
-            {total} toko pada tanggal ini — kurang {kurang} dari minimal {minHari} toko/hari.
-          </Text>
-        ) : null}
+        <Text style={[s.warnText, kurang === 0 || total === 0 ? { color: A.muted } : null]}>
+          {total === 0
+            ? `Belum ada toko terjadwal. Minimal ${minHari} toko/hari.`
+            : kurang > 0
+              ? `${total} toko pada tanggal ini — kurang ${kurang} dari minimal ${minHari} toko/hari.`
+              : `${total} toko pada tanggal ini — sudah memenuhi minimal ${minHari} toko/hari.`}
+        </Text>
       </View>
+
+      {/* ===== Pengajuan menunggu (supervisor) / status (sales) ===== */}
+      {pendingList.length > 0 ? (
+        <Panel
+          icon="clock"
+          title={canLink ? `Pengajuan perubahan jadwal (${pendingList.length})` : `Pengajuan saya (${pendingList.length})`}
+          right={
+            canLink ? (
+              <WebButton label="Tinjau semua" icon="chevron" variant="ghost" onPress={() => router.push("/spv-approval?tab=jadwal" as any)} />
+            ) : (
+              <Text style={s.panelHint}>menunggu supervisor</Text>
+            )
+          }
+        >
+          {pendingList.slice(0, 4).map((r) => (
+            <View key={r._id} style={s.reqRow}>
+              <View style={[s.reqKind, { backgroundColor: r.kind === "move" ? A.infoSoft : A.orangeSoft }]}>
+                <AppIcon name={r.kind === "move" ? "calendar" : "trash"} size={13} color={r.kind === "move" ? A.info : A.orange} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.reqName} numberOfLines={1}>{r.storeName}</Text>
+                <Text style={s.reqMeta} numberOfLines={1}>
+                  {r.kind === "move"
+                    ? `Geser ${fmtShort(r.fromDateKey)} → ${fmtShort(r.toDateKey)}`
+                    : `Hapus dari ${fmtShort(r.fromDateKey)}`}
+                  {r.requestedByName ? ` • ${r.requestedByName}` : ""}
+                  {r.reason ? ` • ${r.reason}` : ""}
+                </Text>
+              </View>
+              <Text style={s.reqStatus}>MENUNGGU</Text>
+            </View>
+          ))}
+        </Panel>
+      ) : null}
 
       {canLink && missing > 0 ? (
         <View style={s.autoRow}>
@@ -279,19 +356,23 @@ export default function JadwalWeb() {
       <Panel
         icon="clipboard"
         title={`SPK ${fmtTanggal(dk)} (${shown.length})`}
-        right={<Text style={s.panelHint}>{loading ? "memuat…" : "ketuk baris untuk membuka kartu"}</Text>}
+        right={<Text style={s.panelHint}>{loading ? "memuat…" : "klik baris untuk membuka kartu"}</Text>}
       >
         {loading ? (
           <View style={{ paddingVertical: 24, alignItems: "center" }}><IOSSpinner size="small" color={A.brand} /></View>
         ) : shown.length === 0 ? (
           <View style={{ paddingVertical: 20, alignItems: "center" }}>
             <Text style={s.muted}>
-              {onlyMissing ? "Semua nama toko sudah terhubung." : "Belum ada SPK untuk tanggal ini."}
+              {onlyMissing
+                ? "Semua nama toko sudah terhubung."
+                : statusFilter !== "ALL"
+                  ? `Tidak ada toko berstatus "${FILTERS.find((f) => f.key === statusFilter)?.label}".`
+                  : "Belum ada SPK untuk tanggal ini."}
             </Text>
             <Text style={s.hint}>
-              {onlyMissing
-                ? "Tidak ada lagi nama sheet yang belum punya pasangan di Kelola Toko."
-                : "Jadwal ditarik dari sheet setiap 08.00 WIB, atau tekan Tarik jadwal di kanan atas."}
+              {onlyMissing || statusFilter !== "ALL"
+                ? "Ubah filter untuk melihat seluruh jadwal hari itu."
+                : "Jadwal ditarik dari sheet setiap 08.00 WIB, atau tekan Tarik jadwal di kanan atas. Toko di luar jadwal bisa ditambah lewat tombol Tambah toko."}
             </Text>
           </View>
         ) : (
@@ -300,18 +381,19 @@ export default function JadwalWeb() {
               <Text style={[s.th, { width: 150 }]}>No. SPK</Text>
               <Text style={[s.th, { flex: 1.8 }]}>Toko</Text>
               <Text style={[s.th, { width: 90, textAlign: "center" }]}>Status</Text>
-              <Text style={[s.th, { width: 120, textAlign: "right" }]}>Target</Text>
-              <Text style={[s.th, { width: 130, textAlign: "right" }]}>Omset bln ini</Text>
-              <Text style={[s.th, { width: 120 }]}>Masuk / keluar</Text>
-              <Text style={[s.th, { width: 140, textAlign: "right" }]}>Aksi</Text>
+              <Text style={[s.th, { width: 110, textAlign: "right" }]}>Target</Text>
+              <Text style={[s.th, { width: 120, textAlign: "right" }]}>Omset bln ini</Text>
+              <Text style={[s.th, { width: 110 }]}>Masuk / keluar</Text>
+              <Text style={[s.th, { width: 130, textAlign: "right" }]}>Aksi</Text>
             </View>
 
             {shown.map((r, i) => {
               const st = STATUS[r.status] ?? STATUS.PLANNED;
+              const req = pendingMap.get(String(r._id));
               return (
                 <TouchableOpacity
                   key={r._id}
-                  style={[s.trow, i === shown.length - 1 && s.trowLast]}
+                  style={[s.trow, i === shown.length - 1 && s.trowLast, { borderLeftWidth: 3, borderLeftColor: st.bar }]}
                   onPress={() => router.push(`/jadwal/${r._id}?dk=${dk}` as any)}
                   activeOpacity={0.85}
                 >
@@ -326,8 +408,9 @@ export default function JadwalWeb() {
                       <Chip text={st.label} bg={st.bg} fg={st.fg} />
                       {!isField && r.area ? <Chip text={r.area} bg={A.surfaceAlt} fg={A.inkSoft} /> : null}
                       {r.isAdHoc ? <Chip text="Luar jadwal" bg={A.orangeSoft} fg={A.orange} /> : null}
-                      {r.edited ? <Chip text="Digeser" bg={A.infoSoft} fg={A.info} /> : null}
+                      {r.edited ? <Chip text="Diubah" bg={A.infoSoft} fg={A.info} /> : null}
                       {r.storeMissing ? <Chip text="Belum terhubung" bg={A.brandSoft} fg={A.brandDark} /> : null}
+                      {req ? <Chip text={canLink ? `Pengajuan ${req.kind}` : "Menunggu persetujuan"} bg={A.purpleSoft} fg={A.purple} /> : null}
                     </View>
                     {r.editReason ? <Text style={s.tSub} numberOfLines={1}>Alasan: {r.editReason}</Text> : null}
                   </View>
@@ -336,20 +419,17 @@ export default function JadwalWeb() {
                     <Text style={[s.tSub, { color: st.fg, fontWeight: "800" }]}>{st.label}</Text>
                   </View>
 
-                  <Text style={[s.tVal, { width: 120, textAlign: "right" }]} numberOfLines={1}>{rupiah(r.target)}</Text>
-                  <Text style={[s.tVal, { width: 130, textAlign: "right" }]} numberOfLines={1}>{rupiah(r.act)}</Text>
+                  <Text style={[s.tVal, { width: 110, textAlign: "right" }]} numberOfLines={1}>{rupiah(r.target)}</Text>
+                  <Text style={[s.tVal, { width: 120, textAlign: "right" }]} numberOfLines={1}>{rupiah(r.act)}</Text>
 
-                  <View style={{ width: 120 }}>
+                  <View style={{ width: 110 }}>
                     <Text style={s.tSub} numberOfLines={1}>{r.checkinAt ? fmtTime(r.checkinAt) : "—"}</Text>
                     <Text style={s.tSub} numberOfLines={1}>{r.checkoutAt ? fmtTime(r.checkoutAt) : "—"}</Text>
                   </View>
 
-                  <View style={{ width: 140, alignItems: "flex-end" }}>
+                  <View style={{ width: 130, alignItems: "flex-end" }}>
                     {r.storeMissing && canLink ? (
-                      <TouchableOpacity
-                        style={s.btnOutline}
-                        onPress={() => openLink(r)}
-                      >
+                      <TouchableOpacity style={s.btnOutline} onPress={() => openLink(r)}>
                         <Text style={s.btnOutlineText}>Hubungkan</Text>
                       </TouchableOpacity>
                     ) : (
@@ -369,8 +449,8 @@ export default function JadwalWeb() {
       </Panel>
 
       <Text style={s.footNote}>
-        Kuota harian bersifat minimal: {`7 toko (Sabtu 3)`}. Menggeser atau membatalkan sampai di bawah
-        angka itu akan ditahan, kecuali supervisor menyatakan memang disengaja.
+        Kuota harian bersifat minimal: 7 toko (Sabtu 3). Sales mengajukan geser / hapus lewat kartu SPK,
+        lalu supervisor menyetujuinya di menu Persetujuan. Setiap perubahan tercatat di Audit Aktivitas.
       </Text>
 
       <DatePickerModal
@@ -440,7 +520,7 @@ export default function JadwalWeb() {
 const s = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: A.page },
   muted: { fontSize: 11.5, color: A.muted, fontFamily: FONT },
-  hint: { fontSize: 10.5, color: A.muted, marginTop: 6, fontFamily: FONT, textAlign: "center" },
+  hint: { fontSize: 10.5, color: A.muted, marginTop: 6, fontFamily: FONT, textAlign: "center", maxWidth: 520 },
   panelHint: { fontSize: 10.5, color: A.muted, fontWeight: "700", fontFamily: FONT },
 
   kpiRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
@@ -470,6 +550,12 @@ const s = StyleSheet.create({
 
   autoRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: A.cream, borderWidth: 1, borderColor: A.brandBorder, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9 },
   autoText: { flex: 1, fontSize: 11, color: A.brandDark, fontWeight: "600", fontFamily: FONT },
+
+  reqRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: A.borderSoft },
+  reqKind: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  reqName: { fontSize: 11.5, fontWeight: "800", color: A.ink, fontFamily: FONT },
+  reqMeta: { fontSize: 10.5, color: A.muted, marginTop: 2, fontFamily: FONT },
+  reqStatus: { fontSize: 8.5, fontWeight: "800", color: A.purple, letterSpacing: 0.4, fontFamily: FONT },
 
   thead: {
     flexDirection: "row", alignItems: "center",

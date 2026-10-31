@@ -139,6 +139,7 @@ export default function FieldHome() {
           { icon: "clipboard", label: "SPK Sales", color: C.role.field, bg: C.chip.info.bg, to: "/spk-sales" },
           { icon: "plus", label: "Toko baru", color: C.primary, bg: C.chip.danger.bg, to: "/toko-baru" },
           { icon: "calendar", label: "Riwayat", color: C.chip.purple.fg, bg: C.chip.purple.bg, to: "/riwayat" },
+          { icon: "star", label: "Nilai saya", color: C.chip.success.fg, bg: C.chip.success.bg, to: "/penilaian" },
         ]}
       />
 

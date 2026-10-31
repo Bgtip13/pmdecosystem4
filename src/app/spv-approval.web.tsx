@@ -39,7 +39,7 @@ export default function SpvApprovalWeb() {
   const approveRequest = useMutation(api.locationRequests.approveRequest);
   const rejectRequest = useMutation(api.locationRequests.rejectRequest);
 
-  const [tab, setTab] = useState<"jadwal" | "lokasi">(params.tab === "jadwal" ? "jadwal" : "lokasi");
+  const [tab, setTab] = useState<"jadwal" | "lokasi">(params.tab === "lokasi" ? "lokasi" : "jadwal");
   const [busyId, setBusyId] = useState("");
   const [notice, setNotice] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [rejectId, setRejectId] = useState("");

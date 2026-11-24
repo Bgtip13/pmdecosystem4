@@ -1,0 +1,39 @@
+PERUBAHAN: ROLE HR DAN AKUNTING
+================================
+Dasar : versi "terbaru" (sudah ada Produk per Toko, tema, crons).
+Tambah: role hr dan akunting (read-only seperti owner).
+
+URUTAN MENJALANKAN (cmd, di folder ini)
+1. jalankan.bat -> pilih 1 (npm install), cukup sekali.
+2. jalankan.bat -> pilih 2 (npx convex dev). Tunggu sampai "Convex functions ready".
+   Jika error TypeScript muncul, kirim pesannya.
+3. Uji: login owner, lalu buat akun HR dan Akunting di Kelola Akun.
+4. Update HP: pilih 5 (eas update ke channel preview).
+   Jika preview memakai deployment production, jalankan dulu pilih 4.
+
+CATATAN
+- 12 error "npx tsc --noEmit" lama (spk-sales, app-tabs, theme, dll) sudah ada
+  sebelum perubahan ini dan tidak menghalangi aplikasi jalan.
+- Daftar akses:
+  HR       = tampilan owner + menu Izin (boleh input izin) + semua riwayat.
+  Akunting = tampilan owner + riwayat Follow-up Admin saja.
+  Keduanya hanya melihat, tidak ada area.
+
+PERBAIKAN TAMBAHAN (versi ini)
+==============================
+1. Input kunjungan manual (SPK Admin > Riwayat Kunjungan): formulir lengkap seperti SPK
+   (bertemu, bayar, order+produk, trend, foto) + jam masuk/keluar.
+2. Edit hasil kunjungan: formulir lengkap yang sama (produk order, foto, tanggal janji bayar).
+3. Kelola Toko > Import: pilih "Tambah saja" (tanpa duplikat) atau "Ganti semua"
+   (toko lama yang tidak ada di file DINONAKTIFKAN, bukan dihapus; ada pratinjau + konfirmasi).
+4. SPK Sales (pilih toko) dihapus. Tautan lama diarahkan ke SPK Jadwal.
+5. Persetujuan Jadwal + Lokasi Toko digabung jadi satu menu "Persetujuan".
+6. Keamanan: deleteAllVisits dikunci (internal). Jalankan lewat: node cleanup-visits.mjs
+7. File sisa (.bak, patch.cjs) dipindah ke folder _arsip.
+8. Menu "Produk per Toko" ditambah juga di Laporan web dan katalog menu.
+9. Versi aplikasi di layar Akun: 4.0.3 -> 4.0.6 (app.json "version").
+   runtimeVersion TETAP "4.0.3" agar eas update sampai ke aplikasi preview yang sudah terpasang.
+
+UJI SETELAH npx convex dev
+- Tambah kunjungan manual lalu buka detailnya; edit hasil kunjungan INPG.
+- Import toko pakai stores.csv kecil dulu (mode Tambah), baru coba mode Ganti di data uji.

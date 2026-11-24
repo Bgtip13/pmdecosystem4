@@ -1,0 +1,33 @@
+name: EAS Update
+
+on:
+  push:
+    branches:
+      - main # Ganti dengan branch target Anda (misal: production atau staging)
+
+jobs:
+  update:
+    name: Deploy EAS Update
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-size: 20 # Sesuai dengan versi Node yang Anda gunakan
+          cache: 'npm' # Ganti 'yarn', 'pnpm', atau 'bun' jika Anda menggunakannya
+
+      - name: ⚙️ Setup Expo CLI
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        run: npm install # Ganti dengan yarn install / pnpm install sesuai package manager Anda
+
+      - name: 🚀 Publish EAS Update
+        run: npx eas-update --auto
+ 

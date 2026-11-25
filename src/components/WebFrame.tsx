@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 
 // Rute yang SUDAH punya versi desktop (*.web.tsx). Tambahkan setiap kali ada berkas baru.
 // Rute yang hanya lebar bila persis sama (sub-rutenya masih layar mobile)
-const EXACT_ONLY = ["/kelola-akun"];
-const DESKTOP_ROUTES = ["/notifikasi", "/audit", "/kelola-akun", "/", "/beranda", "/spk", "/spk-sales", "/jadwal", "/spk-detail", "/spk-detail-order", "/spv", "/spv-penilaian", "/spv-approval", "/penilaian", "/laporan", "/akun", "/toko-aktif", "/riwayat", "/visit-detail", "/fu-toko-riwayat", "/piutang-semua"];
+const EXACT_ONLY = ["/kelola-akun", "/kelola-toko"];
+const DESKTOP_ROUTES = ["/notifikasi", "/audit", "/kelola-akun", "/", "/beranda", "/spk", "/spk-sales", "/jadwal", "/spk-detail", "/spk-detail-order", "/spv", "/spv-penilaian", "/spv-approval", "/penilaian", "/laporan", "/akun", "/toko-aktif", "/riwayat", "/visit-detail", "/fu-toko-riwayat", "/piutang-semua", "/kelola-toko", "/izin", "/laporan-produk"];
 
 export default function WebFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";

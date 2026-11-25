@@ -10,17 +10,14 @@ import { parseMoney } from "./lib/money";
 declare const process: { env: Record<string, string | undefined> };
 
 // ===== PIUTANG SEMUA AREA =====
-// Sumber data:
-//   • Jika env PIUTANG_ALL_URL diisi (Convex dashboard → Settings → Environment Variables),
-//     dipakai URL itu — mis. Apps Script yang mengirim tab ALL_PIUTANG.
-//     Format yang diterima: JSON {header:[...], rows:[[...]]} ATAU CSV.
-//   • Jika kosong, dipakai sheet PIUTANG yang sama dengan sinkron harian (sudah memuat
-//     SOLO, DIY, SEMARANG), sehingga kartu langsung berfungsi.
-// Kolom dikenali dari header (huruf besar/kecil bebas): area, pelanggan|nama toko|nama,
-// tanggal|tgl, total, piutang, cicil, retur, usia|umur.
+// Sumber data: tab ALL_PIUTANG di Google Sheet yang sama, lewat Apps Script
+// (parameter ?sheet=ALL_PIUTANG, pola yang sama dengan ?sheet=toko_aktif).
+// Respons yang diterima: JSON {ok, header:[...], rows:[[...]]} atau CSV.
+// URL bisa diganti lewat variabel lingkungan Convex PIUTANG_ALL_URL (opsional).
+// Kolom dikenali dari header (huruf besar/kecil bebas) — lihat HEADER_* di bawah.
 
 const DEFAULT_URL =
-  "https://script.google.com/macros/s/AKfycbzV3bAYc6uf-xDa5OHNHXfhxViE6cys4wl-HxQ6eMGJKp6B3ZEZPKlooeXJCuVpDnw/exec";
+  "https://script.google.com/macros/s/AKfycbzV3bAYc6uf-xDa5OHNHXfhxViE6cys4wl-HxQ6eMGJKp6B3ZEZPKlooeXJCuVpDnw/exec?sheet=ALL_PIUTANG";
 
 const AREAS = ["SOLO", "DIY", "SEMARANG"] as const;
 type Area = (typeof AREAS)[number];
@@ -51,54 +48,76 @@ type Parsed = {
   total?: number; piutang?: number; cicil?: number; retur?: number; usia?: number;
 };
 
-function parseGrid(grid: any[][]): Parsed[] {
-  if (grid.length < 2) return [];
+const HEADER_AREA = ["area", "wilayah"];
+const HEADER_NAME = ["pelanggan", "nama pelanggan", "nama toko", "toko", "nama", "customer"];
+const HEADER_TGL = ["tanggal", "tgl", "tanggal tagihan", "tgl tagihan", "tgl faktur", "tanggal faktur"];
+const HEADER_TOTAL = ["total", "total tagihan", "nilai tagihan", "nilai faktur"];
+const HEADER_PIUTANG = ["piutang", "sisa piutang", "sisa tagihan", "sisa", "saldo", "outstanding"];
+const HEADER_CICIL = ["cicil", "cicilan", "bayar", "pembayaran", "terbayar"];
+const HEADER_RETUR = ["retur"];
+const HEADER_USIA = ["usia", "umur", "usia piutang", "umur piutang", "aging", "hari"];
+
+type ParseResult = { rows: Parsed[]; skipped: number; header: string[]; sampleAreas: string[] };
+
+function parseGrid(grid: any[][]): ParseResult {
+  if (grid.length < 2) return { rows: [], skipped: 0, header: [], sampleAreas: [] };
   const header = grid[0].map((h) => String(h ?? "").trim().toLowerCase());
   const find = (names: string[]) => header.findIndex((h) => names.includes(h));
-  const iArea = find(["area"]);
-  const iName = find(["pelanggan", "nama toko", "nama"]);
-  const iTgl = find(["tanggal", "tgl"]);
-  const iTotal = find(["total"]);
-  const iPiutang = find(["piutang"]);
-  const iCicil = find(["cicil"]);
-  const iRetur = find(["retur"]);
-  const iUsia = find(["usia", "umur"]);
-  if (iArea < 0 || iName < 0) throw new Error("Kolom 'area' dan 'pelanggan' tidak ditemukan di sumber data.");
+  const iArea = find(HEADER_AREA);
+  const iName = find(HEADER_NAME);
+  const iTgl = find(HEADER_TGL);
+  const iTotal = find(HEADER_TOTAL);
+  const iPiutang = find(HEADER_PIUTANG);
+  const iCicil = find(HEADER_CICIL);
+  const iRetur = find(HEADER_RETUR);
+  const iUsia = find(HEADER_USIA);
+  if (iArea < 0 || iName < 0) {
+    throw new Error(
+      `Header tab ALL_PIUTANG tidak sesuai — kolom AREA / PELANGGAN tidak ditemukan. Header terbaca: ${header.filter(Boolean).join(", ") || "(kosong)"}.`
+    );
+  }
+  if (iPiutang < 0) {
+    throw new Error(
+      `Kolom PIUTANG tidak ditemukan di tab ALL_PIUTANG. Header terbaca: ${header.filter(Boolean).join(", ")}.`
+    );
+  }
 
   const out: Parsed[] = [];
-  const seen = new Set<string>();
+  let skipped = 0;
+  const sampleAreas = new Set<string>();
   for (let i = 1; i < grid.length; i++) {
-    const c = grid[i];
-    const get = (ix: number) => (ix >= 0 ? String(c[ix] ?? "").trim() : "");
-    const areaRaw = get(iArea).toUpperCase();
-    const storeName = get(iName);
-    if (!(AREAS as readonly string[]).includes(areaRaw) || !storeName) continue;
-    const row: Parsed = {
+    const c = grid[i] ?? [];
+    const txt = (ix: number) => (ix >= 0 ? String(c[ix] ?? "").trim() : "");
+    const areaRaw = txt(iArea).toUpperCase();
+    const storeName = txt(iName);
+    if (!areaRaw && !storeName) continue;                       // baris kosong
+    if (!(AREAS as readonly string[]).includes(areaRaw) || !storeName) {
+      skipped++;
+      if (areaRaw && sampleAreas.size < 5) sampleAreas.add(areaRaw);
+      continue;
+    }
+    out.push({
       area: areaRaw as Area,
       storeName,
-      tanggal: get(iTgl) || undefined,
-      total: parseMoney(get(iTotal)),
-      piutang: parseMoney(get(iPiutang)),
-      cicil: parseMoney(get(iCicil)),
-      retur: parseMoney(get(iRetur)),
-      usia: parseInt(get(iUsia), 10) || undefined,
-    };
-    const key = [row.area, storeName.toLowerCase(), row.tanggal ?? "", row.total ?? "", row.piutang ?? "", row.cicil ?? "", row.retur ?? "", row.usia ?? ""].join("|");
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(row);
+      tanggal: txt(iTgl) || undefined,
+      total: iTotal >= 0 ? parseMoney(c[iTotal]) : undefined,
+      piutang: parseMoney(c[iPiutang]),
+      cicil: iCicil >= 0 ? parseMoney(c[iCicil]) : undefined,
+      retur: iRetur >= 0 ? parseMoney(c[iRetur]) : undefined,
+      usia: iUsia >= 0 ? parseInt(txt(iUsia), 10) || undefined : undefined,
+    });
   }
-  return out;
+  return { rows: out, skipped, header, sampleAreas: Array.from(sampleAreas) };
 }
 
-async function fetchRows(url: string): Promise<Parsed[]> {
+async function fetchRows(url: string): Promise<ParseResult> {
   const res = await fetch(url);
-  if (!res.ok) throw new Error("Gagal menarik sumber piutang (" + res.status + ").");
+  if (!res.ok) throw new Error("Gagal menarik tab ALL_PIUTANG (" + res.status + ").");
   const text = await res.text();
   let grid: any[][];
   try {
     const json: any = JSON.parse(text);
-    if (json && json.ok === false) throw new Error(String(json.error ?? "Respons sumber piutang tidak valid."));
+    if (json && json.ok === false) throw new Error(String(json.error ?? "Respons tab ALL_PIUTANG tidak valid."));
     const header: any[] = Array.isArray(json?.header) ? json.header : [];
     const rows: any[][] = Array.isArray(json?.rows) ? json.rows : [];
     grid = header.length ? [header, ...rows] : rows;
@@ -168,10 +187,17 @@ export const sync = action({
 
     const custom = process.env.PIUTANG_ALL_URL;
     const url = custom && custom.trim() ? custom.trim() : DEFAULT_URL;
-    const source = custom && custom.trim() ? "ALL_PIUTANG" : "Sheet PIUTANG";
+    const source = "ALL_PIUTANG";
 
-    const rows = await fetchRows(url);
-    if (!rows.length) throw new Error("Sumber piutang tidak berisi baris yang valid.");
+    const parsed = await fetchRows(url);
+    const rows = parsed.rows;
+    if (!rows.length) {
+      throw new Error(
+        parsed.skipped > 0
+          ? `Tab ALL_PIUTANG terbaca tetapi ${parsed.skipped} baris dilewati — area harus SOLO / DIY / SEMARANG${parsed.sampleAreas.length ? ` (nilai yang ditemukan: ${parsed.sampleAreas.join(", ")})` : ""}.`
+          : "Tab ALL_PIUTANG tidak berisi baris data."
+      );
+    }
 
     // Hapus snapshot lama hanya setelah data baru berhasil dibaca & valid.
     for (let guard = 0; guard < 50; guard++) {

@@ -8,10 +8,8 @@ import { SpkStatusBadge, ReviewNoteBox } from "../../components/SpkWorkflow";
 import { TOP_PAD } from "../../lib/layout";
 import VisitResultForm, { type VisitResultValues } from "../../components/VisitResultForm";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GREEN = "#067647";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
 const MET_LABEL: any = { owner: "Owner", karyawan: "Karyawan", pic: "PIC", keluarga: "Keluarga", toko_tutup: "Toko Tutup" };
 const MET_OPTIONS: { key: string; label: string }[] = [
   { key: "owner", label: "Owner" },
@@ -34,6 +32,8 @@ const REASON_OPTIONS: { key: string; label: string }[] = [
 ];
 
 export default function VisitDetail() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const viewer = useQuery(api.users.viewer) as any;
@@ -46,7 +46,7 @@ export default function VisitDetail() {
   const [reviewOpen, setReviewOpen] = useState(false);   // ← BARU: popup review
 
   if (data === undefined) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
   if (!data) {
     return <View style={styles.center}><Text>Data tidak ditemukan.</Text></View>;
@@ -205,7 +205,7 @@ export default function VisitDetail() {
             <View style={styles.btnRow}>
               {canEdit ? (
                 <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={() => setEditOpen(true)}>
-                  <Text style={[styles.btnText, { color: "#175CD3" }]}>Edit hasil kunjungan</Text>
+                  <Text style={[styles.btnText, { color: C.status.info.fg }]}>Edit hasil kunjungan</Text>
                 </TouchableOpacity>
               ) : null}
 
@@ -243,7 +243,7 @@ export default function VisitDetail() {
               <TextInput
                 style={styles.input}
                 placeholder="mis. besok follow up lagi / sudah cukup"
-                placeholderTextColor="#98A2B3"
+                placeholderTextColor={C.inkFaint}
                 value={note}
                 onChangeText={setNote}
                 multiline
@@ -251,7 +251,7 @@ export default function VisitDetail() {
 
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={() => setReviewOpen(false)} disabled={busy}>
-                  <Text style={[styles.btnText, { color: GRAY }]}>Batal</Text>
+                  <Text style={[styles.btnText, { color: C.inkMuted }]}>Batal</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.btn, styles.btnPrimary, busy && styles.btnDisabled]} onPress={confirmClose} disabled={busy}>
                   <Text style={styles.btnText}>{busy ? "Memproses…" : "Ya, Setujui"}</Text>
@@ -268,6 +268,8 @@ export default function VisitDetail() {
 // ===== MODAL KOREKSI HASIL (sales pemilik & supervisor, hanya saat INPG) =====
 // Isinya sama lengkapnya dengan form SPK saat check-out (produk order, foto, tanggal janji bayar, dll).
 function EditHasilModal({ v, data, onClose }: { v: any; data: any; onClose: () => void }) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const editVisit = useMutation(api.visits.editVisitResult);
   const [busy, setBusy] = useState(false);
 
@@ -308,11 +310,11 @@ function EditHasilModal({ v, data, onClose }: { v: any; data: any; onClose: () =
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -325,47 +327,47 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  name: { fontSize: 22, fontWeight: "800", color: "#111" },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  name: { fontSize: 22, fontWeight: "800", color: C.ink0 },
   chipRow: { flexDirection: "row", marginTop: 8, flexWrap: "wrap", alignItems: "center" },
-  chip: { backgroundColor: "#FEE4E2", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8, marginBottom: 4 },
-  chipArea: { backgroundColor: "#E0F2FE", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8 },
-  chipGreen: { backgroundColor: "#DCFAE6" },
-  chipText: { fontSize: 12, fontWeight: "800", color: "#333" },
-  card: { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginTop: 14, borderWidth: 1, borderColor: "#EEF0F3" },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: "#111", marginBottom: 8 },
+  chip: { backgroundColor: C.chip.danger.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8, marginBottom: 4 },
+  chipArea: { backgroundColor: C.chip.info.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8 },
+  chipGreen: { backgroundColor: C.chip.success.bg },
+  chipText: { fontSize: 12, fontWeight: "800", color: C.ink3 },
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginTop: 14, borderWidth: 1, borderColor: C.divider },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: C.ink0, marginBottom: 8 },
   row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  rowLabel: { fontSize: 13, color: GRAY, flex: 1 },
-  rowValue: { fontSize: 13, color: "#111", fontWeight: "600", flex: 2, textAlign: "right" },
-  para: { fontSize: 14, color: "#344054", lineHeight: 20 },
-  listItem: { fontSize: 14, color: "#344054", marginBottom: 4 },
-  emptySmall: { fontSize: 13, color: GRAY, fontStyle: "italic" },
-  photoTitle: { fontSize: 15, fontWeight: "800", color: "#111", marginTop: 18, marginBottom: 8 },
+  rowLabel: { fontSize: 13, color: C.inkMuted, flex: 1 },
+  rowValue: { fontSize: 13, color: C.ink0, fontWeight: "600", flex: 2, textAlign: "right" },
+  para: { fontSize: 14, color: C.inkSoft, lineHeight: 20 },
+  listItem: { fontSize: 14, color: C.inkSoft, marginBottom: 4 },
+  emptySmall: { fontSize: 13, color: C.inkMuted, fontStyle: "italic" },
+  photoTitle: { fontSize: 15, fontWeight: "800", color: C.ink0, marginTop: 18, marginBottom: 8 },
   photoRow: { flexDirection: "row", flexWrap: "wrap" },
   photoBig: { width: 160, height: 160, borderRadius: 14, marginRight: 10, marginBottom: 10 },
   photoSelfie: { width: 160, height: 160, borderRadius: 14 },
-  hint: { fontSize: 13, color: GRAY, lineHeight: 19, marginBottom: 8, marginTop: 6 },
+  hint: { fontSize: 13, color: C.inkMuted, lineHeight: 19, marginBottom: 8, marginTop: 6 },
   input: {
-    borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 10, padding: 10,
-    minHeight: 44, fontSize: 14, color: "#111", backgroundColor: "#FCFCFD",
+    borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 10, padding: 10,
+    minHeight: 44, fontSize: 14, color: C.ink0, backgroundColor: C.surfaceAlt6,
     textAlignVertical: "top", marginBottom: 8,
   },
-  fieldLabel: { fontSize: 12, fontWeight: "900", color: "#475467", marginTop: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
+  fieldLabel: { fontSize: 12, fontWeight: "900", color: C.ink2, marginTop: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
   pickRow: { flexDirection: "row", flexWrap: "wrap", marginBottom: 4 },
-  pick: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 6, backgroundColor: "#fff" },
-  pickOn: { backgroundColor: RED, borderColor: RED },
-  pickText: { fontSize: 12, fontWeight: "700", color: "#344054" },
-  pickTextOn: { color: "#fff" },
+  pick: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 6, backgroundColor: C.card },
+  pickOn: { backgroundColor: C.primary, borderColor: C.primary },
+  pickText: { fontSize: 12, fontWeight: "700", color: C.inkSoft },
+  pickTextOn: { color: C.onPrimary },
   btnRow: { flexDirection: "row", marginTop: 12, flexWrap: "wrap" },
   btn: { borderRadius: 10, paddingVertical: 11, paddingHorizontal: 16, alignItems: "center", marginRight: 8, marginBottom: 8 },
-  btnPrimary: { backgroundColor: GREEN },
-  btnOutline: { backgroundColor: "#F8F9FB", borderWidth: 1, borderColor: "#D0D5DD" },
+  btnPrimary: { backgroundColor: C.status.success.fg },
+  btnOutline: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.status.neutral.border },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  btnText: { color: C.onPrimary, fontWeight: "800", fontSize: 14 },
   modalWrap: { flex: 1, backgroundColor: "rgba(16,24,40,0.45)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 18, paddingBottom: 24 },
+  modalCard: { backgroundColor: C.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 18, paddingBottom: 24 },
   modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  modalTitle: { fontSize: 17, fontWeight: "900", color: "#111" },
-  modalClose: { fontSize: 20, color: GRAY, fontWeight: "800", paddingHorizontal: 6 },
+  modalTitle: { fontSize: 17, fontWeight: "900", color: C.ink0 },
+  modalClose: { fontSize: 20, color: C.inkMuted, fontWeight: "800", paddingHorizontal: 6 },
   modalBtnRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 10 },
 });

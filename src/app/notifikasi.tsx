@@ -5,9 +5,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { TOP_PAD } from "../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
 const fmtTime = (ms: number) =>
   new Date(ms).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 const dayKey = (ms: number) => {
@@ -16,26 +15,30 @@ const dayKey = (ms: number) => {
 };
 
 // ← BARU: ikon + warna per jenis notifikasi (kind). Kind tak dikenal → 🔔 abu.
-const KIND: any = {
-  manual: { emoji: "✉️", bg: "#FEE4E2" },
-  approval: { emoji: "📍", bg: "#E0F2FE" },
-  daily: { emoji: "⏰", bg: "#FEF0C7" },
+const makeKIND = (C: Colors): any => (
+  {
+  manual: { emoji: "✉️", bg: C.chip.danger.bg },
+  approval: { emoji: "📍", bg: C.chip.info.bg },
+  daily: { emoji: "⏰", bg: C.chip.warning.bg },
   // ===== 5 aturan notifikasi sistem =====
-  piutang_sync: { emoji: "💰", bg: "#DCFAE6" },   // piutang selesai disinkron SPV
-  spk_admin: { emoji: "📋", bg: "#FEF0C7" },      // 15.00 SPK admin masih OPEN
-  riwayat_cek: { emoji: "🕘", bg: "#E0F2FE" },    // 12.00/15.00/17.00 cek riwayat
-  field_visits: { emoji: "🧭", bg: "#EDE9FE" },   // 15.00 kunjungan < 7 toko
-};
-const kindOf = (k?: string | null) => KIND[k ?? ""] ?? { emoji: "🔔", bg: "#F2F4F7" };
+  piutang_sync: { emoji: "💰", bg: C.chip.success.bg },   // piutang selesai disinkron SPV
+  spk_admin: { emoji: "📋", bg: C.chip.warning.bg },      // 15.00 SPK admin masih OPEN
+  riwayat_cek: { emoji: "🕘", bg: C.chip.info.bg },    // 12.00/15.00/17.00 cek riwayat
+  field_visits: { emoji: "🧭", bg: C.chip.purple.bg },   // 15.00 kunjungan < 7 toko
+}
+);
+const kindOf = (C: Colors, k?: string | null) => makeKIND(C)[k ?? ""] ?? { emoji: "🔔", bg: C.status.neutral.bg };
 
 export default function Notifikasi() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const rows = useQuery(api.notifications.listMine) as any;
   const markRead = useMutation(api.notifications.markRead);
   const remove = useMutation(api.notifications.remove);
 
-  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   const isSuper = viewer.role === "supervisor";
 
   const list = (rows ?? []) as any[];
@@ -107,7 +110,7 @@ export default function Notifikasi() {
       </View>
 
       {rows === undefined ? (
-        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
       ) : list.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyEmoji}>🔕</Text>
@@ -128,7 +131,7 @@ export default function Notifikasi() {
           )}
           renderItem={({ item }) => {
             const belum = !item.readAt;
-            const k = kindOf(item.kind);
+            const k = kindOf(C, item.kind);
             return (
               <TouchableOpacity
                 style={[styles.card, belum && styles.cardUnread]}
@@ -170,11 +173,11 @@ export default function Notifikasi() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -186,34 +189,34 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
   headRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  sub: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
-  headBadge: { backgroundColor: RED, borderRadius: 12, minWidth: 24, height: 24, paddingHorizontal: 7, alignItems: "center", justifyContent: "center", marginRight: 8 },
-  headBadgeText: { color: "#fff", fontWeight: "800", fontSize: 12 },
-  addBtn: { backgroundColor: RED, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  addBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  sub: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
+  headBadge: { backgroundColor: C.primary, borderRadius: 12, minWidth: 24, height: 24, paddingHorizontal: 7, alignItems: "center", justifyContent: "center", marginRight: 8 },
+  headBadgeText: { color: C.onPrimary, fontWeight: "800", fontSize: 12 },
+  addBtn: { backgroundColor: C.primary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  addBtnText: { color: C.onPrimary, fontWeight: "800", fontSize: 14 },
 
   emptyEmoji: { fontSize: 34, marginBottom: 6 },
-  empty: { fontSize: 15, fontWeight: "700", color: "#333" },
-  emptySub: { fontSize: 12, color: GRAY, marginTop: 4, textAlign: "center" },
+  empty: { fontSize: 15, fontWeight: "700", color: C.ink3 },
+  emptySub: { fontSize: 12, color: C.inkMuted, marginTop: 4, textAlign: "center" },
 
   secHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: 8, paddingHorizontal: 2 },
-  secTitle: { fontSize: 12, fontWeight: "800", color: GRAY, textTransform: "uppercase", letterSpacing: 0.6 },
-  secCount: { fontSize: 11, fontWeight: "800", color: GRAY },
+  secTitle: { fontSize: 12, fontWeight: "800", color: C.inkMuted, textTransform: "uppercase", letterSpacing: 0.6 },
+  secCount: { fontSize: 11, fontWeight: "800", color: C.inkMuted },
 
-  card: { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#EEF0F3", borderLeftWidth: 3, borderLeftColor: "#EEF0F3" },
-  cardUnread: { backgroundColor: "#FFFBF5", borderColor: "#FEDF89", borderLeftColor: RED },
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.divider, borderLeftWidth: 3, borderLeftColor: C.divider },
+  cardUnread: { backgroundColor: C.warmTint2, borderColor: C.status.warning.border, borderLeftColor: C.primary },
   cardTop: { flexDirection: "row", alignItems: "center" },
   iconBox: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 10 },
   iconEmoji: { fontSize: 16 },
-  dotUnread: { width: 8, height: 8, borderRadius: 4, backgroundColor: RED, marginLeft: 6 },
-  cardTitle: { fontSize: 14, fontWeight: "700", color: "#344054", lineHeight: 19 },
-  cardTitleUnread: { fontWeight: "900", color: "#111" },
-  cardMeta: { fontSize: 11, color: GRAY, marginTop: 3 },
-  cardBody: { fontSize: 13, color: "#344054", marginTop: 8, lineHeight: 18 },
-  linkHint: { fontSize: 11, fontWeight: "800", color: RED, marginTop: 8 },
+  dotUnread: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.primary, marginLeft: 6 },
+  cardTitle: { fontSize: 14, fontWeight: "700", color: C.inkSoft, lineHeight: 19 },
+  cardTitleUnread: { fontWeight: "900", color: C.ink0 },
+  cardMeta: { fontSize: 11, color: C.inkMuted, marginTop: 3 },
+  cardBody: { fontSize: 13, color: C.inkSoft, marginTop: 8, lineHeight: 18 },
+  linkHint: { fontSize: 11, fontWeight: "800", color: C.primary, marginTop: 8 },
   delBtn: { padding: 4, marginLeft: 4 },
   delText: { fontSize: 14 },
 });

@@ -47,6 +47,7 @@ import type * as reminderData from "../reminderData.js";
 import type * as reminders from "../reminders.js";
 import type * as stores from "../stores.js";
 import type * as users from "../users.js";
+import type * as visitEvents from "../visitEvents.js";
 import type * as visits from "../visits.js";
 
 import type {
@@ -95,6 +96,7 @@ declare const fullApi: ApiFromModules<{
   reminders: typeof reminders;
   stores: typeof stores;
   users: typeof users;
+  visitEvents: typeof visitEvents;
   visits: typeof visits;
 }>;
 

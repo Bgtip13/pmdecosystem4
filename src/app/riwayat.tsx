@@ -9,9 +9,8 @@ import { SpkStatusBadge, ReviewNoteBox } from "../components/SpkWorkflow";
 import { TOP_PAD } from "../lib/layout";
 import { isOwnerLike } from "../lib/roles";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
 const MET_LABEL: any = { owner: "Owner", karyawan: "Karyawan", pic: "PIC", keluarga: "Keluarga", toko_tutup: "Toko Tutup" };
 const REASON_LABEL: any = {
   stok_cukup: "Stok cukup", baru_order: "Baru order trip lalu", kalah_harga: "Kalah harga",
@@ -31,6 +30,8 @@ const IconLine = ({ icon, color, children }: any) => (
 );
 
 export default function Riwayat() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const params = useLocalSearchParams();
   const viewer = useQuery(api.users.viewer) as any;
@@ -65,7 +66,7 @@ export default function Riwayat() {
     ...(salesId ? { salesId: salesId as any } : {}),
   }) as any;
 
-  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
 
   // Akunting hanya melihat riwayat Follow-up Admin (di menu SPK), bukan kunjungan sales.
   if (viewer.role === "akunting") {
@@ -74,7 +75,7 @@ export default function Riwayat() {
         <Text style={styles.emptyTitle}>Riwayat kunjungan tidak tersedia</Text>
         <Text style={styles.meta}>Akun Akunting melihat riwayat Follow-up Admin di menu SPK.</Text>
         <TouchableOpacity onPress={() => router.replace("/spk" as any)} style={{ marginTop: 16 }}>
-          <Text style={{ color: RED, fontWeight: "800" }}>Buka SPK</Text>
+          <Text style={{ color: C.primary, fontWeight: "800" }}>Buka SPK</Text>
         </TouchableOpacity>
       </View>
     );
@@ -137,27 +138,27 @@ export default function Riwayat() {
             {item.photoSelfieUrl ? (
               <Image source={{ uri: item.photoSelfieUrl }} style={styles.thumb} />
             ) : (
-              <View style={[styles.thumb, styles.thumbEmpty]}><AppIcon name="camera" size={16} color={GRAY} /></View>
+              <View style={[styles.thumb, styles.thumbEmpty]}><AppIcon name="camera" size={16} color={C.inkMuted} /></View>
             )}
           </View>
         </View>
         {viewer.role === "supervisor" || viewer.role === "telemarketing" ? (
-          <IconLine icon="user" color={GRAY}>
+          <IconLine icon="user" color={C.inkMuted}>
             {item.salesName || "-"} • {item.store?.area ?? ""}
           </IconLine>
         ) : null}
-        <IconLine icon="clock" color="#344054">
+        <IconLine icon="clock" color={C.inkSoft}>
           {fmtTime(v.checkinAt)} → {v.checkoutAt ? fmtTime(v.checkoutAt) : "-"} • {v.durationMin ?? 0} mnt
         </IconLine>
         {v.paid ? (
-          <IconLine icon="cash" color="#067647">Bayar {rupiah(v.paidAmount ?? 0)} ({v.payMethod === "tunai" ? "Tunai" : "Transfer"})</IconLine>
+          <IconLine icon="cash" color={C.status.success.fg}>Bayar {rupiah(v.paidAmount ?? 0)} ({v.payMethod === "tunai" ? "Tunai" : "Transfer"})</IconLine>
         ) : v.promiseDate ? (
-          <IconLine icon="calendar" color="#B54708">Janji bayar {v.promiseDate}</IconLine>
+          <IconLine icon="calendar" color={C.status.warning.fg}>Janji bayar {v.promiseDate}</IconLine>
         ) : null}
         {v.ordered ? (
-          <IconLine icon="box" color="#175CD3">Order {v.orderItems?.length ?? 0} produk</IconLine>
+          <IconLine icon="box" color={C.status.info.fg}>Order {v.orderItems?.length ?? 0} produk</IconLine>
         ) : v.noOrderReason ? (
-          <IconLine icon="close" color="#B42318">{REASON_LABEL[v.noOrderReason] ?? v.noOrderReason}</IconLine>
+          <IconLine icon="close" color={C.status.danger.fg}>{REASON_LABEL[v.noOrderReason] ?? v.noOrderReason}</IconLine>
         ) : null}
 
         {wf === "INPG" ? (
@@ -168,7 +169,7 @@ export default function Riwayat() {
 
         {viewer.role === "supervisor" ? (
           <TouchableOpacity style={styles.delVisitBtn} onPress={() => onDeleteVisit(v)}>
-            <AppIcon name="trash" size={13} color="#B42318" style={{ marginRight: 5 }} />
+            <AppIcon name="trash" size={13} color={C.status.danger.fg} style={{ marginRight: 5 }} />
             <Text style={styles.delVisitText}>Hapus kunjungan ini</Text>
           </TouchableOpacity>
         ) : null}
@@ -252,7 +253,7 @@ export default function Riwayat() {
       ) : null}
 
       {rows === undefined ? (
-        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
       ) : shown.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>
@@ -268,11 +269,11 @@ export default function Riwayat() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -285,47 +286,47 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  dateNav: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F0F0F0", marginTop: 4 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  dateNav: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.hairline, marginTop: 4 },
   dateArrow: { paddingHorizontal: 16, paddingVertical: 4 },
-  dateArrowText: { fontSize: 26, color: RED, fontWeight: "800" },
-  dateLabel: { fontSize: 16, fontWeight: "800", color: "#111", textAlign: "center" },
+  dateArrowText: { fontSize: 26, color: C.primary, fontWeight: "800" },
+  dateLabel: { fontSize: 16, fontWeight: "800", color: C.ink0, textAlign: "center" },
   // ← FASE 1
-  wfWrap: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, paddingTop: 10, backgroundColor: "#fff" },
-  wfChip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 8, backgroundColor: "#fff" },
-  wfChipOn: { backgroundColor: "#344054", borderColor: "#344054" },
-  wfChipText: { fontSize: 12, color: "#344054", fontWeight: "700" },
-  wfChipTextOn: { color: "#fff" },
-  salesWrap: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, paddingTop: 10, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F0F0F0" },
-  salesChip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 8, backgroundColor: "#fff", maxWidth: 160 },
-  salesChipOn: { backgroundColor: RED, borderColor: RED },
-  salesChipText: { fontSize: 12, color: "#344054", fontWeight: "700" },
-  salesChipTextOn: { color: "#fff" },
-  meta: { fontSize: 13, color: GRAY, textAlign: "center", marginTop: 4 },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#333", textAlign: "center" },
-  card: { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: "#EEF0F3" },
+  wfWrap: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, paddingTop: 10, backgroundColor: C.card },
+  wfChip: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 8, backgroundColor: C.card },
+  wfChipOn: { backgroundColor: C.inkSoft, borderColor: C.inkSoft },
+  wfChipText: { fontSize: 12, color: C.inkSoft, fontWeight: "700" },
+  wfChipTextOn: { color: C.onPrimary },
+  salesWrap: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, paddingTop: 10, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.hairline },
+  salesChip: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 8, backgroundColor: C.card, maxWidth: 160 },
+  salesChipOn: { backgroundColor: C.primary, borderColor: C.primary },
+  salesChipText: { fontSize: 12, color: C.inkSoft, fontWeight: "700" },
+  salesChipTextOn: { color: C.onPrimary },
+  meta: { fontSize: 13, color: C.inkMuted, textAlign: "center", marginTop: 4 },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: C.ink3, textAlign: "center" },
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.divider },
   cardHead: { flexDirection: "row", justifyContent: "space-between" },
   // baris nama toko + titik penanda mock GPS
   nameRow: { flex: 1, flexDirection: "row", alignItems: "center", marginRight: 8 },
-  dot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: "#12B76A", marginRight: 7 },
-  cardName: { fontSize: 16, fontWeight: "800", color: "#111", flexShrink: 1 },
+  dot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: C.greenAccent, marginRight: 7 },
+  cardName: { fontSize: 16, fontWeight: "800", color: C.ink0, flexShrink: 1 },
   rightCol: { alignItems: "center" },
-  chip: { backgroundColor: "#FEE4E2", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  chipText: { fontSize: 11, fontWeight: "800", color: "#B42318" },
+  chip: { backgroundColor: C.chip.danger.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  chipText: { fontSize: 11, fontWeight: "800", color: C.status.danger.fg },
   thumb: { width: 46, height: 46, borderRadius: 23, marginTop: 6 },
-  thumbEmpty: { backgroundColor: "#F2F4F7", alignItems: "center", justifyContent: "center" },
-  pendingReview: { fontSize: 12, color: "#175CD3", fontWeight: "700", marginTop: 8 },
-  delVisitBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", marginTop: 8, backgroundColor: "#FFF1F0", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  delVisitText: { color: "#B42318", fontSize: 12, fontWeight: "800" },
-  calBox: { backgroundColor: "#fff", marginHorizontal: 20, marginTop: 10, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: "#E4E7EC" },
+  thumbEmpty: { backgroundColor: C.status.neutral.bg, alignItems: "center", justifyContent: "center" },
+  pendingReview: { fontSize: 12, color: C.status.info.fg, fontWeight: "700", marginTop: 8 },
+  delVisitBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", marginTop: 8, backgroundColor: C.dangerTint, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  delVisitText: { color: C.status.danger.fg, fontSize: 12, fontWeight: "800" },
+  calBox: { backgroundColor: C.card, marginHorizontal: 20, marginTop: 10, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: C.border },
   calHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  calNav: { fontSize: 24, color: RED, fontWeight: "700", paddingHorizontal: 8 },
-  calTitle: { fontSize: 14, fontWeight: "800", color: "#111" },
+  calNav: { fontSize: 24, color: C.primary, fontWeight: "700", paddingHorizontal: 8 },
+  calTitle: { fontSize: 14, fontWeight: "800", color: C.ink0 },
   calDowRow: { flexDirection: "row" },
-  calDow: { width: "14.28%", textAlign: "center", fontSize: 11, color: GRAY, fontWeight: "700", paddingVertical: 4 },
+  calDow: { width: "14.28%", textAlign: "center", fontSize: 11, color: C.inkMuted, fontWeight: "700", paddingVertical: 4 },
   calGrid: { flexDirection: "row", flexWrap: "wrap" },
   calCell: { width: "14.28%", alignItems: "center", paddingVertical: 6 },
-  calCellActive: { backgroundColor: RED, borderRadius: 20 },
-  calDay: { fontSize: 13, color: "#111" },
+  calCellActive: { backgroundColor: C.primary, borderRadius: 20 },
+  calDay: { fontSize: 13, color: C.ink0 },
 });

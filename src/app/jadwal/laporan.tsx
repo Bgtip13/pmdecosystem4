@@ -10,11 +10,9 @@ import AppIcon from "../../components/AppIcon";
 import { theme } from "../../lib/theme";
 import { TOP_PAD } from "../../lib/layout";
 
-const { colors: C, radius: R } = theme;
-const RED = C.primary;
-const GRAY = C.inkMuted;
-const GREEN = "#067647";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
+const { radius: R } = theme;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const MET_LABEL: any = { owner: "Owner", karyawan: "Karyawan", pic: "PIC", keluarga: "Keluarga", toko_tutup: "Toko tutup" };
 
@@ -46,6 +44,8 @@ const monthLabel = (mk: string) => {
 };
 
 export default function LaporanJadwal() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const convex = useConvex();
 
@@ -117,7 +117,7 @@ export default function LaporanJadwal() {
             <Text style={styles.meta}>Capaian kunjungan bulanan & toko terlewat</Text>
           </View>
           <TouchableOpacity style={[styles.expBtn, busy && { opacity: 0.5 }]} onPress={doExport} disabled={busy}>
-            <AppIcon name="download" size={14} color="#fff" style={{ marginRight: 5 }} />
+            <AppIcon name="download" size={14} color={C.onPrimary} style={{ marginRight: 5 }} />
             <Text style={styles.expBtnText}>{busy ? "…" : "Excel"}</Text>
           </TouchableOpacity>
         </View>
@@ -134,7 +134,7 @@ export default function LaporanJadwal() {
       </View>
 
       {data === undefined ? (
-        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
       ) : !data ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Tidak ada akses</Text>
@@ -146,11 +146,11 @@ export default function LaporanJadwal() {
             <Text style={styles.cardTitle}>Ringkasan {monthLabel(mk)}</Text>
             <View style={styles.boxRow}>
               <Box label="TERJADWAL" value={cnt.total} />
-              <Box label="SELESAI" value={cnt.done} color={GREEN} />
-              <Box label="TERLEWAT" value={cnt.terlewat} color={cnt.terlewat > 0 ? "#B42318" : GRAY} />
+              <Box label="SELESAI" value={cnt.done} color={C.status.success.fg} />
+              <Box label="TERLEWAT" value={cnt.terlewat} color={cnt.terlewat > 0 ? C.status.danger.fg : C.inkMuted} />
             </View>
             <View style={styles.boxRow}>
-              <Box label="BERJALAN" value={cnt.ongoing} color="#B54708" />
+              <Box label="BERJALAN" value={cnt.ongoing} color={C.status.warning.fg} />
               <Box label="BELUM" value={cnt.planned} />
               <Box label="BATAL" value={cnt.cancelled} />
             </View>
@@ -162,7 +162,7 @@ export default function LaporanJadwal() {
 
           {/* ← BARU: nama yang belum tertaut ke master toko (tidak bisa di-check-in) */}
           {cnt.belumTerhubung > 0 ? (
-            <View style={[styles.card, { borderColor: "#FECDCA", backgroundColor: "#FFFBFB" }]}>
+            <View style={[styles.card, { borderColor: C.status.danger.border, backgroundColor: C.surfaceTint2 }]}>
               <Text style={styles.cardTitle}>Nama Belum Terhubung ({cnt.belumTerhubung})</Text>
               <Text style={styles.hint}>
                 Nama toko di sheet JADWAL tidak sama dengan master Kelola Toko, jadi SPK-nya tidak bisa diisi
@@ -248,11 +248,11 @@ export default function LaporanJadwal() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -264,16 +264,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
   titleRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
   expBtn: { flexDirection: "row", alignItems: "center", backgroundColor: C.primary, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 9 },
-  expBtnText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  expBtnText: { color: C.onPrimary, fontWeight: "800", fontSize: 13 },
 
   monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 8 },
   navArrow: { paddingHorizontal: 14, paddingVertical: 2 },
-  navArrowText: { fontSize: 22, fontWeight: "800", color: RED },
+  navArrowText: { fontSize: 22, fontWeight: "800", color: C.primary },
   monthLabel: { fontSize: 15, fontWeight: "800", color: C.ink, minWidth: 110, textAlign: "center" },
 
   card: { backgroundColor: C.surface, borderRadius: R.lg, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.border },
@@ -281,21 +281,21 @@ const styles = StyleSheet.create({
 
   boxRow: { flexDirection: "row", marginBottom: 8 },
   box: { flex: 1, backgroundColor: C.surfaceAlt, borderRadius: R.md, padding: 10, marginRight: 6, alignItems: "center" },
-  boxLabel: { fontSize: 10, fontWeight: "800", color: GRAY, letterSpacing: 0.3 },
+  boxLabel: { fontSize: 10, fontWeight: "800", color: C.inkMuted, letterSpacing: 0.3 },
   boxValue: { fontSize: 20, fontWeight: "800", marginTop: 2 },
 
   row: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.divider },
   rowName: { fontSize: 14, fontWeight: "700", color: C.ink },
-  rowSub: { fontSize: 11, color: GRAY, marginTop: 2 },
-  chipBad: { backgroundColor: "#FEE4E2", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  chipBadText: { fontSize: 11, fontWeight: "800", color: "#B42318" },
-  chipOk: { backgroundColor: "#DCFAE6", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  chipOkText: { fontSize: 11, fontWeight: "800", color: GREEN },
+  rowSub: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
+  chipBad: { backgroundColor: C.chip.danger.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  chipBadText: { fontSize: 11, fontWeight: "800", color: C.status.danger.fg },
+  chipOk: { backgroundColor: C.chip.success.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  chipOkText: { fontSize: 11, fontWeight: "800", color: C.status.success.fg },
 
-  hint: { fontSize: 12, color: GRAY, lineHeight: 18, marginTop: 6 },
+  hint: { fontSize: 12, color: C.inkMuted, lineHeight: 18, marginTop: 6 },
   fixBtn: { backgroundColor: C.primary, borderRadius: R.md, paddingVertical: 11, alignItems: "center", marginTop: 10 },
-  fixBtnText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  fixBtnText: { color: C.onPrimary, fontWeight: "800", fontSize: 13 },
 
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink },
-  emptySub: { fontSize: 13, color: GRAY, marginTop: 6, textAlign: "center" },
+  emptySub: { fontSize: 13, color: C.inkMuted, marginTop: 6, textAlign: "center" },
 });

@@ -7,13 +7,14 @@ import TabBar from "../../components/TabBar";
 import AppIcon from "../../components/AppIcon";
 import { TOP_PAD } from "../../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
 const fmtClock = (ms: number) =>
   ms ? new Date(ms).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "";
 
 export default function ChatList() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const rooms = useQuery(api.chat.listRooms) as any;
@@ -21,7 +22,7 @@ export default function ChatList() {
   if (!viewer) {
     return (
       <View style={styles.center}>
-        <IOSSpinner size="large" color={RED} />
+        <IOSSpinner size="large" color={C.primary} />
       </View>
     );
   }
@@ -57,7 +58,7 @@ export default function ChatList() {
         <View style={styles.titleRow}>
           <Text style={styles.title}>Chat</Text>
           <TouchableOpacity style={styles.addBtn} onPress={() => router.push("/chat/new")}>
-            <AppIcon name="plus" size={15} color="#fff" style={{ marginRight: 4 }} />
+            <AppIcon name="plus" size={15} color={C.onPrimary} style={{ marginRight: 4 }} />
             <Text style={styles.addBtnText}>Baru</Text>
           </TouchableOpacity>
         </View>
@@ -65,7 +66,7 @@ export default function ChatList() {
       </View>
 
       {rooms === undefined ? (
-        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
       ) : rooms.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Belum ada percakapan</Text>
@@ -85,11 +86,11 @@ export default function ChatList() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -101,19 +102,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
+  brand: { fontSize: 11, fontWeight: "800", color: C.primary, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  addBtn: { flexDirection: "row", alignItems: "center", backgroundColor: RED, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8 },
-  addBtnText: { color: "#fff", fontWeight: "800", fontSize: 13 },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
-  card: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: "#EEF0F3" },
-  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: "#FDE8E6", justifyContent: "center", alignItems: "center", marginRight: 12 },
-  avatarText: { fontSize: 16, fontWeight: "800", color: RED },
-  name: { fontSize: 15, fontWeight: "800", color: "#111", flex: 1 },
-  time: { fontSize: 11, color: GRAY, marginLeft: 8 },
-  preview: { fontSize: 13, color: GRAY, marginTop: 3 },
-  badge: { backgroundColor: RED, borderRadius: 11, minWidth: 21, height: 21, paddingHorizontal: 5, justifyContent: "center", alignItems: "center", marginLeft: 8 },
-  badgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
-  emptyTitle: { fontSize: 15, fontWeight: "700", color: "#333", textAlign: "center" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  addBtn: { flexDirection: "row", alignItems: "center", backgroundColor: C.primary, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8 },
+  addBtnText: { color: C.onPrimary, fontWeight: "800", fontSize: 13 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
+  card: { flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.divider },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.primaryTint, justifyContent: "center", alignItems: "center", marginRight: 12 },
+  avatarText: { fontSize: 16, fontWeight: "800", color: C.primary },
+  name: { fontSize: 15, fontWeight: "800", color: C.ink0, flex: 1 },
+  time: { fontSize: 11, color: C.inkMuted, marginLeft: 8 },
+  preview: { fontSize: 13, color: C.inkMuted, marginTop: 3 },
+  badge: { backgroundColor: C.primary, borderRadius: 11, minWidth: 21, height: 21, paddingHorizontal: 5, justifyContent: "center", alignItems: "center", marginLeft: 8 },
+  badgeText: { color: C.onPrimary, fontSize: 11, fontWeight: "800" },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: C.ink3, textAlign: "center" },
 });

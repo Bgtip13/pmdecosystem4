@@ -1,5 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
 // ===== FASE 1: badge status pekerjaan SPK =====
 // OPEN  = belum dikerjakan (oranye)
 // INPG  = sudah diisi, menunggu review supervisor (biru)
@@ -7,12 +9,13 @@ import { View, Text, StyleSheet } from "react-native";
 
 export type WorkflowStatus = "OPEN" | "INPG" | "CLSD";
 
-const TONE: Record<WorkflowStatus, { bg: string; fg: string; border: string }> = {
-  OPEN: { bg: "#FFFAEB", fg: "#B54708", border: "#FEDF89" },
-  INPG: { bg: "#EFF8FF", fg: "#175CD3", border: "#B2DDFF" },
-  CLSD: { bg: "#ECFDF3", fg: "#067647", border: "#ABEFC6" },
-};
-
+const makeTONE = (C: Colors): Record<WorkflowStatus, { bg: string; fg: string; border: string }> => (
+  {
+  OPEN: { bg: C.status.warning.bg, fg: C.status.warning.fg, border: C.status.warning.border },
+  INPG: { bg: C.status.info.bg, fg: C.status.info.fg, border: C.status.info.border },
+  CLSD: { bg: C.status.success.bg, fg: C.status.success.fg, border: C.status.success.border },
+}
+);
 // Data lama (belum punya workflowStatus) dianggap OPEN.
 export function normalizeWf(w?: string | null): WorkflowStatus {
   return w === "INPG" || w === "CLSD" ? w : "OPEN";
@@ -27,6 +30,9 @@ export function SpkStatusBadge({
   size?: number;
   style?: any;
 }) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
+  const TONE = makeTONE(C);
   const wf = normalizeWf(status);
   const t = TONE[wf];
   return (
@@ -46,6 +52,8 @@ export function ReviewNoteBox({
   reviewerName?: string | null;
   style?: any;
 }) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   if (!note) return null;
   return (
     <View style={[styles.note, style]}>
@@ -59,6 +67,8 @@ export function ReviewNoteBox({
 
 // Keterangan singkat, dipakai di header daftar SPK kalau perlu.
 export function WorkflowLegend({ style }: { style?: any }) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   return (
     <View style={[styles.legend, style]}>
       <SpkStatusBadge status="OPEN" />
@@ -71,7 +81,7 @@ export function WorkflowLegend({ style }: { style?: any }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   badge: {
     borderRadius: 7,
     borderWidth: 1,
@@ -81,15 +91,15 @@ const styles = StyleSheet.create({
   },
   text: { fontWeight: "900", letterSpacing: 0.4 },
   note: {
-    backgroundColor: "#F5F3FF",
+    backgroundColor: C.purpleSoft2,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: C.purpleBorder,
     padding: 10,
     marginTop: 8,
   },
-  noteTitle: { fontSize: 11, fontWeight: "900", color: "#5B21B6", marginBottom: 3 },
-  noteText: { fontSize: 13, color: "#3F3F46", lineHeight: 19 },
+  noteTitle: { fontSize: 11, fontWeight: "900", color: C.chip.purple.fg, marginBottom: 3 },
+  noteText: { fontSize: 13, color: C.ink4, lineHeight: 19 },
   legend: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
-  legendText: { fontSize: 11, color: "#667085", marginHorizontal: 5, marginRight: 10 },
+  legendText: { fontSize: 11, color: C.inkMuted, marginHorizontal: 5, marginRight: 10 },
 });

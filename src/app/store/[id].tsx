@@ -10,10 +10,8 @@ import CleanAlert from "../../components/CleanAlert";
 import { toFriendlyError } from "../../lib/msg";
 import { TOP_PAD } from "../../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GREEN = "#067647";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -26,6 +24,8 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
 }
 
 export default function StoreDetail() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const { isAuthenticated } = useConvexAuth();
@@ -74,7 +74,7 @@ export default function StoreDetail() {
   };
 
   if (!isAuthenticated || !viewer) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
 
   const canEdit = viewer.role === "field" || viewer.role === "supervisor";
@@ -139,7 +139,7 @@ export default function StoreDetail() {
       </View>
 
       {store === undefined ? (
-        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
       ) : !store ? (
         <View style={styles.center}><Text>Toko tidak ditemukan.</Text></View>
       ) : (
@@ -172,7 +172,7 @@ export default function StoreDetail() {
                     onPress={doRequestLocation}
                     disabled={busy || pendingLoc}
                   >
-                    <Text style={[styles.resetBtnText, pendingLoc && { color: GRAY }]}>
+                    <Text style={[styles.resetBtnText, pendingLoc && { color: C.inkMuted }]}>
                       {pendingLoc ? "Menunggu" : "Reset"}
                     </Text>
                   </TouchableOpacity>
@@ -212,7 +212,7 @@ export default function StoreDetail() {
                         </View>
                         <View style={styles.gpsRow}>
                           <Text style={styles.gpsLabel}>Selisih Jarak</Text>
-                          <Text style={[styles.gpsValue, { color: dist <= 200 ? GREEN : RED, fontWeight: "800" }]}>
+                          <Text style={[styles.gpsValue, { color: dist <= 200 ? C.status.success.fg : C.primary, fontWeight: "800" }]}>
                             {dist.toLocaleString("id-ID")} m {dist <= 200 ? "✓" : "✗ (> 200 m)"}
                           </Text>
                         </View>
@@ -246,11 +246,11 @@ export default function StoreDetail() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -263,34 +263,34 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
   body: { padding: 20 },
-  name: { fontSize: 22, fontWeight: "800", color: "#111" },
+  name: { fontSize: 22, fontWeight: "800", color: C.ink0 },
   badge: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8, fontSize: 12, fontWeight: "800", overflow: "hidden" },
-  badgeOk: { backgroundColor: "#DCFAE6", color: "#067647" },
-  badgeWarn: { backgroundColor: "#FEF0C7", color: "#B54708" },
-  badgeWait: { backgroundColor: "#E0F2FE", color: "#175CD3" },
-  infoCard: { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginTop: 16, borderWidth: 1, borderColor: "#EEF0F3" },
+  badgeOk: { backgroundColor: C.chip.success.bg, color: C.status.success.fg },
+  badgeWarn: { backgroundColor: C.chip.warning.bg, color: C.status.warning.fg },
+  badgeWait: { backgroundColor: C.chip.info.bg, color: C.status.info.fg },
+  infoCard: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginTop: 16, borderWidth: 1, borderColor: C.divider },
   infoRow: { marginBottom: 12 },
-  infoLabel: { fontSize: 12, color: GRAY, fontWeight: "600", marginBottom: 2 },
-  infoValue: { fontSize: 15, color: "#111" },
+  infoLabel: { fontSize: 12, color: C.inkMuted, fontWeight: "600", marginBottom: 2 },
+  infoValue: { fontSize: 15, color: C.ink0 },
   // ← BARU: baris koordinat + chip Reset
   coordRow: { flexDirection: "row", alignItems: "center" },
-  resetBtn: { marginLeft: 10, backgroundColor: "#FDE8E6", borderWidth: 1, borderColor: "#FECDCA", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  resetBtnOff: { backgroundColor: "#F2F4F7", borderColor: "#D0D5DD" },
-  resetBtnText: { fontSize: 12, color: RED, fontWeight: "800" },
+  resetBtn: { marginLeft: 10, backgroundColor: C.primaryTint, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  resetBtnOff: { backgroundColor: C.status.neutral.bg, borderColor: C.status.neutral.border },
+  resetBtnText: { fontSize: 12, color: C.primary, fontWeight: "800" },
   // ===== Style kartu GPS user =====
-  gpsCard: { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginTop: 16, borderWidth: 1, borderColor: "#EEF0F3" },
+  gpsCard: { backgroundColor: C.card, borderRadius: 14, padding: 14, marginTop: 16, borderWidth: 1, borderColor: C.divider },
   gpsHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  gpsTitle: { fontSize: 14, fontWeight: "800", color: "#111" },
-  gpsRefresh: { backgroundColor: "#FDE8E6", borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6 },
-  gpsRefreshText: { color: RED, fontSize: 12, fontWeight: "800" },
-  gpsErr: { fontSize: 12, color: RED, marginBottom: 6, fontWeight: "600" },
-  gpsRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#F0F0F0" },
-  gpsLabel: { fontSize: 12, color: GRAY, fontWeight: "600", flex: 1 },
-  gpsValue: { fontSize: 13, color: "#111", fontWeight: "700", flex: 2, textAlign: "right" },
-  gpsNote: { fontSize: 12, color: GRAY, fontStyle: "italic", marginTop: 4 },
-  note: { fontSize: 13, color: GRAY, marginTop: 16, textAlign: "center" },
-  btnCheckin: { backgroundColor: RED, borderRadius: 14, padding: 18, alignItems: "center", marginTop: 10 },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  gpsTitle: { fontSize: 14, fontWeight: "800", color: C.ink0 },
+  gpsRefresh: { backgroundColor: C.primaryTint, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6 },
+  gpsRefreshText: { color: C.primary, fontSize: 12, fontWeight: "800" },
+  gpsErr: { fontSize: 12, color: C.primary, marginBottom: 6, fontWeight: "600" },
+  gpsRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.hairline },
+  gpsLabel: { fontSize: 12, color: C.inkMuted, fontWeight: "600", flex: 1 },
+  gpsValue: { fontSize: 13, color: C.ink0, fontWeight: "700", flex: 2, textAlign: "right" },
+  gpsNote: { fontSize: 12, color: C.inkMuted, fontStyle: "italic", marginTop: 4 },
+  note: { fontSize: 13, color: C.inkMuted, marginTop: 16, textAlign: "center" },
+  btnCheckin: { backgroundColor: C.primary, borderRadius: 14, padding: 18, alignItems: "center", marginTop: 10 },
+  btnText: { color: C.onPrimary, fontSize: 16, fontWeight: "800" },
 });

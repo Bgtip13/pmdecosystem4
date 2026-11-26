@@ -211,9 +211,7 @@ export default function SpvPenilaianWeb() {
               </View>
             </View>
             <Text style={s.note}>
-              Rata-rata diambil dari {person.omsetMingguCount ?? 0} minggu yang sudah ada ACT. Target per kiriman ={" "}
-              {rupiah(person.omsetTargetPerKiriman)} (target bulanan ÷ {person.omsetKirimanPerBulan ?? 9}). Target
-              mingguan = target per kiriman × {person.omsetKirimanPerMinggu ?? 2.25} kiriman/minggu.
+              Rata-rata diambil dari {person.omsetMingguCount ?? 0} minggu yang sudah ada ACT. Target mingguan {rupiah(person.omsetMingguTarget)} diambil dari sheet PCP Mingguan kolom E (TGT/MGG) sesuai nama sales.
             </Text>
             {(person.omsetMingguWeeks ?? []).length > 0 ? (
               <View style={s.weeks}>

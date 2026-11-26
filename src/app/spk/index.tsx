@@ -18,7 +18,9 @@ import { exportCsv } from "../../lib/csvExport";
 import { isOwnerLike } from "../../lib/roles";
 import VisitResultForm, { type VisitResultValues } from "../../components/VisitResultForm";
 
-const { colors: C, radius: R } = theme;
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
+const { radius: R } = theme;
 
 // Bayangan tipis khas Android (ditulis eksplisit supaya kunci RN-nya benar)
 const SHADOW = {
@@ -29,12 +31,12 @@ const SHADOW = {
   elevation: 2,
 };
 
-const RED = C.primary;
-const GRAY = C.inkMuted;
-const GREEN = C.status.success.fg;
-const BLUE = C.status.info.fg;
-const AREA_BG: any = { SOLO: "#FEE4E2", DIY: "#E0F2FE", SEMARANG: "#DCFAE6" };
-const AREA_TX: any = { SOLO: "#B42318", DIY: "#026AA2", SEMARANG: "#067647" };
+const makeAREA_BG = (C: Colors): any => (
+  { SOLO: C.chip.danger.bg, DIY: C.chip.info.bg, SEMARANG: C.chip.success.bg }
+);
+const makeAREA_TX = (C: Colors): any => (
+  { SOLO: C.status.danger.fg, DIY: C.chip.info.fg, SEMARANG: C.status.success.fg }
+);
 const ROLE_LABEL: any = { owner: "Owner", field: "Sales Lapangan", telemarketing: "Telemarketing", supervisor: "Supervisor" };
 const MET_LABEL: any = { owner: "Owner", karyawan: "Karyawan", pic: "PIC", keluarga: "Keluarga", toko_tutup: "Toko Tutup" };
 const REASON_LABEL: any = {
@@ -42,13 +44,17 @@ const REASON_LABEL: any = {
   harga_dipelajari: "Harga dipelajari", owner_tidak_ada: "Owner tidak ada", piutang: "Ada piutang",
 };
 // Warna kotak hasil di kartu Riwayat Kunjungan
-const RV_TONE: any = {
-  ok: { backgroundColor: "#ECFDF3", borderColor: "#ABEFC6" },
-  warn: { backgroundColor: "#FFFAEB", borderColor: "#FEDF89" },
-  info: { backgroundColor: "#EFF8FF", borderColor: "#B2DDFF" },
-  bad: { backgroundColor: "#FEF3F2", borderColor: "#FECDCA" },
-};
-const RV_TONE_TX: any = { ok: "#067647", warn: "#B54708", info: "#175CD3", bad: "#B42318" };
+const makeRV_TONE = (C: Colors): any => (
+  {
+  ok: { backgroundColor: C.status.success.bg, borderColor: C.status.success.border },
+  warn: { backgroundColor: C.status.warning.bg, borderColor: C.status.warning.border },
+  info: { backgroundColor: C.status.info.bg, borderColor: C.status.info.border },
+  bad: { backgroundColor: C.status.danger.bg, borderColor: C.status.danger.border },
+}
+);
+const makeRV_TONE_TX = (C: Colors): any => (
+  { ok: C.status.success.fg, warn: C.status.warning.fg, info: C.status.info.fg, bad: C.status.danger.fg }
+);
 const rupiah = (n: any) => (n == null || isNaN(n) ? "-" : "Rp" + n.toLocaleString("id-ID"));
 const fmtTgl = (d: Date) =>
   d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -119,6 +125,12 @@ function groupHist(rows: { kind: "piutang" | "order"; item: any; task: any }[]) 
 let ensuredOrderKey: string | null = null;
 
 export default function Spk() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
+  const AREA_BG = makeAREA_BG(C);
+  const AREA_TX = makeAREA_TX(C);
+  const RV_TONE = makeRV_TONE(C);
+  const RV_TONE_TX = makeRV_TONE_TX(C);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const sync = useAction(api.piutang.manualSync);
@@ -255,10 +267,10 @@ export default function Spk() {
 
   // ← FASE 2: kartu hub menu (label dari SEGS, ditambah emoji + warna + deskripsi)
   const HUB_META: any = {
-    sales: { emoji: "🧭", bg: "#E0F2FE", desc: "Daftar toko & SPK kunjungan sales lapangan" },
-    admin: { emoji: "🗂️", bg: "#FEF0C7", desc: "Follow up tagihan, FU H+1 kunjungan sales & FU Toko" },
-    done: { emoji: "✅", bg: "#DCFAE6", desc: "Hasil follow-up yang sudah CLSD (disetujui)" },
-    riwayat: { emoji: "📍", bg: "#F4EBFF", desc: "Kunjungan sales lapangan — lihat & koreksi hasil" },
+    sales: { emoji: "🧭", bg: C.chip.info.bg, desc: "Daftar toko & SPK kunjungan sales lapangan" },
+    admin: { emoji: "🗂️", bg: C.chip.warning.bg, desc: "Follow up tagihan, FU H+1 kunjungan sales & FU Toko" },
+    done: { emoji: "✅", bg: C.chip.success.bg, desc: "Hasil follow-up yang sudah CLSD (disetujui)" },
+    riwayat: { emoji: "📍", bg: C.purpleSoft, desc: "Kunjungan sales lapangan — lihat & koreksi hasil" },
   };
    // Hub = menu kerja saja.
   // - owner tidak punya menu kerja → 2 riwayatnya tampil sebagai kartu menu
@@ -270,7 +282,7 @@ export default function Spk() {
 
   // ← FASE 2: kartu tambahan — FU Toko (toko belum ambil bulan ini)
   if (!isOwner && !isField) {
-    HUB.push({ key: "toko", label: "FU Toko", emoji: "🏪", bg: "#FEF0C7", desc: "Toko belum ambil bulan ini — hubungi & catat hasilnya" });
+    HUB.push({ key: "toko", label: "FU Toko", emoji: "🏪", bg: C.chip.warning.bg, desc: "Toko belum ambil bulan ini — hubungi & catat hasilnya" });
   }
   // ← Kartu menu SPK Jadwal (supervisor & sales lapangan)
   if (isSuper || isField) {
@@ -278,7 +290,7 @@ export default function Spk() {
       key: "jadwal",
       label: "SPK Jadwal",
       emoji: "📅",
-      bg: "#E0F2FE",
+      bg: C.chip.info.bg,
       desc: "Kunjungan hari ini sesuai jadwal bulanan — ketuk untuk check-in",
     });
   }
@@ -365,7 +377,7 @@ export default function Spk() {
   }, [viewer, usesPiutang, todayKey]);
 
   if (!viewer) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
   const areaLabel = viewer.area ?? "Semua Area";
   const isTodayStr = (d: string) => d === new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
@@ -657,8 +669,8 @@ export default function Spk() {
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
             {isSuper && item.area ? (
-              <View style={[styles.areaChip, { backgroundColor: AREA_BG[item.area] ?? "#F2F4F7" }]}>
-                <Text style={[styles.areaChipText, { color: AREA_TX[item.area] ?? GRAY }]}>{item.area}</Text>
+              <View style={[styles.areaChip, { backgroundColor: AREA_BG[item.area] ?? C.status.neutral.bg }]}>
+                <Text style={[styles.areaChipText, { color: AREA_TX[item.area] ?? C.inkMuted }]}>{item.area}</Text>
               </View>
             ) : null}
           </View>
@@ -706,20 +718,20 @@ export default function Spk() {
 
               <View style={styles.admBadgeRow}>
                 {ps.length > 0 ? (
-                  <View style={[styles.admBadge, { backgroundColor: "#FFF1F0", borderColor: "#FECDCA" }]}>
-                    <Text style={[styles.admBadgeText, { color: "#B42318" }]}>
+                  <View style={[styles.admBadge, { backgroundColor: C.dangerTint, borderColor: C.status.danger.border }]}>
+                    <Text style={[styles.admBadgeText, { color: C.status.danger.fg }]}>
                       PIUTANG{ps.length > 1 ? ` ×${ps.length}` : ""}
                     </Text>
                   </View>
                 ) : null}
                 {od ? (
-                  <View style={[styles.admBadge, { backgroundColor: "#E0F2FE", borderColor: "#B2DDFF" }]}>
-                    <Text style={[styles.admBadgeText, { color: "#026AA2" }]}>ORDERAN</Text>
+                  <View style={[styles.admBadge, { backgroundColor: C.chip.info.bg, borderColor: C.status.info.border }]}>
+                    <Text style={[styles.admBadgeText, { color: C.chip.info.fg }]}>ORDERAN</Text>
                   </View>
                 ) : null}
                 {p?.usia != null ? (
-                  <View style={[styles.admBadge, { backgroundColor: p.usia >= 90 ? "#FEE4E2" : "#F2F4F7", borderColor: p.usia >= 90 ? "#FECDCA" : "#EAECF0" }]}>
-                    <Text style={[styles.admBadgeText, { color: p.usia >= 90 ? RED : GRAY }]}>
+                  <View style={[styles.admBadge, { backgroundColor: p.usia >= 90 ? C.chip.danger.bg : C.status.neutral.bg, borderColor: p.usia >= 90 ? C.status.danger.border : C.border2 }]}>
+                    <Text style={[styles.admBadgeText, { color: p.usia >= 90 ? C.primary : C.inkMuted }]}>
                       {p.usia} hari{ps.length > 1 ? " (tertua)" : ""}
                     </Text>
                   </View>
@@ -730,8 +742,8 @@ export default function Spk() {
             <View style={styles.admRight}>
               <View style={styles.admRightRow}>
                 {(isSuper || isOwner) && g.area ? (
-                  <View style={[styles.areaChip, { backgroundColor: AREA_BG[g.area] ?? "#F2F4F7" }]}>
-                    <Text style={[styles.areaChipText, { color: AREA_TX[g.area] ?? GRAY }]}>{g.area}</Text>
+                  <View style={[styles.areaChip, { backgroundColor: AREA_BG[g.area] ?? C.status.neutral.bg }]}>
+                    <Text style={[styles.areaChipText, { color: AREA_TX[g.area] ?? C.inkMuted }]}>{g.area}</Text>
                   </View>
                 ) : null}
                 <SpkStatusBadge status={st} />
@@ -774,7 +786,7 @@ export default function Spk() {
                         {x.photoUrl ? (
                           <TouchableOpacity style={styles.badgeRow} onPress={() => setOdView(x.photoUrl)}>
                             <Image source={{ uri: x.photoUrl }} style={styles.shotThumbSm} />
-                            <Text style={[styles.cardSub, { marginLeft: 8, color: "#7A2E0E" }]}>Bukti • ketuk untuk perbesar</Text>
+                            <Text style={[styles.cardSub, { marginLeft: 8, color: C.warnDeep }]}>Bukti • ketuk untuk perbesar</Text>
                           </TouchableOpacity>
                         ) : (
                           <Text style={styles.reviewLine}>Bukti: tidak ada</Text>
@@ -787,7 +799,7 @@ export default function Spk() {
                     )}
 
                     <TouchableOpacity style={styles.actBtn} onPress={() => router.push(`/spk/${x._id}` as any)}>
-                      <AppIcon name="edit" size={13} color="#344054" style={{ marginRight: 5 }} />
+                      <AppIcon name="edit" size={13} color={C.inkSoft} style={{ marginRight: 5 }} />
                       <Text style={styles.actBtnText}>Buka SPK Piutang</Text>
                     </TouchableOpacity>
                   </View>
@@ -797,7 +809,7 @@ export default function Spk() {
 
             {od ? (
               <View style={styles.admBodyRow}>
-                <Text style={[styles.admBodyTitle, { color: "#026AA2" }]}>ORDERAN</Text>
+                <Text style={[styles.admBodyTitle, { color: C.chip.info.fg }]}>ORDERAN</Text>
                 <Text style={styles.admBodyLine}>
                   Kunjungan {od.visitDay || "H-1"} • {od.salesName || "-"}{od.visitCount > 1 ? ` (${od.visitCount}x)` : ""}
                 </Text>
@@ -818,7 +830,7 @@ export default function Spk() {
                     {(od as any).photoUrl ? (
                       <TouchableOpacity style={styles.badgeRow} onPress={() => setOdView((od as any).photoUrl)}>
                         <Image source={{ uri: (od as any).photoUrl }} style={styles.shotThumbSm} />
-                        <Text style={[styles.cardSub, { marginLeft: 8, color: "#7A2E0E" }]}>Bukti chat WA • ketuk untuk perbesar</Text>
+                        <Text style={[styles.cardSub, { marginLeft: 8, color: C.warnDeep }]}>Bukti chat WA • ketuk untuk perbesar</Text>
                       </TouchableOpacity>
                     ) : (
                       <Text style={styles.reviewLine}>Bukti chat: tidak ada</Text>
@@ -833,15 +845,15 @@ export default function Spk() {
                 <View style={styles.actRow}>
                   {(od as any).workflowStatus === "OPEN" && !bulk.pilih ? (
                     <TouchableOpacity
-                      style={[styles.actBtn, { backgroundColor: "#026AA2", borderColor: "#026AA2" }]}
+                      style={[styles.actBtn, { backgroundColor: C.chip.info.fg, borderColor: C.chip.info.fg }]}
                       onPress={() => openOrder(od, false)}
                     >
-                      <AppIcon name="edit" size={13} color="#fff" style={{ marginRight: 5 }} />
-                      <Text style={[styles.actBtnText, { color: "#fff" }]}>Kerjakan</Text>
+                      <AppIcon name="edit" size={13} color={C.onPrimary} style={{ marginRight: 5 }} />
+                      <Text style={[styles.actBtnText, { color: C.onPrimary }]}>Kerjakan</Text>
                     </TouchableOpacity>
                   ) : null}
                   <TouchableOpacity style={styles.actBtn} onPress={() => router.push(`/spk-detail-order/${od._id}` as any)}>
-                    <AppIcon name="eye" size={13} color="#344054" style={{ marginRight: 5 }} />
+                    <AppIcon name="eye" size={13} color={C.inkSoft} style={{ marginRight: 5 }} />
                     <Text style={styles.actBtnText}>Buka Detail Orderan</Text>
                   </TouchableOpacity>
                 </View>
@@ -854,8 +866,8 @@ export default function Spk() {
           <View style={styles.actRow}>
             {psInpg.map((x: any, i: number) => (
               <TouchableOpacity key={x._id} style={styles.actBtn} onPress={() => onCloseTask(x)}>
-                <AppIcon name="check" size={13} color="#067647" style={{ marginRight: 5 }} />
-                <Text style={[styles.actBtnText, { color: "#067647" }]}>
+                <AppIcon name="check" size={13} color={C.status.success.fg} style={{ marginRight: 5 }} />
+                <Text style={[styles.actBtnText, { color: C.status.success.fg }]}>
                   {psInpg.length > 1
                     ? `Setujui #${i + 1} • Sisa ${rupiah(x.piutang ?? x.total)}`
                     : "Setujui Piutang"}
@@ -864,8 +876,8 @@ export default function Spk() {
             ))}
             {od && (od as any).workflowStatus === "INPG" ? (
               <TouchableOpacity style={styles.actBtn} onPress={() => onCloseOrder(od)}>
-                <AppIcon name="check" size={13} color="#067647" style={{ marginRight: 5 }} />
-                <Text style={[styles.actBtnText, { color: "#067647" }]}>Setujui Orderan</Text>
+                <AppIcon name="check" size={13} color={C.status.success.fg} style={{ marginRight: 5 }} />
+                <Text style={[styles.actBtnText, { color: C.status.success.fg }]}>Setujui Orderan</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -877,11 +889,11 @@ export default function Spk() {
 
   // ===== Label warna =====
   const HASIL_LABEL: any = { janji_bayar: "Janji bayar", lunas: "Lunas", cicil: "Cicil", no_respon: "No Respon" };
-  const HASIL_BG: any = { janji_bayar: "#FEF0C7", lunas: "#DCFAE6", cicil: "#E0F2FE", no_respon: "#F2F4F7" };
-  const HASIL_TX: any = { janji_bayar: "#B54708", lunas: "#067647", cicil: "#026AA2", no_respon: "#475467" };
+  const HASIL_BG: any = { janji_bayar: C.chip.warning.bg, lunas: C.chip.success.bg, cicil: C.chip.info.bg, no_respon: C.status.neutral.bg };
+  const HASIL_TX: any = { janji_bayar: C.status.warning.fg, lunas: C.status.success.fg, cicil: C.chip.info.fg, no_respon: C.ink2 };
   const ORDER_HASIL_LABEL: any = { order_masuk: "Order masuk", order_tambah: "Order tambahan", tidak_order: "Tidak order", no_respon: "No Respon" };
-  const ORDER_HASIL_BG: any = { order_masuk: "#DCFAE6", order_tambah: "#E0F2FE", tidak_order: "#FEE4E2", no_respon: "#F2F4F7" };
-  const ORDER_HASIL_TX: any = { order_masuk: "#067647", order_tambah: "#026AA2", tidak_order: "#B42318", no_respon: "#475467" };
+  const ORDER_HASIL_BG: any = { order_masuk: C.chip.success.bg, order_tambah: C.chip.info.bg, tidak_order: C.chip.danger.bg, no_respon: C.status.neutral.bg };
+  const ORDER_HASIL_TX: any = { order_masuk: C.status.success.fg, order_tambah: C.chip.info.fg, tidak_order: C.status.danger.fg, no_respon: C.ink2 };
 
   // ===== Follow-up orderan: handler =====
   const openOrder = (t: any, edit: boolean, screenshotUrl?: string, doneByName?: string) => {
@@ -1031,8 +1043,8 @@ export default function Spk() {
           <Text style={[styles.cardName, { flex: 1, marginRight: 8 }]} numberOfLines={1}>{g.storeName}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
             {g.area ? (
-              <View style={[styles.areaChip, { backgroundColor: AREA_BG[g.area] ?? "#F2F4F7" }]}>
-                <Text style={[styles.areaChipText, { color: AREA_TX[g.area] ?? GRAY }]}>{g.area}</Text>
+              <View style={[styles.areaChip, { backgroundColor: AREA_BG[g.area] ?? C.status.neutral.bg }]}>
+                <Text style={[styles.areaChipText, { color: AREA_TX[g.area] ?? C.inkMuted }]}>{g.area}</Text>
               </View>
             ) : null}
             <SpkStatusBadge status={wfsG} style={{ marginLeft: 6 }} />
@@ -1046,7 +1058,7 @@ export default function Spk() {
               <View style={[styles.histStatBox, ordRows.length === 0 && styles.histStatBoxLast]}>
                 <Text style={styles.histStatLabel}>{adaSisa ? "SISA PIUTANG" : "PIUTANG"}</Text>
                 <Text
-                  style={[styles.histStatValue, adaSisa && sisaTotal > 0 && { color: RED }]}
+                  style={[styles.histStatValue, adaSisa && sisaTotal > 0 && { color: C.primary }]}
                   numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}
                 >
                   {adaSisa ? rupiah(sisaTotal) : `${piuRows.length} tugas`}
@@ -1068,11 +1080,11 @@ export default function Spk() {
             <View key={"p" + t._id} style={styles.subRow}>
               <TouchableOpacity onPress={() => router.push(`/spk-detail/${t._id}`)}>
                 <View style={styles.subHead}>
-                  <View style={[styles.typeChip, { backgroundColor: "#FFF1F0" }]}>
-                    <Text style={[styles.typeChipText, { color: "#B42318" }]}>PIUTANG</Text>
+                  <View style={[styles.typeChip, { backgroundColor: C.dangerTint }]}>
+                    <Text style={[styles.typeChipText, { color: C.status.danger.fg }]}>PIUTANG</Text>
                   </View>
-                  <View style={[styles.hasilChip, { backgroundColor: HASIL_BG[t.hasil] ?? "#F2F4F7" }]}>
-                    <Text style={[styles.hasilText, { color: HASIL_TX[t.hasil] ?? GRAY }]}>
+                  <View style={[styles.hasilChip, { backgroundColor: HASIL_BG[t.hasil] ?? C.status.neutral.bg }]}>
+                    <Text style={[styles.hasilText, { color: HASIL_TX[t.hasil] ?? C.inkMuted }]}>
                       {HASIL_LABEL[t.hasil] ?? t.hasil ?? "-"}
                       {t.hasil === "janji_bayar" && t.promiseDate ? " • " + t.promiseDate : ""}
                       {t.payMethod ? " • " + t.payMethod : ""}
@@ -1089,7 +1101,7 @@ export default function Spk() {
                 {t.notes ? <Text style={styles.cardSub} numberOfLines={2}>{t.notes}</Text> : null}
 
                 <View style={styles.badgeRow}>
-                  <AppIcon name="check" size={13} color={GREEN} style={{ marginRight: 5 }} />
+                  <AppIcon name="check" size={13} color={C.status.success.fg} style={{ marginRight: 5 }} />
                   <Text style={styles.doneBy}>
                     {r.salesName || r.item?.salesName || "-"} • {t.doneAt ? new Date(t.doneAt).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
                   </Text>
@@ -1100,11 +1112,11 @@ export default function Spk() {
               {isSuper ? (
                 <View style={styles.actRow}>
                   <TouchableOpacity style={styles.actBtn} onPress={() => onReopen(t)}>
-                    <AppIcon name="refresh" size={13} color="#344054" style={{ marginRight: 5 }} />
+                    <AppIcon name="refresh" size={13} color={C.inkSoft} style={{ marginRight: 5 }} />
                     <Text style={styles.actBtnText}>Buka Kembali</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actBtn} onPress={() => openEdit(t)}>
-                    <AppIcon name="edit" size={13} color="#344054" style={{ marginRight: 5 }} />
+                    <AppIcon name="edit" size={13} color={C.inkSoft} style={{ marginRight: 5 }} />
                     <Text style={styles.actBtnText}>Edit Hasil</Text>
                   </TouchableOpacity>
                 </View>
@@ -1121,11 +1133,11 @@ export default function Spk() {
             <View key={"o" + t._id} style={styles.subRow}>
               <TouchableOpacity onPress={() => router.push(`/spk-detail-order/${t._id}` as any)}>
                 <View style={styles.subHead}>
-                  <View style={[styles.typeChip, { backgroundColor: "#E0F2FE" }]}>
-                    <Text style={[styles.typeChipText, { color: "#026AA2" }]}>ORDERAN</Text>
+                  <View style={[styles.typeChip, { backgroundColor: C.chip.info.bg }]}>
+                    <Text style={[styles.typeChipText, { color: C.chip.info.fg }]}>ORDERAN</Text>
                   </View>
-                  <View style={[styles.hasilChip, { backgroundColor: ORDER_HASIL_BG[t.hasil] ?? "#F2F4F7" }]}>
-                    <Text style={[styles.hasilText, { color: ORDER_HASIL_TX[t.hasil] ?? GRAY }]}>
+                  <View style={[styles.hasilChip, { backgroundColor: ORDER_HASIL_BG[t.hasil] ?? C.status.neutral.bg }]}>
+                    <Text style={[styles.hasilText, { color: ORDER_HASIL_TX[t.hasil] ?? C.inkMuted }]}>
                       {ORDER_HASIL_LABEL[t.hasil] ?? t.hasil ?? "-"}
                     </Text>
                   </View>
@@ -1142,7 +1154,7 @@ export default function Spk() {
                 ) : null}
 
                 <View style={styles.badgeRow}>
-                  <AppIcon name="check" size={13} color={GREEN} style={{ marginRight: 5 }} />
+                  <AppIcon name="check" size={13} color={C.status.success.fg} style={{ marginRight: 5 }} />
                   <Text style={styles.doneBy}>
                     {oleh || "-"} • {t.doneAt ? new Date(t.doneAt).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
                   </Text>
@@ -1153,11 +1165,11 @@ export default function Spk() {
               {isSuper ? (
                 <View style={styles.actRow}>
                   <TouchableOpacity style={styles.actBtn} onPress={() => onReopenOrder(t)}>
-                    <AppIcon name="refresh" size={13} color="#344054" style={{ marginRight: 5 }} />
+                    <AppIcon name="refresh" size={13} color={C.inkSoft} style={{ marginRight: 5 }} />
                     <Text style={styles.actBtnText}>Buka Kembali</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actBtn} onPress={() => openOrder(t, true, shot, oleh)}>
-                    <AppIcon name="edit" size={13} color="#344054" style={{ marginRight: 5 }} />
+                    <AppIcon name="edit" size={13} color={C.inkSoft} style={{ marginRight: 5 }} />
                     <Text style={styles.actBtnText}>Edit Hasil</Text>
                   </TouchableOpacity>
                 </View>
@@ -1222,7 +1234,7 @@ export default function Spk() {
               </Text>
             </View>
             <View style={[styles.thumb, styles.thumbEmpty]}>
-              <AppIcon name={item.hasSelfie ? "image" : "camera"} size={16} color={item.hasSelfie ? RED : GRAY} />
+              <AppIcon name={item.hasSelfie ? "image" : "camera"} size={16} color={item.hasSelfie ? C.primary : C.inkMuted} />
             </View>
           </View>
 
@@ -1230,14 +1242,14 @@ export default function Spk() {
           <View style={styles.rvTagRow}>
             <View style={styles.metChip}><Text style={styles.metChipText}>{MET_LABEL[v.metWith] ?? "-"}</Text></View>
             <View style={styles.timeChip}>
-              <AppIcon name="clock" size={12} color="#475467" style={{ marginRight: 4 }} />
+              <AppIcon name="clock" size={12} color={C.ink2} style={{ marginRight: 4 }} />
               <Text style={styles.timeChipText}>
                 {fmtTime(v.checkinAt)}–{v.checkoutAt ? fmtTime(v.checkoutAt) : "-"}{dur > 0 ? ` • ${dur} mnt` : ""}
               </Text>
             </View>
             {isSuper && (v as any).source === "manual" ? (
-              <View style={[styles.rvTag, { backgroundColor: "#DBEAFE" }]}>
-                <Text style={[styles.rvTagText, { color: "#1D4ED8" }]}>manual • migrasi</Text>
+              <View style={[styles.rvTag, { backgroundColor: C.infoBg2 }]}>
+                <Text style={[styles.rvTagText, { color: C.blueStrong }]}>manual • migrasi</Text>
               </View>
             ) : null}
           </View>
@@ -1270,10 +1282,10 @@ export default function Spk() {
         {isSuper && !bulkV.pilih ? (
           <View style={styles.rvActRow}>
             <TouchableOpacity style={styles.rvIconBtn} onPress={() => onDeleteVisit(v)} hitSlop={6}>
-              <AppIcon name="trash" size={17} color="#B42318" />
+              <AppIcon name="trash" size={17} color={C.status.danger.fg} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.rvIconBtn} onPress={() => router.push(`/visit-detail/${v._id}`)} hitSlop={6}>
-              <AppIcon name="eye" size={17} color="#175CD3" />
+              <AppIcon name="eye" size={17} color={C.status.info.fg} />
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1445,7 +1457,7 @@ export default function Spk() {
             ) : null}
             {effSec === "admin" && !hubOpen && isSuper ? (
               <TouchableOpacity style={styles.hdrIconBtn} onPress={onSync} disabled={syncing}>
-                <AppIcon name="refresh" size={18} color={syncing ? GRAY : C.primary} />
+                <AppIcon name="refresh" size={18} color={syncing ? C.inkMuted : C.primary} />
               </TouchableOpacity>
             ) : null}
             {showHistIcons ? (
@@ -1488,7 +1500,7 @@ export default function Spk() {
                     setHubOpen(false);
                   }}
                 >
-                  <View style={[styles.hubEmoji, { backgroundColor: h.bg ?? "#F2F4F7" }]}>
+                  <View style={[styles.hubEmoji, { backgroundColor: h.bg ?? C.status.neutral.bg }]}>
                     <Text style={{ fontSize: 22 }}>{h.emoji}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
@@ -1510,7 +1522,7 @@ export default function Spk() {
               <TextInput
                 style={styles.searchInput}
                 placeholder="Cari nama toko / alamat..."
-                placeholderTextColor="#98A2B3"
+                placeholderTextColor={C.inkFaint}
                 value={q}
                 onChangeText={setQ}
                 autoCapitalize="none"
@@ -1548,7 +1560,7 @@ export default function Spk() {
               }
               ListEmptyComponent={
                 stores === undefined
-                  ? <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+                  ? <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
                   : emptyBox("Toko tidak ditemukan", "Coba kata kunci lain atau ubah filter area.")
               }
             />
@@ -1581,7 +1593,7 @@ export default function Spk() {
 
                 {adminCount > 0 ? (
                   <View style={styles.alertBanner}>
-                    <AppIcon name="warn" size={15} color="#B42318" style={{ marginRight: 6 }} />
+                    <AppIcon name="warn" size={15} color={C.status.danger.fg} style={{ marginRight: 6 }} />
                     <Text style={styles.alertText}>
                       Pengingat: {adminCount} follow-up (di {adminCards} kartu) belum dikerjakan hari ini.
                     </Text>
@@ -1614,7 +1626,7 @@ export default function Spk() {
               <TextInput
                 style={styles.searchInput}
                 placeholder="Cari toko / petugas..."
-                placeholderTextColor="#98A2B3"
+                placeholderTextColor={C.inkFaint}
                 value={dq}
                 onChangeText={setDq}
                 autoCapitalize="none"
@@ -1645,14 +1657,14 @@ export default function Spk() {
               ListHeaderComponent={
                 isTodaySel && (anyToday || orderDoneRows.length > 0) ? (
                   <View style={styles.okBanner}>
-                    <AppIcon name="check" size={15} color="#067647" style={{ marginRight: 6 }} />
+                    <AppIcon name="check" size={15} color={C.status.success.fg} style={{ marginRight: 6 }} />
                     <Text style={styles.okText}>Ada yang sudah dikerjakan hari ini. Kerja bagus!</Text>
                   </View>
                 ) : null
               }
               ListEmptyComponent={
                 done === undefined
-                  ? <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+                  ? <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
                   : emptyBox("Belum ada hasil follow-up", "Ubah tanggal, filter, atau kata kunci pencarian.")
               }
             />
@@ -1694,7 +1706,7 @@ export default function Spk() {
               contentContainerStyle={{ padding: 16, paddingBottom: bulkV.pilih ? 200 : 110 }}
               ListEmptyComponent={
                 hist === undefined
-                  ? <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+                  ? <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
                   : emptyBox("Belum ada kunjungan", "Tidak ada kunjungan pada tanggal ini.")
               }
             />
@@ -1843,7 +1855,7 @@ export default function Spk() {
               <TextInput
                 style={styles.edInput}
                 placeholder="Cari nama toko..."
-                placeholderTextColor="#98A2B3"
+                placeholderTextColor={C.inkFaint}
                 value={mvStoreQ}
                 onChangeText={setMvStoreQ}
                 autoCapitalize="none"
@@ -1857,10 +1869,10 @@ export default function Spk() {
                     return (
                       <TouchableOpacity
                         key={s._id}
-                        style={[styles.odChip, on && { backgroundColor: "#FEE4E2", borderColor: "#FECDCA" }]}
+                        style={[styles.odChip, on && { backgroundColor: C.chip.danger.bg, borderColor: C.status.danger.border }]}
                         onPress={() => setMvStoreId(s._id)}
                       >
-                        <Text style={[styles.cardSub, on && { color: "#B42318", fontWeight: "800" }]} numberOfLines={1}>{s.name}</Text>
+                        <Text style={[styles.cardSub, on && { color: C.status.danger.fg, fontWeight: "800" }]} numberOfLines={1}>{s.name}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -1868,9 +1880,9 @@ export default function Spk() {
 
               <Text style={styles.edLabel}>Jam masuk &amp; keluar</Text>
               <View style={{ flexDirection: "row", gap: 10 }}>
-                <TextInput style={[styles.edInput, { flex: 1 }]} placeholder="Masuk 09:00" placeholderTextColor="#98A2B3"
+                <TextInput style={[styles.edInput, { flex: 1 }]} placeholder="Masuk 09:00" placeholderTextColor={C.inkFaint}
                   value={mvStart} onChangeText={setMvStart} keyboardType="numbers-and-punctuation" />
-                <TextInput style={[styles.edInput, { flex: 1 }]} placeholder="Keluar 09:15" placeholderTextColor="#98A2B3"
+                <TextInput style={[styles.edInput, { flex: 1 }]} placeholder="Keluar 09:15" placeholderTextColor={C.inkFaint}
                   value={mvEnd} onChangeText={setMvEnd} keyboardType="numbers-and-punctuation" />
               </View>
             </ScrollView>
@@ -1912,7 +1924,7 @@ export default function Spk() {
               <TextInput
                 style={styles.edInput}
                 placeholder="Catatan (opsional)"
-                placeholderTextColor="#98A2B3"
+                placeholderTextColor={C.inkFaint}
                 value={odNotes}
                 onChangeText={setOdNotes}
                 multiline
@@ -1925,7 +1937,7 @@ export default function Spk() {
                     <Image source={{ uri: odShot.uri }} style={styles.shotImg} />
                   ) : (
                     <View style={[styles.shotImg, styles.thumbEmpty]}>
-                      <AppIcon name="image" size={18} color={GRAY} />
+                      <AppIcon name="image" size={18} color={C.inkMuted} />
                     </View>
                   )}
                   <Text style={styles.cardSub}>{odShot ? "Bukti baru dipilih" : "Bukti sudah tersimpan"}</Text>
@@ -1980,7 +1992,7 @@ export default function Spk() {
                 <TextInput
                   style={styles.edInput}
                   placeholder="2026-10-05"
-                  placeholderTextColor="#98A2B3"
+                  placeholderTextColor={C.inkFaint}
                   value={edDate}
                   onChangeText={setEdDate}
                   autoCapitalize="none"
@@ -2008,7 +2020,7 @@ export default function Spk() {
             <TextInput
               style={styles.edInput}
               placeholder="Catatan (opsional)"
-              placeholderTextColor="#98A2B3"
+              placeholderTextColor={C.inkFaint}
               value={edNotes}
               onChangeText={setEdNotes}
               multiline
@@ -2039,15 +2051,15 @@ export default function Spk() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink, textAlign: "center" },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
 
   // ===== Header =====
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -2060,29 +2072,29 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 38 },
-  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  topTitle: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2 },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  hdrIconBtn: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center", marginLeft: 6, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border },
-  areaBadge: { backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, marginRight: 4 },
-  areaBadgeText: { fontSize: 11, fontWeight: "800", color: GRAY },
+  brand: { fontSize: 11, fontWeight: "800", color: C.primary, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  topTitle: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2 },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  hdrIconBtn: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center", marginLeft: 6, backgroundColor: C.card, borderWidth: 1, borderColor: C.border },
+  areaBadge: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, marginRight: 4 },
+  areaBadgeText: { fontSize: 11, fontWeight: "800", color: C.inkMuted },
 
   // ===== Hub menu =====
   hubCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: R.lg, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.border, ...SHADOW },
   hubEmoji: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", marginRight: 12 },
   hubTitle: { fontSize: 16, fontWeight: "800", color: C.ink },
-  hubDesc: { fontSize: 12, color: GRAY, marginTop: 2, lineHeight: 17 },
-  hubBadge: { backgroundColor: RED, borderRadius: 999, minWidth: 24, paddingHorizontal: 7, paddingVertical: 3, alignItems: "center", marginLeft: 8 },
-  hubBadgeText: { color: "#fff", fontSize: 12, fontWeight: "900" },
-  arrowTxt: { fontSize: 22, color: "#98A2B3", marginLeft: 8 },
+  hubDesc: { fontSize: 12, color: C.inkMuted, marginTop: 2, lineHeight: 17 },
+  hubBadge: { backgroundColor: C.primary, borderRadius: 999, minWidth: 24, paddingHorizontal: 7, paddingVertical: 3, alignItems: "center", marginLeft: 8 },
+  hubBadgeText: { color: C.onPrimary, fontSize: 12, fontWeight: "900" },
+  arrowTxt: { fontSize: 22, color: C.inkFaint, marginLeft: 8 },
 
   // ===== Filter / pencarian =====
   chipRow: { flexDirection: "row", flexWrap: "wrap", marginBottom: 6 },
   chip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 6, backgroundColor: C.surface },
   chipActive: { backgroundColor: C.primary, borderColor: C.primary },
   chipText: { fontSize: 12, color: C.inkSoft, fontWeight: "700" },
-  chipTextActive: { color: "#fff" },
+  chipTextActive: { color: C.onPrimary },
   searchBox: { paddingHorizontal: 16, paddingTop: 12 },
   searchInput: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: R.md, padding: 11, fontSize: 15, color: C.ink },
   listMeta: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2, fontSize: 12, fontWeight: "700", color: C.inkMuted },
@@ -2097,11 +2109,11 @@ const styles = StyleSheet.create({
   cardRight: { alignItems: "center", justifyContent: "center", marginLeft: 10 },
   checkinHint: { fontSize: 11, color: C.primary, fontWeight: "800" },
   coordPill: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, marginTop: 9, borderWidth: 1 },
-  coordPillOk: { backgroundColor: "#ECFDF3", borderColor: "#ABEFC6" },
-  coordPillNo: { backgroundColor: "#FFFAEB", borderColor: "#FEDF89" },
+  coordPillOk: { backgroundColor: C.status.success.bg, borderColor: C.status.success.border },
+  coordPillNo: { backgroundColor: C.status.warning.bg, borderColor: C.status.warning.border },
   coordPillText: { fontSize: 11, fontWeight: "700" },
-  coordPillTextOk: { color: "#067647" },
-  coordPillTextNo: { color: "#B54708" },
+  coordPillTextOk: { color: C.status.success.fg },
+  coordPillTextNo: { color: C.status.warning.fg },
   areaChip: { borderRadius: R.xs, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 },
   areaChipText: { fontSize: 10, fontWeight: "800" },
 
@@ -2119,11 +2131,11 @@ const styles = StyleSheet.create({
   admChev: { fontSize: 12, color: C.inkFaint, fontWeight: "800", marginTop: 6 },
   admBody: { marginTop: 10 },
   admBodyRow: { paddingTop: 10 },
-  admBodyTitle: { fontSize: 10, fontWeight: "900", color: "#B42318", letterSpacing: 0.4 },
+  admBodyTitle: { fontSize: 10, fontWeight: "900", color: C.status.danger.fg, letterSpacing: 0.4 },
   admBodyLine: { fontSize: 12, color: C.inkSoft, marginTop: 3, lineHeight: 17 },
-  reviewBox: { backgroundColor: "#FFFAEB", borderWidth: 1, borderColor: "#FEDF89", borderRadius: R.md, padding: 10, marginTop: 8 },
-  reviewTitle: { fontSize: 10, fontWeight: "900", color: "#B54708", letterSpacing: 0.4 },
-  reviewLine: { fontSize: 12, color: "#7A2E0E", marginTop: 3 },
+  reviewBox: { backgroundColor: C.status.warning.bg, borderWidth: 1, borderColor: C.status.warning.border, borderRadius: R.md, padding: 10, marginTop: 8 },
+  reviewTitle: { fontSize: 10, fontWeight: "900", color: C.status.warning.fg, letterSpacing: 0.4 },
+  reviewLine: { fontSize: 12, color: C.warnDeep, marginTop: 3 },
   shotThumbSm: { width: 44, height: 44, borderRadius: 8 },
 
 
@@ -2132,7 +2144,7 @@ const styles = StyleSheet.create({
   alertText: { color: C.status.danger.fg, fontSize: 13, fontWeight: "700", flex: 1 },
   okBanner: { flexDirection: "row", alignItems: "center", backgroundColor: C.status.success.bg, borderRadius: R.md, borderWidth: 1, borderColor: C.status.success.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
   okText: { color: C.status.success.fg, fontSize: 13, fontWeight: "700", flex: 1 },
-  cronNote: { fontSize: 11, color: GRAY, marginTop: 2 },
+  cronNote: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
 
   // ===== Navigasi tanggal =====
   dateNav: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.divider },
@@ -2145,7 +2157,7 @@ const styles = StyleSheet.create({
   salesChip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 8, backgroundColor: C.surface, maxWidth: 160 },
   salesChipOn: { backgroundColor: C.primary, borderColor: C.primary },
   salesChipText: { fontSize: 12, color: C.inkSoft, fontWeight: "700" },
-  salesChipTextOn: { color: "#fff" },
+  salesChipTextOn: { color: C.onPrimary },
 
   // ===== Riwayat Follow-up =====
   histCard: { backgroundColor: C.surface, borderRadius: R.lg, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.border, ...SHADOW },
@@ -2169,7 +2181,7 @@ const styles = StyleSheet.create({
   rvCard: { backgroundColor: C.surface, borderRadius: R.lg, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.border, ...SHADOW },
   rvMetaLine: { fontSize: 12, color: C.inkMuted, marginTop: 3 },
   rvNameRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
-  rvDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#12B76A", marginRight: 7 },
+  rvDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.greenAccent, marginRight: 7 },
   rvTagRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginTop: 10 },
   rvTag: { backgroundColor: C.chip.warning.bg, borderRadius: R.xs, paddingHorizontal: 8, paddingVertical: 3, marginRight: 6, marginBottom: 4 },
   rvTagText: { fontSize: 10, fontWeight: "800" },
@@ -2187,13 +2199,13 @@ const styles = StyleSheet.create({
   thumb: { width: 46, height: 46, borderRadius: 23, marginTop: 6 },
   thumbEmpty: { backgroundColor: C.status.neutral.bg, alignItems: "center", justifyContent: "center" },
   rvActRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 10 },
-  rvIconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginLeft: 8, backgroundColor: "#F8F9FB", borderWidth: 1, borderColor: "#EAECF0" },
+  rvIconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginLeft: 8, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border2 },
 
   // ===== Modal umum =====
   modalWrap: { flex: 1, justifyContent: "center", padding: 20, backgroundColor: "rgba(16,24,40,0.45)" },
   modalCard: { backgroundColor: C.surface, borderRadius: R.xl, padding: 20 },
   modalTitle: { fontSize: 17, fontWeight: "800", color: C.ink },
-  modalSub: { fontSize: 12, color: GRAY, marginTop: 3, marginBottom: 10 },
+  modalSub: { fontSize: 12, color: C.inkMuted, marginTop: 3, marginBottom: 10 },
 
   edLabel: { fontSize: 12, fontWeight: "800", color: C.inkMuted, marginTop: 14, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
   edInput: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: R.md, padding: 12, fontSize: 15, color: C.ink, minHeight: 44 },
@@ -2202,7 +2214,7 @@ const styles = StyleSheet.create({
   edBtnCancel: { backgroundColor: C.status.neutral.bg },
   edBtnCancelText: { color: C.inkSoft, fontWeight: "800", fontSize: 14 },
   edBtnSave: { backgroundColor: C.primary },
-  edBtnSaveText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  edBtnSaveText: { color: C.onPrimary, fontWeight: "800", fontSize: 14 },
 
   // ===== Modal ekspor =====
   expLabel: { fontSize: 12, fontWeight: "800", color: C.inkMuted, marginTop: 16, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
@@ -2214,7 +2226,7 @@ const styles = StyleSheet.create({
   expBtnCancel: { backgroundColor: C.status.neutral.bg },
   expBtnCancelText: { color: C.inkSoft, fontWeight: "800", fontSize: 14 },
   expBtnSave: { backgroundColor: C.status.success.fg },
-  expBtnSaveText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  expBtnSaveText: { color: C.onPrimary, fontWeight: "800", fontSize: 14 },
 
   // ===== Bukti chat =====
   shotRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.surfaceAlt, borderRadius: R.md, padding: 10, borderWidth: 1, borderColor: C.border },
@@ -2238,5 +2250,5 @@ const styles = StyleSheet.create({
   calCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center", borderRadius: 10 },
   calCellOn: { backgroundColor: C.primary },
   calCellText: { fontSize: 14, fontWeight: "700", color: C.ink },
-  calCellTextOn: { color: "#fff" },
+  calCellTextOn: { color: C.onPrimary },
 });

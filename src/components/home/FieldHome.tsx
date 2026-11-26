@@ -32,6 +32,10 @@ export default function FieldHome() {
   const summary = useQuery(api.visits.todaySummary, {}) as any;
   const history = useQuery(api.visits.listHistory, { from: range.from, to: range.to }) as any;
   const exc = useQuery(api.dashboard.todaySpkExceptions, {}) as any;
+  // Target hari ini: bawaan 7 toko, atau target dari event yang dibuat supervisor.
+  const eventInfo = useQuery(api.visitEvents.myToday) as any;
+  const target: number = eventInfo?.target ?? TARGET_HARIAN;
+  const eventTitles: string[] = eventInfo?.fromEvent ? (eventInfo?.titles ?? []) : [];
 
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -41,8 +45,8 @@ export default function FieldHome() {
 
   const doneCount = summary?.doneCount ?? 0;
   const pos = doneCount + (ongoing?.visit ? 1 : 0);
-  const pct = (pos / TARGET_HARIAN) * 100;
-  const reached = pos >= TARGET_HARIAN;
+  const pct = target > 0 ? (pos / target) * 100 : 100;
+  const reached = pos >= target;
   const color = reached ? C.status.success.fg : C.status.warning.fg;
   const elapsed = ongoing?.visit ? now - ongoing.visit.checkinAt : 0;
 
@@ -58,7 +62,7 @@ export default function FieldHome() {
           </CardLabel>
           <View style={[st.badge, { backgroundColor: reached ? C.chip.success.bg : C.chip.warning.bg }]}>
             <Text style={[st.badgeText, { color }]}>
-              {reached ? "TERCAPAI" : `KURANG ${TARGET_HARIAN - pos}`}
+              {reached ? "TERCAPAI" : `KURANG ${target - pos}`}
             </Text>
           </View>
         </View>
@@ -76,7 +80,7 @@ export default function FieldHome() {
             <View style={{ marginTop: 12 }}>
               <ProgressBar pct={pct} color={color} height={8} />
               <View style={st.rowBetween}>
-                <Text style={st.caption}>Target {pos}/{TARGET_HARIAN} toko</Text>
+                <Text style={st.caption}>Target {pos}/{target} toko</Text>
                 <Text style={[st.caption, { color, fontWeight: "800" }]}>{pctText(pct)}</Text>
               </View>
             </View>
@@ -90,7 +94,7 @@ export default function FieldHome() {
           <>
             <View style={st.bigRow}>
               <Text style={st.big}>{pos}</Text>
-              <Text style={st.bigOf}>/{TARGET_HARIAN} toko</Text>
+              <Text style={st.bigOf}>/{target} toko</Text>
             </View>
             <ProgressBar pct={pct} color={color} height={10} />
             <Text style={st.helper}>
@@ -98,7 +102,7 @@ export default function FieldHome() {
                 ? "Belum ada kunjungan. Mulai dari daftar toko di SPK Sales."
                 : reached
                   ? "Target harian sudah tercapai. Lanjutkan bila masih ada toko."
-                  : `${TARGET_HARIAN - pos} toko lagi untuk mencapai target.`}
+                  : `${target - pos} toko lagi untuk mencapai target.`}
             </Text>
             <PrimaryButton
               label="Mulai kunjungan"
@@ -187,7 +191,7 @@ export default function FieldHome() {
       </Card>
 
       <Text style={st.footnote}>
-        Target {TARGET_HARIAN} toko/hari. Kunjungan yang masih berjalan dihitung satu, jadi angka bisa
+        Target {target} toko/hari{eventTitles.length ? ` (event: ${eventTitles.join(", ")})` : ""}. Kunjungan yang masih berjalan dihitung satu, jadi angka bisa
         naik setelah check-out.
       </Text>
     </>

@@ -11,10 +11,9 @@ import { theme } from "../../lib/theme";
 import { toFriendlyError } from "../../lib/msg";
 import { TOP_PAD } from "../../lib/layout";
 
-const { colors: C, radius: R } = theme;
-const RED = C.primary;
-const GRAY = C.inkMuted;
-const GREEN = "#067647";
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
+const { radius: R } = theme;
 const RADIUS_WARN_M = 200;   // harus sama dengan RADIUS_M di convex/jadwal.ts
 
 const DAYS = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -69,6 +68,8 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
 }
 
 export default function JadwalKartu() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const { id, dk } = useLocalSearchParams<{ id: string; dk?: string }>();
 
@@ -134,7 +135,7 @@ export default function JadwalKartu() {
   }, []);
 
   if (data === undefined) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
   if (!data) {
     return (
@@ -419,7 +420,7 @@ export default function JadwalKartu() {
           <Row
             label="Tagihan Toko (umur)"
             value={data.piutang == null ? "-" : `${rupiah(data.piutang)}${data.usia != null ? `  •  ${data.usia} hari` : ""}`}
-            color={data.piutang == null ? GRAY : "#B42318"}
+            color={data.piutang == null ? C.inkMuted : C.status.danger.fg}
           />
           <Row label="Omset Bln ini" value={rupiah(s.act)} />
           <Row label="Target" value={rupiah(s.target)} last />
@@ -445,8 +446,8 @@ export default function JadwalKartu() {
               <Text style={[styles.smallBtnText, { color: C.status.info.fg }]}>Buka Maps</Text>
             </TouchableOpacity>
             {diLuarRadius ? (
-              <View style={[styles.badge, { backgroundColor: "#FEF0C7", marginLeft: 8 }]}>
-                <Text style={[styles.badgeText, { color: "#B54708" }]}>Di luar radius</Text>
+              <View style={[styles.badge, { backgroundColor: C.chip.warning.bg, marginLeft: 8 }]}>
+                <Text style={[styles.badgeText, { color: C.status.warning.fg }]}>Di luar radius</Text>
               </View>
             ) : null}
           </View>
@@ -474,9 +475,9 @@ export default function JadwalKartu() {
         ) : null}
 
         {data.canRevisit ? (
-          <View style={[styles.card, { backgroundColor: "#FFFAEB", borderColor: "#FEDF89" }]}>
-            <Text style={[styles.warnTitle, { color: "#B54708" }]}>Kunjungan ulang diizinkan</Text>
-            <Text style={[styles.warnText, { color: "#B54708" }]}>
+          <View style={[styles.card, { backgroundColor: C.status.warning.bg, borderColor: C.status.warning.border }]}>
+            <Text style={[styles.warnTitle, { color: C.status.warning.fg }]}>Kunjungan ulang diizinkan</Text>
+            <Text style={[styles.warnText, { color: C.status.warning.fg }]}>
               Kunjungan sebelumnya berakhir "Toko tutup", jadi toko ini boleh dikunjungi lagi bulan ini.
             </Text>
           </View>
@@ -526,8 +527,8 @@ export default function JadwalKartu() {
 
         {/* ===== Pengajuan yang menunggu keputusan ===== */}
         {pendingReq ? (
-          <View style={[styles.card, { backgroundColor: "#F9F5FF", borderColor: "#D9D6FE" }]}>
-            <Text style={[styles.sectionTitle, { color: "#6941C6" }]}>PENGAJUAN MENUNGGU PERSETUJUAN</Text>
+          <View style={[styles.card, { backgroundColor: C.purpleSoft3, borderColor: C.purpleBorder2 }]}>
+            <Text style={[styles.sectionTitle, { color: C.role.supervisor }]}>PENGAJUAN MENUNGGU PERSETUJUAN</Text>
             <Text style={styles.reqBody}>
               {pendingReq.kind === "move"
                 ? `Geser ${fmtTanggal(pendingReq.fromDateKey)} → ${fmtTanggal(pendingReq.toDateKey)}`
@@ -542,7 +543,7 @@ export default function JadwalKartu() {
                 onPress={doWithdraw}
                 disabled={savingEdit}
               >
-                <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Tarik pengajuan</Text>
+                <Text style={[styles.smallBtnText, { color: C.status.danger.fg }]}>Tarik pengajuan</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.actRow}>
@@ -558,7 +559,7 @@ export default function JadwalKartu() {
                   onPress={() => onDecide(false)}
                   disabled={savingEdit}
                 >
-                  <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Tolak</Text>
+                  <Text style={[styles.smallBtnText, { color: C.status.danger.fg }]}>Tolak</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -581,7 +582,7 @@ export default function JadwalKartu() {
                 style={[styles.smallBtn, styles.cancelBtn]}
                 onPress={() => { setReason(""); setNote(""); setCancelOpen(true); }}
               >
-                <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Ajukan hapus</Text>
+                <Text style={[styles.smallBtnText, { color: C.status.danger.fg }]}>Ajukan hapus</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -615,7 +616,7 @@ export default function JadwalKartu() {
                     style={[styles.smallBtn, styles.cancelBtn]}
                     onPress={() => { setReason(""); setNote(""); setCancelOpen(true); }}
                   >
-                    <Text style={[styles.smallBtnText, { color: "#B42318" }]}>Hapus dari jadwal</Text>
+                    <Text style={[styles.smallBtnText, { color: C.status.danger.fg }]}>Hapus dari jadwal</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -627,7 +628,7 @@ export default function JadwalKartu() {
               </Text>
             )}
             {lastRejected ? (
-              <Text style={{ fontSize: 10.5, color: GRAY, marginTop: 8, lineHeight: 15 }}>
+              <Text style={{ fontSize: 10.5, color: C.inkMuted, marginTop: 8, lineHeight: 15 }}>
                 Pengajuan terakhir ({lastRejected.requestedByName}) ditolak: {lastRejected.reviewNote}
               </Text>
             ) : null}
@@ -636,11 +637,11 @@ export default function JadwalKartu() {
 
         {/* Riwayat perubahan dari aplikasi */}
         {(s as any).editedAt ? (
-          <View style={[styles.card, { backgroundColor: "#EFF8FF", borderColor: "#B2DDFF" }]}>
-            <Text style={[styles.warnTitle, { color: "#175CD3" }]}>
+          <View style={[styles.card, { backgroundColor: C.status.info.bg, borderColor: C.status.info.border }]}>
+            <Text style={[styles.warnTitle, { color: C.status.info.fg }]}>
               {(s as any).editKind === "cancel" ? "Dibatalkan supervisor" : "Digeser supervisor"}
             </Text>
-            <Text style={[styles.warnText, { color: "#175CD3" }]}>
+            <Text style={[styles.warnText, { color: C.status.info.fg }]}>
               {(s as any).previousDateKey
                 ? `${fmtTanggal((s as any).previousDateKey)} → ${fmtTanggal(s.dateKey)}`
                 : fmtTanggal(s.dateKey)}
@@ -708,7 +709,7 @@ export default function JadwalKartu() {
             <TextInput
               style={styles.noteInput}
               placeholder="Catatan tambahan (opsional)"
-              placeholderTextColor="#98A2B3"
+              placeholderTextColor={C.inkFaint}
               value={note}
               onChangeText={setNote}
               multiline
@@ -766,7 +767,7 @@ export default function JadwalKartu() {
             <TextInput
               style={styles.noteInput}
               placeholder="Catatan tambahan (opsional)"
-              placeholderTextColor="#98A2B3"
+              placeholderTextColor={C.inkFaint}
               value={note}
               onChangeText={setNote}
               multiline
@@ -791,11 +792,11 @@ export default function JadwalKartu() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -808,77 +809,77 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  areaBadge: { backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
-  areaBadgeText: { fontSize: 11, fontWeight: "800", color: GRAY },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  areaBadge: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  areaBadgeText: { fontSize: 11, fontWeight: "800", color: C.inkMuted },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
 
   headCard: { backgroundColor: C.surface, borderRadius: R.lg, padding: 14, borderWidth: 1, borderColor: C.border },
   headRow: { flexDirection: "row" },
   headDivider: { width: 1, backgroundColor: C.divider, marginHorizontal: 12 },
   headCell: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.divider },
   headCellLast: { borderBottomWidth: 0, paddingBottom: 0 },
-  headLabel: { fontSize: 11, color: GRAY, fontWeight: "700" },
+  headLabel: { fontSize: 11, color: C.inkMuted, fontWeight: "700" },
   headValue: { fontSize: 12.5, fontWeight: "800", color: C.ink, marginLeft: 10 },
 
   card: { backgroundColor: C.surface, borderRadius: R.lg, padding: 14, marginTop: 12, borderWidth: 1, borderColor: C.border },
-  sectionTitle: { fontSize: 10, fontWeight: "900", color: GRAY, letterSpacing: 0.6, marginBottom: 4 },
+  sectionTitle: { fontSize: 10, fontWeight: "900", color: C.inkMuted, letterSpacing: 0.6, marginBottom: 4 },
   storeName: { fontSize: 18, fontWeight: "800", color: C.ink, marginBottom: 4 },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.divider },
   rowLast: { borderBottomWidth: 0, paddingBottom: 0 },
-  rowLabel: { fontSize: 12, color: GRAY, flex: 1 },
+  rowLabel: { fontSize: 12, color: C.inkMuted, flex: 1 },
   rowValue: { fontSize: 13, color: C.ink, fontWeight: "700", flexShrink: 1, textAlign: "right", marginLeft: 12 },
-  addr: { fontSize: 12, color: GRAY, marginTop: 10, lineHeight: 17 },
+  addr: { fontSize: 12, color: C.inkMuted, marginTop: 10, lineHeight: 17 },
 
   actRow: { flexDirection: "row", alignItems: "center", marginTop: 12 },
   smallBtn: { flexDirection: "row", alignItems: "center", backgroundColor: C.status.info.bg, borderWidth: 1, borderColor: C.status.info.border, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 8 },
   smallBtnText: { fontSize: 12, fontWeight: "800" },
   badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   badgeText: { fontSize: 10, fontWeight: "800" },
-  reqText: { fontSize: 11, fontWeight: "700", color: GRAY, marginLeft: 10 },
+  reqText: { fontSize: 11, fontWeight: "700", color: C.inkMuted, marginLeft: 10 },
 
-  warnCard: { backgroundColor: "#FEF3F2", borderColor: "#FECDCA" },
-  warnTitle: { fontSize: 14, fontWeight: "800", color: "#B42318" },
-  warnText: { fontSize: 12, color: "#B42318", lineHeight: 18, marginTop: 4 },
-  doneTitle: { fontSize: 15, fontWeight: "800", color: GREEN },
+  warnCard: { backgroundColor: C.status.danger.bg, borderColor: C.status.danger.border },
+  warnTitle: { fontSize: 14, fontWeight: "800", color: C.status.danger.fg },
+  warnText: { fontSize: 12, color: C.status.danger.fg, lineHeight: 18, marginTop: 4 },
+  doneTitle: { fontSize: 15, fontWeight: "800", color: C.status.success.fg },
 
   bigBtn: { backgroundColor: C.primary, borderRadius: R.md, paddingVertical: 15, alignItems: "center", marginTop: 16 },
-  bigBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  bigBtnText: { color: C.onPrimary, fontWeight: "800", fontSize: 16 },
 
   navRow: { flexDirection: "row", marginTop: 14 },
   navBtn: { flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingVertical: 11, alignItems: "center", marginHorizontal: 4 },
   navBtnText: { fontSize: 13, fontWeight: "800", color: C.inkSoft },
 
-  editHint: { fontSize: 12, color: GRAY, lineHeight: 18, marginTop: 4 },
-  cancelBtn: { backgroundColor: "#FEF3F2", borderColor: "#FECDCA", marginLeft: 8 },
-  reqBody: { fontSize: 12, color: "#6941C6", lineHeight: 18, marginTop: 2 },
-  approveBtn: { backgroundColor: GREEN, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 8 },
-  approveBtnText: { fontSize: 12, fontWeight: "800", color: "#fff" },
+  editHint: { fontSize: 12, color: C.inkMuted, lineHeight: 18, marginTop: 4 },
+  cancelBtn: { backgroundColor: C.status.danger.bg, borderColor: C.status.danger.border, marginLeft: 8 },
+  reqBody: { fontSize: 12, color: C.role.supervisor, lineHeight: 18, marginTop: 2 },
+  approveBtn: { backgroundColor: C.status.success.fg, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 8 },
+  approveBtnText: { fontSize: 12, fontWeight: "800", color: C.onPrimary },
 
   // ===== modal geser / batal =====
   modalBg: { flex: 1, backgroundColor: "rgba(16,24,40,0.45)", justifyContent: "center", padding: 20 },
-  modalCard: { backgroundColor: "#fff", borderRadius: R.lg, padding: 16 },
+  modalCard: { backgroundColor: C.card, borderRadius: R.lg, padding: 16 },
   modalTitle: { fontSize: 17, fontWeight: "800", color: C.ink },
-  modalSub: { fontSize: 12, color: GRAY, marginTop: 3, lineHeight: 17 },
+  modalSub: { fontSize: 12, color: C.inkMuted, marginTop: 3, lineHeight: 17 },
   datePick: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 11, marginTop: 12 },
-  datePickLabel: { fontSize: 11, fontWeight: "800", color: GRAY },
+  datePickLabel: { fontSize: 11, fontWeight: "800", color: C.inkMuted },
   datePickValue: { fontSize: 13, fontWeight: "800", color: C.ink },
-  modalHint: { fontSize: 11, color: GRAY, marginTop: 6 },
-  modalLabel: { fontSize: 10.5, fontWeight: "900", color: GRAY, marginTop: 14, marginBottom: 6, letterSpacing: 0.5 },
+  modalHint: { fontSize: 11, color: C.inkMuted, marginTop: 6 },
+  modalLabel: { fontSize: 10.5, fontWeight: "900", color: C.inkMuted, marginTop: 14, marginBottom: 6, letterSpacing: 0.5 },
   reasonRow: { flexDirection: "row", flexWrap: "wrap" },
   reasonChip: { borderWidth: 1, borderColor: C.border, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, marginRight: 6, marginBottom: 6 },
-  reasonChipOn: { backgroundColor: RED, borderColor: RED },
-  reasonText: { fontSize: 11.5, fontWeight: "700", color: GRAY },
-  reasonTextOn: { color: "#fff" },
+  reasonChipOn: { backgroundColor: C.primary, borderColor: C.primary },
+  reasonText: { fontSize: 11.5, fontWeight: "700", color: C.inkMuted },
+  reasonTextOn: { color: C.onPrimary },
   noteInput: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: C.ink, marginTop: 6, minHeight: 60, textAlignVertical: "top" },
   modalFoot: { flexDirection: "row", marginTop: 14 },
   modalGhost: { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingVertical: 12, alignItems: "center", marginRight: 8 },
   modalGhostText: { fontSize: 13, fontWeight: "800", color: C.inkSoft },
-  modalBtn: { flex: 1, backgroundColor: RED, borderRadius: R.md, paddingVertical: 12, alignItems: "center" },
-  modalBtnText: { fontSize: 13, fontWeight: "800", color: "#fff" },
+  modalBtn: { flex: 1, backgroundColor: C.primary, borderRadius: R.md, paddingVertical: 12, alignItems: "center" },
+  modalBtnText: { fontSize: 13, fontWeight: "800", color: C.onPrimary },
 
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink, marginBottom: 8 },
-  btnBack: { backgroundColor: RED, borderRadius: R.md, paddingHorizontal: 26, paddingVertical: 12 },
-  btnBackText: { color: "#fff", fontWeight: "800" },
+  btnBack: { backgroundColor: C.primary, borderRadius: R.md, paddingHorizontal: 26, paddingVertical: 12 },
+  btnBackText: { color: C.onPrimary, fontWeight: "800" },
 });

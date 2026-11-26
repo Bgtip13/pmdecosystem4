@@ -7,26 +7,26 @@ import { api } from "../../convex/_generated/api";
 import AppIcon from "../components/AppIcon";
 import { TOP_PAD } from "../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
 const fmt = (ms: number) =>
   new Date(ms).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-const ACTION_TONE: any = {
-  "location.approve": "#067647",
-  "location.reject": "#B42318",
-  "location.request": "#175CD3",
-  "piutang.edit_result": "#B54708",
-  "piutang.reopen": "#B54708",
-  "piutang.sync": "#175CD3",
-  "visit.delete": "#B42318",
-  "activeStore.markCall": "#175CD3",
-  "activeStore.saveResult": "#B54708",
-  "activeStore.close": "#067647",
-  "activeStore.reopen": "#B42318",
-};
-
+const makeACTION_TONE = (C: Colors): any => (
+  {
+  "location.approve": C.status.success.fg,
+  "location.reject": C.status.danger.fg,
+  "location.request": C.status.info.fg,
+  "piutang.edit_result": C.status.warning.fg,
+  "piutang.reopen": C.status.warning.fg,
+  "piutang.sync": C.status.info.fg,
+  "visit.delete": C.status.danger.fg,
+  "activeStore.markCall": C.status.info.fg,
+  "activeStore.saveResult": C.status.warning.fg,
+  "activeStore.close": C.status.success.fg,
+  "activeStore.reopen": C.status.danger.fg,
+}
+);
 // ← BARU: kelompok aktivitas berdasarkan awalan action
 const JENIS: { prefix: string; label: string }[] = [
   { prefix: "activeStore.", label: "FU Toko" },
@@ -37,6 +37,9 @@ const JENIS: { prefix: string; label: string }[] = [
 ];
 
 export default function Audit() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
+  const ACTION_TONE = makeACTION_TONE(C);
   const router = useRouter();
   const [area, setArea] = useState<string | undefined>(undefined);
   const [jenis, setJenis] = useState<string | undefined>(undefined); // ← BARU
@@ -85,7 +88,7 @@ export default function Audit() {
       </View>
 
       {res === undefined ? (
-        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
       ) : items.length === 0 ? (
         <View style={styles.center}><Text style={styles.empty}>Belum ada aktivitas untuk filter ini.</Text></View>
       ) : (
@@ -96,11 +99,11 @@ export default function Audit() {
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardTop}>
-                <AppIcon name="clock" size={13} color={GRAY} />
+                <AppIcon name="clock" size={13} color={C.inkMuted} />
                 <Text style={styles.meta}>{item.actorName} • {item.actorRole ?? "-"} • {fmt(item.createdAt)}</Text>
               </View>
               <Text style={styles.summary}>{item.summary}</Text>
-              <Text style={[styles.action, { color: ACTION_TONE[item.action] ?? GRAY }]}>{item.action}{item.area ? ` • ${item.area}` : ""}</Text>
+              <Text style={[styles.action, { color: ACTION_TONE[item.action] ?? C.inkMuted }]}>{item.action}{item.area ? ` • ${item.area}` : ""}</Text>
             </View>
           )}
         />
@@ -109,11 +112,11 @@ export default function Audit() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -125,18 +128,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  back: { color: "#D92D20", fontSize: 15, fontWeight: "700", marginBottom: 8 },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  sub: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
+  back: { color: C.primary, fontSize: 15, fontWeight: "700", marginBottom: 8 },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  sub: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingTop: 10 },
-  chip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6, marginRight: 6, marginBottom: 6, backgroundColor: "#fff" },
-  chipOn: { backgroundColor: RED, borderColor: RED },
-  chipText: { fontSize: 12, color: "#344054", fontWeight: "700" },
-  chipTextOn: { color: "#fff" },
-  card: { backgroundColor: "#fff", borderRadius: 12, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: "#EEF0F3" },
+  chip: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6, marginRight: 6, marginBottom: 6, backgroundColor: C.card },
+  chipOn: { backgroundColor: C.primary, borderColor: C.primary },
+  chipText: { fontSize: 12, color: C.inkSoft, fontWeight: "700" },
+  chipTextOn: { color: C.onPrimary },
+  card: { backgroundColor: C.card, borderRadius: 12, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: C.divider },
   cardTop: { flexDirection: "row", alignItems: "center", marginBottom: 5 },
-  meta: { fontSize: 11, color: GRAY, marginLeft: 6, fontWeight: "700" },
-  summary: { fontSize: 13, color: "#111", lineHeight: 18 },
+  meta: { fontSize: 11, color: C.inkMuted, marginLeft: 6, fontWeight: "700" },
+  summary: { fontSize: 13, color: C.ink0, lineHeight: 18 },
   action: { fontSize: 11, fontWeight: "800", marginTop: 6 },
-  empty: { fontSize: 14, fontWeight: "700", color: "#333" },
+  empty: { fontSize: 14, fontWeight: "700", color: C.ink3 },
 });

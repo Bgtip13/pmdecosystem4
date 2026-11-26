@@ -8,7 +8,9 @@ import AppIcon from "../components/AppIcon";
 import { theme } from "../lib/theme";
 import { TOP_PAD } from "../lib/layout";
 
-const { colors: C, radius: R } = theme;
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
+const { radius: R } = theme;
 
 const SHADOW = {
   shadowColor: "#101828",
@@ -18,17 +20,16 @@ const SHADOW = {
   elevation: 2,
 };
 
-const RED = C.primary;
-const GRAY = C.inkMuted;
-
 export default function SpvHub() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const pending = useQuery(api.locationRequests.listPendingRequests) as any;
   const jadwalPending = useQuery(api.jadwalRequests.pendingCount) as any;
 
   if (!viewer) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
 
   if (viewer.role !== "supervisor") {
@@ -86,7 +87,7 @@ export default function SpvHub() {
 
         <Text style={styles.section}>Persetujuan</Text>
         <MenuCard
-          icon="check" color="#6941C6" bg="#F4EBFF"
+          icon="check" color={C.role.supervisor} bg={C.purpleSoft}
           label="Persetujuan" desc="Perubahan jadwal & usulan lokasi toko dari sales"
           to={(jadwalPending ?? 0) === 0 && (pendingCount ?? 0) > 0 ? "/spv-approval?tab=lokasi" : "/spv-approval?tab=jadwal"}
           count={(jadwalPending ?? 0) + (pendingCount ?? 0) > 0 ? (jadwalPending ?? 0) + (pendingCount ?? 0) : null}
@@ -94,7 +95,7 @@ export default function SpvHub() {
 
         <Text style={styles.section}>Kelola</Text>
         <MenuCard
-          icon="calendar" color="#6D28D9" bg="#EDE9FE"
+          icon="calendar" color={C.violetDark} bg={C.chip.purple.bg}
           label="Izin Sales" desc="Tandai sales tidak masuk / tidak keliling (bebas target harian)"
           to="/izin"
         />
@@ -115,11 +116,11 @@ export default function SpvHub() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -132,19 +133,19 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
-  note: { fontSize: 12, color: GRAY, marginTop: 2, paddingHorizontal: 4, fontStyle: "italic" },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  brand: { fontSize: 11, fontWeight: "800", color: C.primary, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
+  note: { fontSize: 12, color: C.inkMuted, marginTop: 2, paddingHorizontal: 4, fontStyle: "italic" },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: C.ink },
-  badgeSmall: { backgroundColor: RED, borderRadius: 12, minWidth: 22, height: 22, justifyContent: "center", alignItems: "center", paddingHorizontal: 6, marginRight: 6 },
-  badgeSmallText: { color: "#fff", fontWeight: "800", fontSize: 11 },
+  badgeSmall: { backgroundColor: C.primary, borderRadius: 12, minWidth: 22, height: 22, justifyContent: "center", alignItems: "center", paddingHorizontal: 6, marginRight: 6 },
+  badgeSmallText: { color: C.onPrimary, fontWeight: "800", fontSize: 11 },
   section: { fontSize: 12, fontWeight: "800", color: C.inkMuted, textTransform: "uppercase", letterSpacing: 0.6, marginTop: 22, marginBottom: 8, paddingHorizontal: 4 },
   menuCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: R.lg, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.border, ...SHADOW },
   iconBox: { width: 44, height: 44, borderRadius: R.md, justifyContent: "center", alignItems: "center", marginRight: 12 },
   menuLabel: { fontSize: 15, fontWeight: "800", color: C.ink },
-  menuDesc: { fontSize: 12, color: GRAY, marginTop: 3, lineHeight: 16, flexShrink: 1 },
-  btnOutline: { borderWidth: 1, borderColor: RED, borderRadius: R.md, padding: 14, paddingHorizontal: 30, marginTop: 14 },
-  btnOutlineText: { color: RED, fontWeight: "800", fontSize: 15 },
+  menuDesc: { fontSize: 12, color: C.inkMuted, marginTop: 3, lineHeight: 16, flexShrink: 1 },
+  btnOutline: { borderWidth: 1, borderColor: C.primary, borderRadius: R.md, padding: 14, paddingHorizontal: 30, marginTop: 14 },
+  btnOutlineText: { color: C.primary, fontWeight: "800", fontSize: 15 },
 });

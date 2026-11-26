@@ -3,9 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "../lib/theme";
 
-const { colors: C, radius: R } = theme;
-const GREEN = "#067647";
-const GRAY = C.inkMuted;
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
+const { radius: R } = theme;
 const MAX = 20;
 
 // ===== Hook: mode pilih banyak =====
@@ -31,6 +31,8 @@ export function useBulkSelect() {
 
 // ===== Kotak centang di kartu =====
 export function SelectBox({ checked }: { checked: boolean }) {
+  const C = useColors();
+  const b = useStyles(createB);
   return (
     <View style={[b.box, checked && b.boxOn]}>
       {checked ? <Text style={b.boxMark}>✓</Text> : null}
@@ -40,6 +42,8 @@ export function SelectBox({ checked }: { checked: boolean }) {
 
 // ===== Tombol "Pilih" untuk header =====
 export function BulkToggle({ onPress }: { onPress: () => void }) {
+  const C = useColors();
+  const b = useStyles(createB);
   return (
     <TouchableOpacity style={b.toggle} onPress={onPress}>
       <Text style={b.toggleText}>Pilih</Text>
@@ -58,6 +62,8 @@ export function BulkBar({
   onClose: () => void;
   onCancel: () => void;
 }) {
+  const C = useColors();
+  const b = useStyles(createB);
   const insets = useSafeAreaInsets();
   return (
     <View style={[b.bar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
@@ -81,25 +87,25 @@ export function BulkBar({
   );
 }
 
-const b = StyleSheet.create({
+const createB = (C: Colors) => StyleSheet.create({
   box: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: "#D0D5DD",
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.status.neutral.border,
     alignItems: "center", justifyContent: "center", marginRight: 10,
   },
-  boxOn: { backgroundColor: GREEN, borderColor: GREEN },
-  boxMark: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  boxOn: { backgroundColor: C.status.success.fg, borderColor: C.status.success.fg },
+  boxMark: { color: C.onPrimary, fontSize: 13, fontWeight: "900" },
 
-  toggle: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff" },
+  toggle: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
   toggleText: { fontSize: 12, fontWeight: "800", color: C.inkSoft },
 
   bar: {
     position: "absolute", left: 0, right: 0, bottom: 0,
-    backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border,
+    backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.border,
     paddingHorizontal: 16, paddingTop: 10,
   },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  link: { fontSize: 12, fontWeight: "800", color: GRAY },
+  link: { fontSize: 12, fontWeight: "800", color: C.inkMuted },
   count: { fontSize: 12, fontWeight: "800", color: C.ink },
-  btn: { backgroundColor: GREEN, borderRadius: R.md, paddingVertical: 12, alignItems: "center", marginTop: 8 },
-  btnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  btn: { backgroundColor: C.status.success.fg, borderRadius: R.md, paddingVertical: 12, alignItems: "center", marginTop: 8 },
+  btnText: { color: C.onPrimary, fontWeight: "800", fontSize: 14 },
 });

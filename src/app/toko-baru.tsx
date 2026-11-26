@@ -9,12 +9,13 @@ import { toFriendlyError } from "../lib/msg";
 import { theme } from "../lib/theme";
 import { TOP_PAD } from "../lib/layout";
 
-const { colors: C, radius: R, shadow: SH } = theme;
-
-const RED = C.primary;
-const GRAY = C.inkMuted;
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
+const { radius: R, shadow: SH } = theme;
 
 export default function TokoBaru() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const addStore = useMutation(api.stores.addStore);
@@ -25,7 +26,7 @@ export default function TokoBaru() {
   const [area, setArea] = useState("");
   const [busy, setBusy] = useState(false);
 
-  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
 
   const doSave = async () => {
     if (!name.trim()) return Alert.alert("Lengkapi Data", "Nama toko wajib diisi.");
@@ -106,11 +107,11 @@ export default function TokoBaru() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -122,8 +123,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
 
   label: { fontSize: 12, fontWeight: "800", color: C.inkSoft, marginBottom: 6, marginTop: 14, letterSpacing: 0.3, textTransform: "uppercase" },
   input: {
@@ -134,16 +135,16 @@ const styles = StyleSheet.create({
 
   chipRow: { flexDirection: "row", flexWrap: "wrap" },
   chip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 18, paddingVertical: 9, marginRight: 8, backgroundColor: C.surface },
-  chipActive: { backgroundColor: RED, borderColor: RED },
+  chipActive: { backgroundColor: C.primary, borderColor: C.primary },
   chipText: { fontSize: 14, color: C.inkSoft, fontWeight: "700" },
-  chipTextActive: { color: "#fff" },
+  chipTextActive: { color: C.onPrimary },
 
   noteBox: { backgroundColor: C.status.warning.bg, borderWidth: 1, borderColor: C.status.warning.border, borderRadius: R.md, padding: 12, marginTop: 18 },
   noteText: { fontSize: 13, color: C.status.warning.fg, lineHeight: 18 },
 
   btnPrimary: {
-    backgroundColor: RED, borderRadius: R.md, padding: 17, alignItems: "center", marginTop: 22,
-    shadowColor: RED, shadowOpacity: 0.25, shadowRadius: 10, elevation: 3,
+    backgroundColor: C.primary, borderRadius: R.md, padding: 17, alignItems: "center", marginTop: 22,
+    shadowColor: C.primary, shadowOpacity: 0.25, shadowRadius: 10, elevation: 3,
   },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  btnText: { color: C.onPrimary, fontSize: 16, fontWeight: "800" },
 });

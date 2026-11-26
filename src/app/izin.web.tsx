@@ -50,6 +50,16 @@ export default function IzinWeb() {
   const setLeave = useMutation(api.leaves.setLeave);
   const clearLeave = useMutation(api.leaves.clearLeave);
 
+  // ===== Event target kunjungan (khusus supervisor) =====
+  const isSpv = viewer?.role === "supervisor";
+  const events = useQuery(api.visitEvents.listByDay, (isSpv ? ({ day: dayKey } as any) : "skip") as any) as any;
+  const createEvent = useMutation(api.visitEvents.create);
+  const removeEvent = useMutation(api.visitEvents.remove);
+  const [evTitle, setEvTitle] = useState("");
+  const [evTarget, setEvTarget] = useState("");
+  const [evArea, setEvArea] = useState("");           // "" = semua area
+  const [confirmEv, setConfirmEv] = useState<{ id: string; title: string } | null>(null);
+
   if (!viewer) return <View style={s.center}><IOSSpinner size="large" color={A.ink} /></View>;
 
   if (!isSuper) {
@@ -115,6 +125,37 @@ export default function IzinWeb() {
   };
 
   const formBusy = busy === "FORM";
+  const eventList = (events ?? []) as any[];
+
+  const onSaveEvent = async () => {
+    const t = parseInt(evTarget, 10);
+    if (!evTitle.trim()) return setNotice({ tone: "err", text: "Isi judul event, mis. Meeting dadakan." });
+    if (evTarget.trim() === "" || isNaN(t) || t < 0 || t > 50) return setNotice({ tone: "err", text: "Target kunjungan harus 0–50 toko." });
+    setBusy("EVENT");
+    try {
+      await createEvent({ day: dayKey, title: evTitle.trim(), target: t, area: (evArea || undefined) as any });
+      setNotice({ tone: "ok", text: `Event “${evTitle.trim()}” tersimpan: target kunjungan ${t} toko. Penilaian ikut menyesuaikan.` });
+      setEvTitle(""); setEvTarget(""); setEvArea("");
+    } catch (e: any) {
+      setNotice({ tone: "err", text: e?.message ?? "Gagal menyimpan event." });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const doRemoveEvent = async () => {
+    if (!confirmEv) return;
+    setBusy(confirmEv.id);
+    try {
+      await removeEvent({ eventId: confirmEv.id as any });
+      setNotice({ tone: "ok", text: `Event “${confirmEv.title}” dihapus. Target hari itu kembali ke bawaan.` });
+    } catch (e: any) {
+      setNotice({ tone: "err", text: e?.message ?? "Gagal menghapus event." });
+    } finally {
+      setBusy(null);
+      setConfirmEv(null);
+    }
+  };
 
   return (
     <DesktopShell
@@ -234,9 +275,101 @@ export default function IzinWeb() {
                 </View>
               )}
             </Panel>
+
+            {/* ===== EVENT & TARGET KUNJUNGAN (supervisor) ===== */}
+            {isSpv ? (
+              <Panel
+                title="Event & target kunjungan"
+                sub={`Untuk ${label.toLowerCase()} • bawaan 7 toko, Minggu libur`}
+                tag={eventList.length || undefined}
+                basis={420}
+              >
+                <Text style={s.help}>
+                  Event mengganti target kunjungan hari itu dan otomatis dipakai penilaian sales, jadi meeting dadakan tidak menjatuhkan skor.
+                  Isi 0 bila hari itu tanpa kewajiban kunjungan.
+                </Text>
+                <View style={s.field}>
+                  <Text style={s.fieldLabel}>Judul event</Text>
+                  <TextInput
+                    value={evTitle}
+                    onChangeText={setEvTitle}
+                    editable={busy !== "EVENT"}
+                    placeholder="contoh: Meeting dadakan"
+                    placeholderTextColor={A.mutedSoft}
+                    style={web([s.input, { outlineStyle: "none" }])}
+                  />
+                </View>
+                <View style={s.field}>
+                  <Text style={s.fieldLabel}>Target kunjungan hari itu (toko)</Text>
+                  <TextInput
+                    value={evTarget}
+                    onChangeText={(x: string) => setEvTarget(x.replace(/[^0-9]/g, ""))}
+                    editable={busy !== "EVENT"}
+                    placeholder="contoh: 4"
+                    placeholderTextColor={A.mutedSoft}
+                    style={web([s.input, { outlineStyle: "none", maxWidth: 160 }])}
+                  />
+                </View>
+                <View style={s.field}>
+                  <Text style={s.fieldLabel}>Berlaku untuk</Text>
+                  <View style={s.chipWrap}>
+                    {["", "SOLO", "DIY", "SEMARANG"].map((a) => (
+                      <FilterChip key={a || "ALL"} label={a || "Semua area"} on={evArea === a} onPress={() => setEvArea(a)} />
+                    ))}
+                  </View>
+                </View>
+                <View style={s.formActions}>
+                  <WebButton label={busy === "EVENT" ? "Menyimpan…" : "Simpan event"} icon="check" disabled={busy === "EVENT"} onPress={onSaveEvent} />
+                </View>
+
+                <View style={{ marginTop: 18, gap: 10 }}>
+                  {events === undefined ? (
+                    <IOSSpinner size="small" color={A.ink} />
+                  ) : eventList.length === 0 ? (
+                    <Text style={s.muted}>Belum ada event untuk tanggal ini — target memakai bawaan.</Text>
+                  ) : (
+                    eventList.map((e: any) => (
+                      <View key={String(e._id)} style={s.row}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={s.rowName} numberOfLines={1}>{e.title}</Text>
+                          <View style={s.rowPills}>
+                            <Pill text={`Target ${e.target} toko`} tone="violet" size="sm" />
+                            <Pill text={e.area ?? "Semua area"} tone="gray" size="sm" />
+                          </View>
+                          {e.createdByName ? <Text style={s.rowNote}>oleh {e.createdByName}</Text> : null}
+                        </View>
+                        <WebButton
+                          label={busy === String(e._id) ? "…" : "Hapus"}
+                          variant="ghost"
+                          size="sm"
+                          disabled={busy === String(e._id)}
+                          onPress={() => setConfirmEv({ id: String(e._id), title: e.title })}
+                        />
+                      </View>
+                    ))
+                  )}
+                </View>
+              </Panel>
+            ) : null}
           </View>
         )}
       </View>
+
+      <Dialog
+        visible={!!confirmEv}
+        onClose={() => setConfirmEv(null)}
+        title="Hapus event?"
+        subtitle={confirmEv ? `“${confirmEv.title}” dihapus dan target hari itu kembali ke bawaan (7 toko).` : undefined}
+        icon="warn"
+        tone="amber"
+        width={460}
+        footer={
+          <View style={s.dlgFoot}>
+            <WebButton label="Tidak" variant="ghost" onPress={() => setConfirmEv(null)} />
+            <WebButton label="Ya, hapus" variant="danger" disabled={!!busy} onPress={doRemoveEvent} />
+          </View>
+        }
+      />
 
       <Dialog
         visible={!!confirm}
@@ -280,6 +413,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: A.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: A.surface,
   },
   hint: { fontSize: 12.5, color: A.orange, lineHeight: 18 },
+  help: { fontSize: 12.5, color: A.muted, lineHeight: 18, marginBottom: 14 },
   muted: { fontSize: 13, color: A.muted },
   formActions: { flexDirection: "row", gap: 10, alignItems: "center" },
   row: {

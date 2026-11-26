@@ -284,6 +284,21 @@ export const saveResult = mutation({
 });
 
 // ===== SUPERVISOR: SETUJUI (INPG → CLSD) =====
+// ===== BYPASS: toko yang SUDAH ORDER boleh langsung OPEN → CLSD =====
+// Toko yang ACT-nya sudah ada di SPK Jadwal atau punya penjualan di data Produk tidak perlu
+// di-follow-up lagi. Tugas OPEN yang belum diisi petugas dan belum order TIDAK boleh ditutup langsung.
+const NOTE_SUDAH_ORDER = "Otomatis: toko sudah order (ACT/Produk).";
+async function noteUntukTutup(ctx: any, task: any, reviewNote?: string): Promise<string | undefined> {
+  const note = (reviewNote ?? "").trim();
+  const wf = task.workflowStatus ?? "OPEN";
+  if (wf !== "OPEN" || task.result != null) return note || undefined; // jalur normal: INPG → CLSD
+  const jadwalAct = await loadJadwalAct(ctx, task.monthKey);
+  if (!orderInfoOf(jadwalAct, task.area, task.storeName).sudahOrder) {
+    throw new Error(`“${task.storeName}” belum order dan belum diisi petugas, jadi belum bisa langsung ditutup.`);
+  }
+  return note || NOTE_SUDAH_ORDER;
+}
+
 export const supervisorClose = mutation({
   args: { taskId: v.id("active_store_tasks"), reviewNote: v.optional(v.string()) },
   handler: async (ctx, { taskId, reviewNote }) => {
@@ -296,12 +311,13 @@ export const supervisorClose = mutation({
     if (!task) throw new Error("Data toko tidak ditemukan.");
     if (task.workflowStatus === "CLSD") return { ok: true, alreadyClosed: true };
 
+    const note = await noteUntukTutup(ctx, task, reviewNote);
     const now = Date.now();
     await ctx.db.patch(taskId, {
       workflowStatus: "CLSD",
       reviewedBy: userId,
       reviewedAt: now,
-      reviewNote: (reviewNote ?? "").trim() || undefined,
+      reviewNote: note,
       updatedAt: now,
     } as any);
 
@@ -313,7 +329,7 @@ export const supervisorClose = mutation({
       area: task.area,
       summary: `FU Toko ${task.storeName} (${task.area}) → CLSD.`,
       before: { workflowStatus: task.workflowStatus },
-      after: { workflowStatus: "CLSD", reviewNote: (reviewNote ?? "").trim() || null },
+      after: { workflowStatus: "CLSD", reviewNote: note ?? null },
     });
 
     return { ok: true };
@@ -342,11 +358,19 @@ export const supervisorCloseMany = mutation({
       if (!task) { skipped.push("(data hilang)"); continue; }
       if (task.workflowStatus === "CLSD") continue;
 
+      let note: string | undefined;
+      try {
+        note = await noteUntukTutup(ctx, task, reviewNote);
+      } catch {
+        skipped.push(task.storeName ?? "(tanpa nama)");   // OPEN yang belum order dilewati
+        continue;
+      }
+
       await ctx.db.patch(taskId, {
         workflowStatus: "CLSD",
         reviewedBy: userId,
         reviewedAt: now,
-        reviewNote: (reviewNote ?? "").trim() || undefined,
+        reviewNote: note,
         updatedAt: now,
       } as any);
 
@@ -358,7 +382,7 @@ export const supervisorCloseMany = mutation({
         area: task.area,
         summary: `FU Toko ${task.storeName} (${task.area}) → CLSD (massal).`,
         before: { workflowStatus: task.workflowStatus },
-        after: { workflowStatus: "CLSD", reviewNote: (reviewNote ?? "").trim() || null },
+        after: { workflowStatus: "CLSD", reviewNote: note ?? null },
       });
 
       closed++;

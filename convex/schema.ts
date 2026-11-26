@@ -275,6 +275,20 @@ export default defineSchema({
     lastReadAt: v.number(),
   }).index("by_user_room", ["userId", "roomId"]),
 
+  // ===== EVENT TARGET KUNJUNGAN =====
+  // Supervisor membuat event (mis. meeting dadakan) untuk tanggal tertentu dan
+  // menentukan target kunjungan hari itu. Penilaian sales memakai target ini
+  // menggantikan target bawaan (7 toko), sehingga skor tidak turun karena meeting.
+  visit_events: defineTable({
+    day: v.string(),                 // YYYY-MM-DD (WIB)
+    title: v.string(),
+    target: v.number(),              // target toko hari itu; 0 = hari itu tidak ada kewajiban kunjungan
+    area: v.optional(AREA),          // kosong = berlaku untuk semua area
+    note: v.optional(v.string()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_day", ["day"]),
+
   // ===== SNAPSHOT PIUTANG SEMUA AREA (kartu Beranda + /piutang-semua) =====
   // Diganti utuh setiap kali "Sinkronkan" ditekan. Hanya baca — tidak terkait tugas harian.
   piutang_all: defineTable({

@@ -95,7 +95,13 @@ export default function TokoAktifListWeb() {
 
   const items: any[] = list?.items ?? [];
   const total = counts?.total ?? { open: 0, inpg: 0, closed: 0, all: 0, sudahOrder: 0 };
-  const inpgIds = items.filter((t) => t.workflowStatus === "INPG").map((t) => t._id as string);
+  // Bisa ditutup supervisor: INPG (menunggu review) atau OPEN yang tokonya sudah order (bypass langsung CLSD).
+  const bisaTutup = (t: any) => {
+    const w = t.workflowStatus ?? "OPEN";
+    return w === "INPG" || (w === "OPEN" && !!t.sudahOrder);
+  };
+  const tutupIds = items.filter(bisaTutup).map((t) => t._id as string);
+  const inpgCount = items.filter((t) => t.workflowStatus === "INPG").length;
   const autoCount = counts?.total?.sudahOrder ?? items.filter((t) => t.sudahOrder).length;
   const shown = items.filter((t) => (orderFilter === "ALL" ? true : orderFilter === "ORDER" ? !!t.sudahOrder : !t.sudahOrder));
   const open = (t: any) => router.push(`/toko-aktif/${t._id}` as any);
@@ -176,7 +182,7 @@ export default function TokoAktifListWeb() {
     cols.push({
       key: "sel", label: "", width: 44,
       render: (t: any) => {
-        const can = t.workflowStatus === "INPG";
+        const can = bisaTutup(t);
         const on = can && bulk.terpilih.has(t._id);
         return (
           <View style={[s.box, on && s.boxOn, !can && { opacity: 0.35 }]}>
@@ -236,7 +242,7 @@ export default function TokoAktifListWeb() {
           <View style={s.actions}>
             {w !== "CLSD" && !t.sudahOrder ? <WebButton label="Call" icon="phone" variant="ghost" size="sm" onPress={() => onQuickCall(t)} /> : null}
             {w !== "CLSD" ? <WebButton label={t.sudahOrder ? "Detail" : "Isi hasil"} variant="soft" size="sm" onPress={() => open(t)} /> : null}
-            {isSuper && w === "INPG" ? <WebButton label="Setujui" icon="check" size="sm" onPress={() => setConfirmOne(t)} /> : null}
+            {isSuper && bisaTutup(t) ? <WebButton label={w === "OPEN" ? "Tutup (sudah order)" : "Setujui"} icon="check" size="sm" onPress={() => setConfirmOne(t)} /> : null}
           </View>
         );
       },
@@ -302,19 +308,19 @@ export default function TokoAktifListWeb() {
         </Card>
 
         {/* Bar mode pilih (supervisor) */}
-        {isSuper && list !== undefined && inpgIds.length > 0 ? (
+        {isSuper && list !== undefined && tutupIds.length > 0 ? (
           bulk.pilih ? (
             <View style={s.bulkBar}>
               <Text style={s.bulkText}>{bulk.terpilih.size} dipilih • maksimal 20 per kali</Text>
               <View style={s.actions}>
-                <WebButton label="Pilih semua INPG" variant="ghost" size="sm" onPress={() => bulk.pilihSemua(inpgIds)} />
+                <WebButton label="Pilih semua" variant="ghost" size="sm" onPress={() => bulk.pilihSemua(tutupIds)} />
                 <WebButton label="Batal" variant="ghost" size="sm" onPress={bulk.reset} />
                 <WebButton label={`Setujui ${bulk.terpilih.size || ""}`.trim()} icon="check" size="sm" disabled={!bulk.terpilih.size} onPress={() => setConfirmMany(true)} />
               </View>
             </View>
           ) : (
             <View style={s.bulkBar}>
-              <Text style={s.bulkText}>{inpgIds.length} toko menunggu review — bisa disetujui sekaligus.</Text>
+              <Text style={s.bulkText}>{inpgCount} toko menunggu review{tutupIds.length - inpgCount > 0 ? ` • ${tutupIds.length - inpgCount} toko sudah order dan bisa langsung ditutup` : ""} — bisa diproses sekaligus.</Text>
               <WebButton label="Pilih banyak" icon="checkDone" variant="soft" size="sm" onPress={bulk.buka} />
             </View>
           )
@@ -332,7 +338,7 @@ export default function TokoAktifListWeb() {
                 keyOf={(t: any) => String(t._id)}
                 minWidth={bulk.pilih ? 760 : 980}
                 onRowPress={(t: any) => {
-                  if (bulk.pilih) { if (t.workflowStatus === "INPG") bulk.toggle(t._id); }
+                  if (bulk.pilih) { if (bisaTutup(t)) bulk.toggle(t._id); }
                   else open(t);
                 }}
                 empty={
@@ -351,8 +357,8 @@ export default function TokoAktifListWeb() {
       <Dialog
         visible={!!confirmOne}
         onClose={() => setConfirmOne(null)}
-        title="Setujui tugas ini? (CLSD)"
-        subtitle={confirmOne ? `FU Toko “${confirmOne.storeName}” akan dikunci dan pindah ke Riwayat.` : undefined}
+        title={confirmOne && (confirmOne.workflowStatus ?? "OPEN") === "OPEN" ? "Tutup langsung? (OPEN → CLSD)" : "Setujui tugas ini? (CLSD)"}
+        subtitle={confirmOne ? ((confirmOne.workflowStatus ?? "OPEN") === "OPEN" ? `“${confirmOne.storeName}” sudah order, tidak perlu di-follow-up. Tugas dikunci dan dihitung berhasil order setelah FU.` : `FU Toko “${confirmOne.storeName}” akan dikunci dan pindah ke Riwayat.`) : undefined}
         icon="check" tone="green" width={460}
         footer={<View style={s.dlgFoot}>
           <WebButton label="Batal" variant="ghost" onPress={() => setConfirmOne(null)} />

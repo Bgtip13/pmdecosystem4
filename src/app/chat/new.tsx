@@ -7,11 +7,13 @@ import { api } from "../../../convex/_generated/api";
 import AppIcon from "../../components/AppIcon";
 import { TOP_PAD } from "../../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
 const ROLE_LABEL: any = { supervisor: "SPV", field: "Sales", telemarketing: "Telmark" };
 
 export default function NewChat() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const contacts = useQuery(api.chat.listContacts) as any;
@@ -49,7 +51,7 @@ export default function NewChat() {
     <View style={styles.screen}>
       <View style={styles.topbar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <AppIcon name="back" size={16} color={RED} style={{ marginRight: 4 }} />
+          <AppIcon name="back" size={16} color={C.primary} style={{ marginRight: 4 }} />
           <Text style={styles.backText}>Kembali</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Chat Baru</Text>
@@ -59,7 +61,7 @@ export default function NewChat() {
       </View>
 
       {contacts === undefined ? (
-        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 130 }}>
           {isSuper && sel.length > 1 ? (
@@ -90,7 +92,7 @@ export default function NewChat() {
                     </Text>
                   </View>
                   <View style={[styles.check, on && styles.checkOn]}>
-                    {on ? <AppIcon name="check" size={13} color="#fff" /> : null}
+                    {on ? <AppIcon name="check" size={13} color={C.onPrimary} /> : null}
                   </View>
                 </TouchableOpacity>
               );
@@ -110,11 +112,11 @@ export default function NewChat() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: C.bg },
   center: { padding: 40, alignItems: "center" },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -127,18 +129,18 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
-  groupInput: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 12, padding: 12, fontSize: 15, marginBottom: 12 },
-  card: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: "#EEF0F3" },
-  cardOn: { borderColor: RED, backgroundColor: "#FFF7F5" },
-  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: "#FDE8E6", justifyContent: "center", alignItems: "center", marginRight: 12 },
-  avatarText: { fontSize: 16, fontWeight: "800", color: RED },
-  name: { fontSize: 15, fontWeight: "800", color: "#111" },
-  check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: "#D0D5DD", justifyContent: "center", alignItems: "center" },
-  checkOn: { backgroundColor: RED, borderColor: RED },
-  btnPrimary: { backgroundColor: RED, borderRadius: 14, padding: 16, alignItems: "center", marginTop: 12 },
-  btnText: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  emptyTitle: { fontSize: 15, fontWeight: "700", color: "#333", textAlign: "center" },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
+  groupInput: { backgroundColor: C.card, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 12, padding: 12, fontSize: 15, marginBottom: 12 },
+  card: { flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.divider },
+  cardOn: { borderColor: C.primary, backgroundColor: C.surfaceTint },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.primaryTint, justifyContent: "center", alignItems: "center", marginRight: 12 },
+  avatarText: { fontSize: 16, fontWeight: "800", color: C.primary },
+  name: { fontSize: 15, fontWeight: "800", color: C.ink0 },
+  check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: C.status.neutral.border, justifyContent: "center", alignItems: "center" },
+  checkOn: { backgroundColor: C.primary, borderColor: C.primary },
+  btnPrimary: { backgroundColor: C.primary, borderRadius: 14, padding: 16, alignItems: "center", marginTop: 12 },
+  btnText: { color: C.onPrimary, fontSize: 15, fontWeight: "800" },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: C.ink3, textAlign: "center" },
 });

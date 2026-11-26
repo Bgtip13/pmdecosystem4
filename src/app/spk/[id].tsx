@@ -9,16 +9,16 @@ import { fetch as expoFetch } from "expo/fetch";
 import { api } from "../../../convex/_generated/api";
 import { TOP_PAD } from "../../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GREEN = "#067647";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const DOW = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 export default function FollowUp() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const list = useQuery(api.piutang.listActive, {}) as any;
@@ -42,7 +42,7 @@ export default function FollowUp() {
   if (!task) {
     return (
       <View style={styles.center}>
-        {list === undefined ? <IOSSpinner size="large" color={RED} /> : (
+        {list === undefined ? <IOSSpinner size="large" color={C.primary} /> : (
           <>
             <Text style={styles.emptyTitle}>Tugas sudah dikerjakan / tidak ditemukan</Text>
             <TouchableOpacity style={styles.btnOutline} onPress={() => router.back()}>
@@ -168,7 +168,7 @@ export default function FollowUp() {
             <>
               <Text style={styles.label}>TANGGAL JANJI BAYAR *</Text>
               <TouchableOpacity style={styles.dateBtn} onPress={() => setShowCal(!showCal)}>
-                <Text style={[styles.dateText, !promiseDate && { color: GRAY }]}>
+                <Text style={[styles.dateText, !promiseDate && { color: C.inkMuted }]}>
                   {promiseDate ? "📅 " + promiseDate : "📅 Pilih tanggal"}
                 </Text>
               </TouchableOpacity>
@@ -263,11 +263,11 @@ export default function FollowUp() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -280,47 +280,47 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
-  label: { fontSize: 12, fontWeight: "800", color: GRAY, marginTop: 18, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
-  shotHint: { fontSize: 12, color: "#B42318", fontWeight: "600", marginTop: -4, marginBottom: 8 },
-  summaryCard: { backgroundColor: "#FFF1F0", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#FECDCA" },
-  sumLabel: { fontSize: 11, fontWeight: "800", color: "#B42318", textTransform: "uppercase", letterSpacing: 0.5 },
-  sumBig: { fontSize: 24, fontWeight: "900", color: RED, marginTop: 2 },
-  sumSub: { fontSize: 12, color: "#B54708", marginTop: 4 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
+  label: { fontSize: 12, fontWeight: "800", color: C.inkMuted, marginTop: 18, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
+  shotHint: { fontSize: 12, color: C.status.danger.fg, fontWeight: "600", marginTop: -4, marginBottom: 8 },
+  summaryCard: { backgroundColor: C.dangerTint, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.status.danger.border },
+  sumLabel: { fontSize: 11, fontWeight: "800", color: C.status.danger.fg, textTransform: "uppercase", letterSpacing: 0.5 },
+  sumBig: { fontSize: 24, fontWeight: "900", color: C.primary, marginTop: 2 },
+  sumSub: { fontSize: 12, color: C.status.warning.fg, marginTop: 4 },
   chipRow: { flexDirection: "row", flexWrap: "wrap" },
-  chip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 9, marginRight: 8, marginBottom: 6, backgroundColor: "#fff" },
-  chipActive: { backgroundColor: RED, borderColor: RED },
-  chipText: { fontSize: 13, color: "#344054", fontWeight: "700" },
-  chipTextActive: { color: "#fff" },
-  dateBtn: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 12, padding: 14 },
-  dateText: { fontSize: 15, color: "#111", fontWeight: "700" },
-  calBox: { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#EEF0F3", padding: 12, marginTop: 8 },
+  chip: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 9, marginRight: 8, marginBottom: 6, backgroundColor: C.card },
+  chipActive: { backgroundColor: C.primary, borderColor: C.primary },
+  chipText: { fontSize: 13, color: C.inkSoft, fontWeight: "700" },
+  chipTextActive: { color: C.onPrimary },
+  dateBtn: { backgroundColor: C.card, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 12, padding: 14 },
+  dateText: { fontSize: 15, color: C.ink0, fontWeight: "700" },
+  calBox: { backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.divider, padding: 12, marginTop: 8 },
   calHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 8, marginBottom: 8 },
-  calNav: { fontSize: 16, color: RED, fontWeight: "800", padding: 6 },
-  calTitle: { fontSize: 14, fontWeight: "800", color: "#111" },
+  calNav: { fontSize: 16, color: C.primary, fontWeight: "800", padding: 6 },
+  calTitle: { fontSize: 14, fontWeight: "800", color: C.ink0 },
   calDowRow: { flexDirection: "row" },
-  calDow: { width: "14.28%", textAlign: "center", fontSize: 10, color: GRAY, fontWeight: "700", paddingVertical: 4 },
+  calDow: { width: "14.28%", textAlign: "center", fontSize: 10, color: C.inkMuted, fontWeight: "700", paddingVertical: 4 },
   calGrid: { flexDirection: "row", flexWrap: "wrap" },
   calCell: { width: "14.28%", alignItems: "center", paddingVertical: 6 },
-  calCellSel: { backgroundColor: RED, borderRadius: 18, width: 36, height: 36, justifyContent: "center", alignSelf: "center", alignItems: "center" },
-  calDay: { fontSize: 13, color: "#111" },
-  calDaySel: { color: "#fff", fontWeight: "800" },
-  calDayPast: { color: "#D0D5DD" },
-  input: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 12, padding: 13, fontSize: 15, color: "#111" },
+  calCellSel: { backgroundColor: C.primary, borderRadius: 18, width: 36, height: 36, justifyContent: "center", alignSelf: "center", alignItems: "center" },
+  calDay: { fontSize: 13, color: C.ink0 },
+  calDaySel: { color: C.onPrimary, fontWeight: "800" },
+  calDayPast: { color: C.status.neutral.border },
+  input: { backgroundColor: C.card, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 12, padding: 13, fontSize: 15, color: C.ink0 },
   inputMultiline: { minHeight: 80, textAlignVertical: "top" },
   shotThumb: { width: 84, height: 84, borderRadius: 12 },
   shotRemove: { marginLeft: 12 },
-  shotRemoveText: { color: RED, fontWeight: "700", fontSize: 13 },
-  shotOk: { marginLeft: 12, color: "#067647", fontWeight: "700", fontSize: 13, flexShrink: 1 },
-  shotBtn: { backgroundColor: "#FFF1F0", borderWidth: 1, borderColor: "#FECDCA", borderRadius: 12, padding: 14, alignItems: "center" },
-  shotBtnRequired: { borderColor: RED, borderWidth: 1.5 },
-  shotBtnText: { color: "#912018", fontWeight: "800", fontSize: 14 },
-  footer: { padding: 16, paddingTop: 8, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0F0F0" },
-  btnPrimary: { backgroundColor: RED, borderRadius: 14, padding: 17, alignItems: "center" },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  btnOutline: { borderWidth: 1, borderColor: RED, borderRadius: 12, padding: 14, paddingHorizontal: 30, marginTop: 14 },
-  btnOutlineText: { color: RED, fontWeight: "800", fontSize: 15 },
-  emptyTitle: { fontSize: 15, fontWeight: "700", color: "#333", textAlign: "center" },
+  shotRemoveText: { color: C.primary, fontWeight: "700", fontSize: 13 },
+  shotOk: { marginLeft: 12, color: C.status.success.fg, fontWeight: "700", fontSize: 13, flexShrink: 1 },
+  shotBtn: { backgroundColor: C.dangerTint, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: 12, padding: 14, alignItems: "center" },
+  shotBtnRequired: { borderColor: C.primary, borderWidth: 1.5 },
+  shotBtnText: { color: C.dangerDeep, fontWeight: "800", fontSize: 14 },
+  footer: { padding: 16, paddingTop: 8, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.hairline },
+  btnPrimary: { backgroundColor: C.primary, borderRadius: 14, padding: 17, alignItems: "center" },
+  btnText: { color: C.onPrimary, fontSize: 16, fontWeight: "800" },
+  btnOutline: { borderWidth: 1, borderColor: C.primary, borderRadius: 12, padding: 14, paddingHorizontal: 30, marginTop: 14 },
+  btnOutlineText: { color: C.primary, fontWeight: "800", fontSize: 15 },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: C.ink3, textAlign: "center" },
 });

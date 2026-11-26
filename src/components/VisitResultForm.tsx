@@ -7,8 +7,8 @@ import * as ImagePicker from "expo-image-picker";
 import { api } from "../../convex/_generated/api";
 import DatePickerModal from "./DatePickerModal";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
 const MET_LIST = [
   { key: "owner", label: "Owner" },
   { key: "karyawan", label: "Karyawan" },
@@ -59,6 +59,8 @@ type Props = {
 export default function VisitResultForm({
   initial, photoStockUrls, photoSelfieUrl, requirePhotos, submitLabel, busy, onCancel, onSubmit, maxHeight = 460,
 }: Props) {
+  const C = useColors();
+  const s = useStyles(createS);
   const v = initial ?? {};
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 
@@ -182,8 +184,8 @@ export default function VisitResultForm({
 
   const PhotoBox = ({ p, onRemove }: { p: Photo; onRemove: () => void }) => (
     <View style={s.photoBox}>
-      {p.uri || p.url ? <Image source={{ uri: (p.uri ?? p.url) as string }} style={s.photoImg} /> : <View style={[s.photoImg, { backgroundColor: "#EAECF0" }]} />}
-      <TouchableOpacity style={s.photoX} onPress={onRemove}><Text style={{ color: "#fff", fontWeight: "800" }}>✕</Text></TouchableOpacity>
+      {p.uri || p.url ? <Image source={{ uri: (p.uri ?? p.url) as string }} style={s.photoImg} /> : <View style={[s.photoImg, { backgroundColor: C.border2 }]} />}
+      <TouchableOpacity style={s.photoX} onPress={onRemove}><Text style={{ color: C.onPrimary, fontWeight: "800" }}>✕</Text></TouchableOpacity>
     </View>
   );
 
@@ -207,7 +209,7 @@ export default function VisitResultForm({
             </View>
             {paid === "Y" ? (
               <>
-                <TextInput style={s.input} placeholder="Nominal bayar (contoh 500000)" placeholderTextColor="#98A2B3"
+                <TextInput style={s.input} placeholder="Nominal bayar (contoh 500000)" placeholderTextColor={C.inkFaint}
                   keyboardType="numeric" value={paidAmount} onChangeText={setPaidAmount} />
                 <View style={s.row}>
                   <Chip label="Tunai" on={payMethod === "tunai"} onPress={() => setPayMethod("tunai")} />
@@ -218,7 +220,7 @@ export default function VisitResultForm({
             {paid === "T" ? (
               <>
                 <TouchableOpacity style={s.input} onPress={() => setShowCal(true)}>
-                  <Text style={{ color: promiseDate ? "#101828" : "#98A2B3" }}>{promiseDate || "Pilih tanggal janji bayar"}</Text>
+                  <Text style={{ color: promiseDate ? C.ink : C.inkFaint }}>{promiseDate || "Pilih tanggal janji bayar"}</Text>
                 </TouchableOpacity>
                 <DatePickerModal visible={showCal} value={promiseDate} onClose={() => setShowCal(false)}
                   onPick={(dk) => { setPromiseDate(dk); setShowCal(false); }} />
@@ -234,10 +236,10 @@ export default function VisitResultForm({
               <View>
                 {products.map((p, i) => (
                   <View key={i} style={s.prodRow}>
-                    <TextInput style={[s.input, { flex: 1, marginTop: 0 }]} placeholder={`Produk ${i + 1}`} placeholderTextColor="#98A2B3"
+                    <TextInput style={[s.input, { flex: 1, marginTop: 0 }]} placeholder={`Produk ${i + 1}`} placeholderTextColor={C.inkFaint}
                       value={p} onChangeText={(t) => setProducts(products.map((x, j) => (j === i ? t : x)))} />
                     <TouchableOpacity style={s.prodDel} onPress={() => setProducts(products.filter((_, j) => j !== i))}>
-                      <Text style={{ color: RED, fontWeight: "800" }}>✕</Text>
+                      <Text style={{ color: C.primary, fontWeight: "800" }}>✕</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -253,9 +255,9 @@ export default function VisitResultForm({
             ) : null}
 
             <Text style={s.label}>Trend produk *</Text>
-            <TextInput style={s.input} placeholder="Produk yang sedang laku / trend" placeholderTextColor="#98A2B3" value={trend} onChangeText={setTrend} multiline />
+            <TextInput style={s.input} placeholder="Produk yang sedang laku / trend" placeholderTextColor={C.inkFaint} value={trend} onChangeText={setTrend} multiline />
             <Text style={s.label}>Produk dicari toko</Text>
-            <TextInput style={s.input} placeholder="Produk yang dicari toko (opsional)" placeholderTextColor="#98A2B3" value={searched} onChangeText={setSearched} multiline />
+            <TextInput style={s.input} placeholder="Produk yang dicari toko (opsional)" placeholderTextColor={C.inkFaint} value={searched} onChangeText={setSearched} multiline />
 
             <Text style={s.label}>Foto stok (maks. 2){requirePhotos ? " *" : ""}</Text>
             <View style={s.row}>
@@ -275,12 +277,12 @@ export default function VisitResultForm({
         </View>
 
         <Text style={s.label}>Keterangan</Text>
-        <TextInput style={s.input} placeholder="Catatan kunjungan" placeholderTextColor="#98A2B3" value={notes} onChangeText={setNotes} multiline />
+        <TextInput style={s.input} placeholder="Catatan kunjungan" placeholderTextColor={C.inkFaint} value={notes} onChangeText={setNotes} multiline />
       </ScrollView>
 
       <View style={s.actions}>
         <TouchableOpacity style={[s.btn, s.btnCancel]} onPress={onCancel} disabled={working}>
-          <Text style={[s.btnText, { color: GRAY }]}>Batal</Text>
+          <Text style={[s.btnText, { color: C.inkMuted }]}>Batal</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[s.btn, s.btnSave, working && { opacity: 0.6 }]} onPress={submit} disabled={working}>
           <Text style={s.btnText}>{working ? "Menyimpan…" : submitLabel}</Text>
@@ -290,27 +292,27 @@ export default function VisitResultForm({
   );
 }
 
-const s = StyleSheet.create({
-  label: { fontSize: 12, fontWeight: "800", color: GRAY, marginTop: 14, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.3 },
+const createS = (C: Colors) => StyleSheet.create({
+  label: { fontSize: 12, fontWeight: "800", color: C.inkMuted, marginTop: 14, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.3 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: "#D0D5DD", backgroundColor: "#fff" },
-  chipOn: { backgroundColor: "#FEE4E2", borderColor: "#FECDCA" },
-  chipText: { fontSize: 13, color: "#344054", fontWeight: "600" },
-  chipTextOn: { color: "#B42318", fontWeight: "800" },
-  input: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, color: "#101828", backgroundColor: "#fff", marginTop: 8 },
-  hint: { fontSize: 12, color: GRAY, marginTop: 10, lineHeight: 17 },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: C.status.neutral.border, backgroundColor: C.card },
+  chipOn: { backgroundColor: C.chip.danger.bg, borderColor: C.status.danger.border },
+  chipText: { fontSize: 13, color: C.inkSoft, fontWeight: "600" },
+  chipTextOn: { color: C.status.danger.fg, fontWeight: "800" },
+  input: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, color: C.ink, backgroundColor: C.card, marginTop: 8 },
+  hint: { fontSize: 12, color: C.inkMuted, marginTop: 10, lineHeight: 17 },
   prodRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
-  prodDel: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "#FEE4E2" },
-  addBtn: { marginTop: 8, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", borderColor: "#D0D5DD", alignItems: "center" },
-  addBtnText: { color: RED, fontWeight: "800", fontSize: 13 },
+  prodDel: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: C.chip.danger.bg },
+  addBtn: { marginTop: 8, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", borderColor: C.status.neutral.border, alignItems: "center" },
+  addBtnText: { color: C.primary, fontWeight: "800", fontSize: 13 },
   photoBox: { width: 84, height: 84, borderRadius: 12, overflow: "hidden" },
   photoImg: { width: 84, height: 84 },
   photoX: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
-  photoAdd: { width: 84, height: 84, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", borderColor: "#D0D5DD", alignItems: "center", justifyContent: "center" },
-  photoAddText: { color: GRAY, fontWeight: "700", fontSize: 13 },
+  photoAdd: { width: 84, height: 84, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", borderColor: C.status.neutral.border, alignItems: "center", justifyContent: "center" },
+  photoAddText: { color: C.inkMuted, fontWeight: "700", fontSize: 13 },
   actions: { flexDirection: "row", gap: 10, marginTop: 12 },
   btn: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center" },
-  btnCancel: { borderWidth: 1, borderColor: "#D0D5DD", backgroundColor: "#fff" },
-  btnSave: { backgroundColor: RED },
-  btnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  btnCancel: { borderWidth: 1, borderColor: C.status.neutral.border, backgroundColor: C.card },
+  btnSave: { backgroundColor: C.primary },
+  btnText: { color: C.onPrimary, fontWeight: "800", fontSize: 14 },
 });

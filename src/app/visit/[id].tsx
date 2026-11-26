@@ -13,10 +13,8 @@ import CleanAlert from "../../components/CleanAlert";
 import { toFriendlyError } from "../../lib/msg";
 import { TOP_PAD } from "../../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GREEN = "#067647";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
 const rupiah = (n?: any) => (n == null || isNaN(n) ? "-" : "Rp" + Number(n).toLocaleString("id-ID"));
 
 const MET_LIST = [
@@ -44,12 +42,14 @@ const DOW = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
 // ===== Dropdown pilihan (modal) =====
 function Dropdown({ label, value, options, onChange }: any) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const [open, setOpen] = useState(false);
   const sel = options.find((o: any) => o.key === value);
   return (
     <>
       <TouchableOpacity style={styles.ddBtn} onPress={() => setOpen(true)}>
-        <Text style={[styles.ddText, !sel && { color: GRAY }]}>
+        <Text style={[styles.ddText, !sel && { color: C.inkMuted }]}>
           {sel ? sel.label : "Pilih..."}
         </Text>
         <Text style={styles.ddArrow}>▾</Text>
@@ -75,6 +75,8 @@ function Dropdown({ label, value, options, onChange }: any) {
 }
 
 export default function VisitScreen() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const { isAuthenticated } = useConvexAuth();
@@ -128,7 +130,7 @@ export default function VisitScreen() {
   };
 
   if (!isAuthenticated || !viewer || visit === undefined) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
   if (!visit || visit.status !== "ongoing") {
     return (
@@ -350,7 +352,7 @@ export default function VisitScreen() {
                 style={[styles.piutangCard, styles.piutangNone]}
                 onPress={() => setPaidOpt("N")}
               >
-                <Text style={[styles.piutangBig, { color: GREEN }]}>✓ Tidak ada piutang</Text>
+                <Text style={[styles.piutangBig, { color: C.status.success.fg }]}>✓ Tidak ada piutang</Text>
                 <Text style={styles.piutangSub}>Toko tidak punya tagihan tersisa. Ketuk untuk memilih opsi "Tidak ada piutang".</Text>
               </TouchableOpacity>
             ) : (
@@ -358,7 +360,7 @@ export default function VisitScreen() {
                 style={[styles.piutangCard, styles.piutangNone]}
                 onPress={() => setPaidOpt("N")}
               >
-                <Text style={[styles.piutangBig, { color: GREEN }]}>Tidak ditemukan di data piutang</Text>
+                <Text style={[styles.piutangBig, { color: C.status.success.fg }]}>Tidak ditemukan di data piutang</Text>
                 <Text style={styles.piutangSub}>Ketuk untuk memilih "Tidak ada piutang" di opsi bayar.</Text>
               </TouchableOpacity>
             )}
@@ -416,8 +418,8 @@ export default function VisitScreen() {
             ) : null}
 
             {paid === "N" ? (
-              <View style={[styles.card, { backgroundColor: "#F6FEF9" }]}>
-                <Text style={[styles.label, { color: GREEN }]}>✓ Tidak ada piutang untuk toko ini.</Text>
+              <View style={[styles.card, { backgroundColor: C.successTint }]}>
+                <Text style={[styles.label, { color: C.status.success.fg }]}>✓ Tidak ada piutang untuk toko ini.</Text>
               </View>
             ) : null}
 
@@ -524,80 +526,80 @@ export default function VisitScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
   header: {
-    flexDirection: "row", alignItems: "center", backgroundColor: "#FFF7F5",
+    flexDirection: "row", alignItems: "center", backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD, paddingHorizontal: 20, paddingBottom: 16,
     borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
     shadowColor: "#101828", shadowOpacity: 0.06, shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
-  backText: { fontSize: 28, color: RED, fontWeight: "700", marginTop: -4 },
-  storeName: { fontSize: 19, fontWeight: "800", color: "#101828", letterSpacing: -0.2 },
-  timer: { fontSize: 14, color: GREEN, fontWeight: "800", marginTop: 2 },
-  timerWarn: { color: "#B54708" },
-  overdueNote: { fontSize: 12, color: "#B54708", fontWeight: "700", marginTop: 3 },
-  section: { fontSize: 14, fontWeight: "800", color: "#111", marginTop: 18, marginBottom: 8 },
-  optNote: { fontSize: 12, color: GRAY, fontWeight: "400" },
+  backText: { fontSize: 28, color: C.primary, fontWeight: "700", marginTop: -4 },
+  storeName: { fontSize: 19, fontWeight: "800", color: C.ink, letterSpacing: -0.2 },
+  timer: { fontSize: 14, color: C.status.success.fg, fontWeight: "800", marginTop: 2 },
+  timerWarn: { color: C.status.warning.fg },
+  overdueNote: { fontSize: 12, color: C.status.warning.fg, fontWeight: "700", marginTop: 3 },
+  section: { fontSize: 14, fontWeight: "800", color: C.ink0, marginTop: 18, marginBottom: 8 },
+  optNote: { fontSize: 12, color: C.inkMuted, fontWeight: "400" },
   chipRow: { flexDirection: "row", flexWrap: "wrap" },
-  chip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8, marginBottom: 8, backgroundColor: "#fff" },
-  chipActive: { backgroundColor: RED, borderColor: RED },
-  chipText: { fontSize: 13, color: "#344054", fontWeight: "600" },
-  chipTextActive: { color: "#fff" },
-  ddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fff", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13 },
-  ddText: { fontSize: 15, color: "#111", fontWeight: "600" },
-  ddArrow: { fontSize: 14, color: GRAY },
+  chip: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8, marginBottom: 8, backgroundColor: C.card },
+  chipActive: { backgroundColor: C.primary, borderColor: C.primary },
+  chipText: { fontSize: 13, color: C.inkSoft, fontWeight: "600" },
+  chipTextActive: { color: C.onPrimary },
+  ddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.card, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13 },
+  ddText: { fontSize: 15, color: C.ink0, fontWeight: "600" },
+  ddArrow: { fontSize: 14, color: C.inkMuted },
   ddBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  ddSheet: { backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, paddingBottom: 30 },
-  ddTitle: { fontSize: 14, fontWeight: "800", color: GRAY, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 },
+  ddSheet: { backgroundColor: C.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, paddingBottom: 30 },
+  ddTitle: { fontSize: 14, fontWeight: "800", color: C.inkMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 },
   ddOpt: { paddingVertical: 13, paddingHorizontal: 8, borderRadius: 10 },
-  ddOptOn: { backgroundColor: "#FEE4E2" },
-  ddOptText: { fontSize: 15, color: "#111" },
-  ddOptTextOn: { color: RED, fontWeight: "800" },
-  card: { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1, borderColor: "#EEF0F3" },
-  label: { fontSize: 13, fontWeight: "700", color: "#344054", marginTop: 6, marginBottom: 6 },
-  input: { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 8 },
+  ddOptOn: { backgroundColor: C.chip.danger.bg },
+  ddOptText: { fontSize: 15, color: C.ink0 },
+  ddOptTextOn: { color: C.primary, fontWeight: "800" },
+  card: { backgroundColor: C.card, borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1, borderColor: C.divider },
+  label: { fontSize: 13, fontWeight: "700", color: C.inkSoft, marginTop: 6, marginBottom: 6 },
+  input: { backgroundColor: C.surfaceAlt2, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 8 },
   multiline: { minHeight: 80, textAlignVertical: "top" },
-  dateBtn: { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 10, padding: 14, marginBottom: 8 },
-  dateText: { fontSize: 15, color: "#111" },
+  dateBtn: { backgroundColor: C.surfaceAlt2, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 10, padding: 14, marginBottom: 8 },
+  dateText: { fontSize: 15, color: C.ink0 },
   itemRow: { flexDirection: "row", alignItems: "center" },
   delBtn: { padding: 10, marginLeft: 6 },
-  delText: { color: RED, fontWeight: "800", fontSize: 16 },
+  delText: { color: C.primary, fontWeight: "800", fontSize: 16 },
   addBtn: { paddingVertical: 10 },
-  addText: { color: RED, fontWeight: "700", fontSize: 14 },
-  calBox: { borderWidth: 1, borderColor: "#E4E7EC", borderRadius: 12, padding: 10, marginBottom: 8, backgroundColor: "#fff" },
+  addText: { color: C.primary, fontWeight: "700", fontSize: 14 },
+  calBox: { borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 10, marginBottom: 8, backgroundColor: C.card },
   calHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  calNav: { fontSize: 24, color: RED, fontWeight: "700", paddingHorizontal: 8 },
-  calTitle: { fontSize: 14, fontWeight: "800", color: "#111" },
+  calNav: { fontSize: 24, color: C.primary, fontWeight: "700", paddingHorizontal: 8 },
+  calTitle: { fontSize: 14, fontWeight: "800", color: C.ink0 },
   calDowRow: { flexDirection: "row" },
-  calDow: { width: "14.28%", textAlign: "center", fontSize: 11, color: GRAY, fontWeight: "700", paddingVertical: 4 },
+  calDow: { width: "14.28%", textAlign: "center", fontSize: 11, color: C.inkMuted, fontWeight: "700", paddingVertical: 4 },
   calGrid: { flexDirection: "row", flexWrap: "wrap" },
   calCell: { width: "14.28%", alignItems: "center", paddingVertical: 6 },
-  calCellActive: { backgroundColor: RED, borderRadius: 20 },
-  calDay: { fontSize: 13, color: "#111" },
+  calCellActive: { backgroundColor: C.primary, borderRadius: 20 },
+  calDay: { fontSize: 13, color: C.ink0 },
   // ===== Style preview piutang =====
-  piutangCard: { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#EEF0F3" },
-  piutangHas: { borderColor: "#FECDCA", backgroundColor: "#FFF7F5" },
-  piutangNone: { borderColor: "#ABEFC6", backgroundColor: "#F6FEF9" },
-  piutangBig: { fontSize: 18, fontWeight: "900", color: RED },
-  piutangSub: { fontSize: 13, color: "#B42318", marginTop: 3, fontWeight: "600" },
-  piutangHint: { fontSize: 11, color: GRAY, marginTop: 6, fontStyle: "italic" },
-  piutangMuted: { fontSize: 13, color: GRAY },
+  piutangCard: { backgroundColor: C.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.divider },
+  piutangHas: { borderColor: C.status.danger.border, backgroundColor: C.surfaceTint },
+  piutangNone: { borderColor: C.status.success.border, backgroundColor: C.successTint },
+  piutangBig: { fontSize: 18, fontWeight: "900", color: C.primary },
+  piutangSub: { fontSize: 13, color: C.status.danger.fg, marginTop: 3, fontWeight: "600" },
+  piutangHint: { fontSize: 11, color: C.inkMuted, marginTop: 6, fontStyle: "italic" },
+  piutangMuted: { fontSize: 13, color: C.inkMuted },
   // ===== Style toko tutup =====
-  tutupCard: { backgroundColor: "#FFF1F0", borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1, borderColor: "#FECDCA" },
-  tutupTitle: { fontSize: 15, fontWeight: "800", color: "#B42318" },
-  tutupText: { fontSize: 13, color: "#B42318", marginTop: 4, lineHeight: 18 },
+  tutupCard: { backgroundColor: C.dangerTint, borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1, borderColor: C.status.danger.border },
+  tutupTitle: { fontSize: 15, fontWeight: "800", color: C.status.danger.fg },
+  tutupText: { fontSize: 13, color: C.status.danger.fg, marginTop: 4, lineHeight: 18 },
   photoRow: { flexDirection: "row", flexWrap: "wrap" },
   thumbBox: { width: 84, height: 84, marginRight: 10, marginBottom: 10 },
   thumb: { width: 84, height: 84, borderRadius: 12 },
-  thumbDel: { position: "absolute", top: -6, right: -6, backgroundColor: RED, borderRadius: 10, padding: 4 },
-  thumbDelText: { color: "#fff", fontWeight: "800", fontSize: 12 },
-  photoAdd: { width: 84, height: 84, borderRadius: 12, borderWidth: 1.5, borderColor: RED, borderStyle: "dashed", justifyContent: "center", alignItems: "center", marginRight: 10, marginBottom: 10 },
-  photoAddText: { color: RED, fontWeight: "700", fontSize: 12 },
-  footer: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0F0F0" },
-  btnPrimary: { backgroundColor: RED, borderRadius: 14, padding: 18, alignItems: "center" },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 16 },
+  thumbDel: { position: "absolute", top: -6, right: -6, backgroundColor: C.primary, borderRadius: 10, padding: 4 },
+  thumbDelText: { color: C.onPrimary, fontWeight: "800", fontSize: 12 },
+  photoAdd: { width: 84, height: 84, borderRadius: 12, borderWidth: 1.5, borderColor: C.primary, borderStyle: "dashed", justifyContent: "center", alignItems: "center", marginRight: 10, marginBottom: 10 },
+  photoAddText: { color: C.primary, fontWeight: "700", fontSize: 12 },
+  footer: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.hairline },
+  btnPrimary: { backgroundColor: C.primary, borderRadius: 14, padding: 18, alignItems: "center" },
+  btnText: { color: C.onPrimary, fontSize: 16, fontWeight: "800" },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: C.ink3, marginBottom: 16 },
 });

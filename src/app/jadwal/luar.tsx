@@ -10,11 +10,9 @@ import { theme } from "../../lib/theme";
 import { toFriendlyError } from "../../lib/msg";
 import { TOP_PAD } from "../../lib/layout";
 
-const { colors: C, radius: R } = theme;
-const RED = C.primary;
-const GRAY = C.inkMuted;
-const GREEN = "#067647";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
+const { radius: R } = theme;
 const BULAN_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const todayKeyWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
@@ -41,6 +39,8 @@ function fmtTanggal(dk: string) {
 // kapan saja dari kartu SPK toko tersebut.
 // ==========================================================================
 export default function TambahLuarJadwal() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const [q, setQ] = useState("");
   const [qDeb, setQDeb] = useState("");
@@ -133,36 +133,36 @@ export default function TambahLuarJadwal() {
         <View style={{ flex: 1 }}>
           <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
           <View style={styles.badgeRow}>
-            <View style={[styles.badge, { backgroundColor: "#F2F4F7" }]}>
-              <Text style={[styles.badgeText, { color: GRAY }]}>{item.area}</Text>
+            <View style={[styles.badge, { backgroundColor: C.status.neutral.bg }]}>
+              <Text style={[styles.badgeText, { color: C.inkMuted }]}>{item.area}</Text>
             </View>
             {item.jadwalBulanIni ? (
-              <View style={[styles.badge, { backgroundColor: "#EFF8FF", marginLeft: 6 }]}>
-                <Text style={[styles.badgeText, { color: "#175CD3" }]}>
+              <View style={[styles.badge, { backgroundColor: C.status.info.bg, marginLeft: 6 }]}>
+                <Text style={[styles.badgeText, { color: C.status.info.fg }]}>
                   Sudah di jadwal {fmtShort(item.jadwalBulanIni.dateKey)}
                 </Text>
               </View>
             ) : null}
             {item.sudahDikunjungi ? (
-              <View style={[styles.badge, { backgroundColor: "#FEE4E2", marginLeft: 6 }]}>
-                <Text style={[styles.badgeText, { color: "#B42318" }]}>sudah dikunjungi</Text>
+              <View style={[styles.badge, { backgroundColor: C.chip.danger.bg, marginLeft: 6 }]}>
+                <Text style={[styles.badgeText, { color: C.status.danger.fg }]}>sudah dikunjungi</Text>
               </View>
             ) : null}
             {!item.lat ? (
-              <View style={[styles.badge, { backgroundColor: "#FEF0C7", marginLeft: 6 }]}>
-                <Text style={[styles.badgeText, { color: "#B54708" }]}>tanpa koordinat</Text>
+              <View style={[styles.badge, { backgroundColor: C.chip.warning.bg, marginLeft: 6 }]}>
+                <Text style={[styles.badgeText, { color: C.status.warning.fg }]}>tanpa koordinat</Text>
               </View>
             ) : null}
           </View>
           {item.address ? <Text style={styles.addr} numberOfLines={2}>{item.address}</Text> : null}
         </View>
         {busy ? (
-          <IOSSpinner size="small" color={RED} />
+          <IOSSpinner size="small" color={C.primary} />
         ) : blocked ? (
           <Text style={styles.blockedText}>{item.jadwalBulanIni ? "Terjadwal" : "Selesai"}</Text>
         ) : (
           <View style={styles.addChip}>
-            <AppIcon name="plus" size={12} color={GREEN} style={{ marginRight: 3 }} />
+            <AppIcon name="plus" size={12} color={C.status.success.fg} style={{ marginRight: 3 }} />
             <Text style={styles.addChipText}>Tambah</Text>
           </View>
         )}
@@ -182,7 +182,7 @@ export default function TambahLuarJadwal() {
 
       <View style={styles.controls}>
         <TouchableOpacity style={styles.dateBtn} onPress={() => setCalOpen(true)} activeOpacity={0.85}>
-          <AppIcon name="calendar" size={15} color={RED} style={{ marginRight: 8 }} />
+          <AppIcon name="calendar" size={15} color={C.primary} style={{ marginRight: 8 }} />
           <View style={{ flex: 1 }}>
             <Text style={styles.dateLabel}>Tanggal tujuan</Text>
             <Text style={styles.dateValue}>{fmtTanggal(dk)}</Text>
@@ -191,11 +191,11 @@ export default function TambahLuarJadwal() {
         </TouchableOpacity>
 
         <View style={styles.searchBox}>
-          <AppIcon name="search" size={16} color={GRAY} style={{ marginRight: 8 }} />
+          <AppIcon name="search" size={16} color={C.inkMuted} style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
             placeholder="Cari nama toko (min. 2 huruf)…"
-            placeholderTextColor="#98A2B3"
+            placeholderTextColor={C.inkFaint}
             value={q}
             onChangeText={setQ}
             autoCapitalize="none"
@@ -212,18 +212,18 @@ export default function TambahLuarJadwal() {
             Daftarkan dulu lewat menu Toko Baru.
           </Text>
           <TouchableOpacity style={styles.newStoreBtn} onPress={() => router.push("/toko-baru" as any)}>
-            <AppIcon name="plus" size={14} color={RED} style={{ marginRight: 6 }} />
+            <AppIcon name="plus" size={14} color={C.primary} style={{ marginRight: 6 }} />
             <Text style={styles.newStoreText}>Daftarkan toko baru</Text>
           </TouchableOpacity>
         </View>
       ) : results === undefined ? (
-        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
       ) : (results as any[]).length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Tidak ada toko yang cocok</Text>
           <Text style={styles.emptySub}>Kalau tokonya baru, daftarkan dulu lewat tombol di bawah.</Text>
           <TouchableOpacity style={styles.newStoreBtn} onPress={() => router.push("/toko-baru" as any)}>
-            <AppIcon name="plus" size={14} color={RED} style={{ marginRight: 6 }} />
+            <AppIcon name="plus" size={14} color={C.primary} style={{ marginRight: 6 }} />
             <Text style={styles.newStoreText}>Daftarkan toko baru</Text>
           </TouchableOpacity>
         </View>
@@ -248,11 +248,11 @@ export default function TambahLuarJadwal() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -264,18 +264,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 12, color: "#667085", marginTop: 4, lineHeight: 18 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 12, color: C.inkMuted, marginTop: 4, lineHeight: 18 },
 
   controls: { paddingHorizontal: 16, paddingTop: 12 },
   dateBtn: {
     flexDirection: "row", alignItems: "center", backgroundColor: C.surface,
     borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10,
   },
-  dateLabel: { fontSize: 10, fontWeight: "800", color: GRAY, letterSpacing: 0.4 },
+  dateLabel: { fontSize: 10, fontWeight: "800", color: C.inkMuted, letterSpacing: 0.4 },
   dateValue: { fontSize: 13.5, fontWeight: "800", color: C.ink, marginTop: 1 },
-  dateHint: { fontSize: 10, fontWeight: "800", color: RED, backgroundColor: "#FDE8E6", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  dateHint: { fontSize: 10, fontWeight: "800", color: C.primary, backgroundColor: C.primaryTint, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
 
   searchBox: {
     flexDirection: "row", alignItems: "center", backgroundColor: C.surface,
@@ -289,13 +289,13 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", marginTop: 5 },
   badge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   badgeText: { fontSize: 10, fontWeight: "800" },
-  addr: { fontSize: 11, color: GRAY, marginTop: 4, lineHeight: 16 },
-  addChip: { flexDirection: "row", alignItems: "center", backgroundColor: "#ECFDF3", borderWidth: 1, borderColor: "#ABEFC6", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, marginLeft: 8 },
-  addChipText: { fontSize: 10.5, fontWeight: "800", color: GREEN },
-  blockedText: { fontSize: 10.5, fontWeight: "800", color: GRAY, marginLeft: 8 },
+  addr: { fontSize: 11, color: C.inkMuted, marginTop: 4, lineHeight: 16 },
+  addChip: { flexDirection: "row", alignItems: "center", backgroundColor: C.status.success.bg, borderWidth: 1, borderColor: C.status.success.border, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, marginLeft: 8 },
+  addChipText: { fontSize: 10.5, fontWeight: "800", color: C.status.success.fg },
+  blockedText: { fontSize: 10.5, fontWeight: "800", color: C.inkMuted, marginLeft: 8 },
 
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink, textAlign: "center" },
-  emptySub: { fontSize: 13, color: GRAY, lineHeight: 19, textAlign: "center", marginTop: 8 },
-  newStoreBtn: { flexDirection: "row", alignItems: "center", marginTop: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: "#FECDCA", borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 10 },
-  newStoreText: { fontSize: 12.5, fontWeight: "800", color: "#B42318" },
+  emptySub: { fontSize: 13, color: C.inkMuted, lineHeight: 19, textAlign: "center", marginTop: 8 },
+  newStoreBtn: { flexDirection: "row", alignItems: "center", marginTop: 16, backgroundColor: C.card, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 10 },
+  newStoreText: { fontSize: 12.5, fontWeight: "800", color: C.status.danger.fg },
 });

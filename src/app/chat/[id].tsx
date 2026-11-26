@@ -7,14 +7,14 @@ import { api } from "../../../convex/_generated/api";
 import AppIcon from "../../components/AppIcon";
 import { TOP_PAD } from "../../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GREEN = "#067647";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
 const fmtTime = (ms: number) =>
   ms ? new Date(ms).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "";
 
 export default function ChatRoom() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const viewer = useQuery(api.users.viewer) as any;
@@ -50,7 +50,7 @@ export default function ChatRoom() {
   };
 
   if (info === undefined || msgs === undefined || !viewer) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
   if (!info) {
     return (
@@ -82,7 +82,7 @@ export default function ChatRoom() {
     <View style={styles.screen}>
       <View style={styles.topbar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <AppIcon name="back" size={16} color={RED} style={{ marginRight: 4 }} />
+          <AppIcon name="back" size={16} color={C.primary} style={{ marginRight: 4 }} />
           <Text style={styles.backText}>Kembali</Text>
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>{info.title}</Text>
@@ -111,7 +111,7 @@ export default function ChatRoom() {
             onSubmitEditing={onSend}
           />
           <TouchableOpacity style={[styles.sendBtn, (!text.trim() || busy) && { opacity: 0.5 }]} onPress={onSend} disabled={!text.trim() || busy}>
-            <AppIcon name="send" size={17} color="#fff" style={{ marginLeft: 3 }} />
+            <AppIcon name="send" size={17} color={C.onPrimary} style={{ marginLeft: 3 }} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -119,11 +119,11 @@ export default function ChatRoom() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -136,24 +136,24 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
   msgRow: { marginBottom: 8, maxWidth: "82%" },
   msgRowOwn: { alignSelf: "flex-end", alignItems: "flex-end" },
   msgRowOther: { alignSelf: "flex-start", alignItems: "flex-start" },
-  sender: { fontSize: 11, color: GRAY, fontWeight: "700", marginBottom: 2, marginLeft: 4 },
+  sender: { fontSize: 11, color: C.inkMuted, fontWeight: "700", marginBottom: 2, marginLeft: 4 },
   bubble: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
-  bubbleOwn: { backgroundColor: RED, borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#EEF0F3", borderBottomLeftRadius: 4 },
-  msgText: { fontSize: 14, color: "#111" },
-  msgTextOwn: { color: "#fff" },
-  msgTime: { fontSize: 10, color: GRAY, marginTop: 3, alignSelf: "flex-end" },
-  msgTimeOwn: { color: "#FDE8E6" },
-  inputBar: { flexDirection: "row", alignItems: "flex-end", padding: 10, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0D9D5" },
-  input: { flex: 1, backgroundColor: "#F2F4F7", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, fontSize: 15, maxHeight: 100, color: "#111" },
-  sendBtn: { backgroundColor: RED, width: 42, height: 42, borderRadius: 21, justifyContent: "center", alignItems: "center", marginLeft: 8 },
-  emptyTitle: { fontSize: 15, fontWeight: "700", color: "#333", textAlign: "center" },
-  btnOutline: { borderWidth: 1, borderColor: RED, borderRadius: 12, padding: 12, paddingHorizontal: 30, marginTop: 14 },
-  btnOutlineText: { color: RED, fontWeight: "800", fontSize: 15 },
+  bubbleOwn: { backgroundColor: C.primary, borderBottomRightRadius: 4 },
+  bubbleOther: { backgroundColor: C.card, borderWidth: 1, borderColor: C.divider, borderBottomLeftRadius: 4 },
+  msgText: { fontSize: 14, color: C.ink0 },
+  msgTextOwn: { color: C.onPrimary },
+  msgTime: { fontSize: 10, color: C.inkMuted, marginTop: 3, alignSelf: "flex-end" },
+  msgTimeOwn: { color: C.primaryTint },
+  inputBar: { flexDirection: "row", alignItems: "flex-end", padding: 10, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.borderTint },
+  input: { flex: 1, backgroundColor: C.status.neutral.bg, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, fontSize: 15, maxHeight: 100, color: C.ink0 },
+  sendBtn: { backgroundColor: C.primary, width: 42, height: 42, borderRadius: 21, justifyContent: "center", alignItems: "center", marginLeft: 8 },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: C.ink3, textAlign: "center" },
+  btnOutline: { borderWidth: 1, borderColor: C.primary, borderRadius: 12, padding: 12, paddingHorizontal: 30, marginTop: 14 },
+  btnOutlineText: { color: C.primary, fontWeight: "800", fontSize: 15 },
 });

@@ -7,19 +7,16 @@ import { api } from "../../../convex/_generated/api";
 import { SpkStatusBadge, ReviewNoteBox } from "../../components/SpkWorkflow";
 import { TOP_PAD } from "../../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GREEN = "#067647";
-const BLUE = "#175CD3";
-const VIOLET = "#5B21B6";
-
-const HASIL: any = {
-  order_masuk: { label: "Order masuk", color: GREEN, bg: "#DCFAE6" },
-  order_tambah: { label: "Order tambahan", color: BLUE, bg: "#E0F2FE" },
-  tidak_order: { label: "Tidak order", color: RED, bg: "#FEE4E2" },
-  no_respon: { label: "No respon", color: GRAY, bg: "#F2F4F7" },
-};
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
+const makeHASIL = (C: Colors): any => (
+  {
+  order_masuk: { label: "Order masuk", color: C.status.success.fg, bg: C.chip.success.bg },
+  order_tambah: { label: "Order tambahan", color: C.status.info.fg, bg: C.chip.info.bg },
+  tidak_order: { label: "Tidak order", color: C.primary, bg: C.chip.danger.bg },
+  no_respon: { label: "No respon", color: C.inkMuted, bg: C.status.neutral.bg },
+}
+);
 const REASON: any = {
   stok_cukup: "Stok cukup", baru_order: "Baru order trip lalu", kalah_harga: "Kalah harga",
   harga_dipelajari: "Harga dipelajari", owner_tidak_ada: "Owner tidak ada", piutang: "Ada piutang",
@@ -27,6 +24,9 @@ const REASON: any = {
 const MET: any = { owner: "Owner", karyawan: "Karyawan", pic: "PIC", keluarga: "Keluarga", toko_tutup: "Toko Tutup" };
 
 export default function SpkDetailOrder() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
+  const HASIL = makeHASIL(C);
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const viewer = useQuery(api.users.viewer) as any;
@@ -40,7 +40,7 @@ export default function SpkDetailOrder() {
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/spk"); };
 
   if (data === undefined) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
   if (!data) {
     return (
@@ -54,7 +54,7 @@ export default function SpkDetailOrder() {
   }
 
   const t = data.task;
-  const hasil = HASIL[t.hasil] ?? { label: t.hasil ?? "-", color: GRAY, bg: "#F2F4F7" };
+  const hasil = HASIL[t.hasil] ?? { label: t.hasil ?? "-", color: C.inkMuted, bg: C.status.neutral.bg };
   const jmlOrder = t.orderItems?.length ?? 0;
 
   // ===== FASE 1: status pekerjaan =====
@@ -197,7 +197,7 @@ export default function SpkDetailOrder() {
                 <TextInput
                   style={styles.input}
                   placeholder="Saran / review untuk petugas (opsional)"
-                  placeholderTextColor="#98A2B3"
+                  placeholderTextColor={C.inkFaint}
                   value={note}
                   onChangeText={setNote}
                   multiline
@@ -228,7 +228,7 @@ export default function SpkDetailOrder() {
                   onPress={doReopen}
                   disabled={busy}
                 >
-                  <Text style={[styles.btnText, { color: RED }]}>Buka Kembali (OPEN)</Text>
+                  <Text style={[styles.btnText, { color: C.primary }]}>Buka Kembali (OPEN)</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -240,6 +240,8 @@ export default function SpkDetailOrder() {
 }
 
 function Row({ label, value }: { label: string; value: string }) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -248,11 +250,11 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -264,33 +266,33 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
   nameRow: { flexDirection: "row", alignItems: "flex-start", marginTop: 8 },
-  storeName: { fontSize: 22, fontWeight: "800", color: "#111", flexShrink: 1 },
-  meta: { fontSize: 13, color: GRAY, marginTop: 4 },
+  storeName: { fontSize: 22, fontWeight: "800", color: C.ink0, flexShrink: 1 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 4 },
   hasilBox: { borderRadius: 12, padding: 14, marginTop: 14 },
   hasilText: { fontSize: 16, fontWeight: "900" },
-  card: { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginTop: 14, borderWidth: 1, borderColor: "#EEF0F3" },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: "#111", marginBottom: 6 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F2F4F7" },
-  rowLabel: { fontSize: 13, color: GRAY },
-  rowValue: { fontSize: 14, color: "#344054", fontWeight: "700", flexShrink: 1, textAlign: "right", marginLeft: 12 },
-  notes: { fontSize: 14, color: "#344054", lineHeight: 20 },
-  photo: { width: "100%", height: 300, borderRadius: 12, marginTop: 6, backgroundColor: "#F2F4F7" },
-  hint: { fontSize: 13, color: GRAY, lineHeight: 19, marginBottom: 8 },
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginTop: 14, borderWidth: 1, borderColor: C.divider },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: C.ink0, marginBottom: 6 },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.status.neutral.bg },
+  rowLabel: { fontSize: 13, color: C.inkMuted },
+  rowValue: { fontSize: 14, color: C.inkSoft, fontWeight: "700", flexShrink: 1, textAlign: "right", marginLeft: 12 },
+  notes: { fontSize: 14, color: C.inkSoft, lineHeight: 20 },
+  photo: { width: "100%", height: 300, borderRadius: 12, marginTop: 6, backgroundColor: C.status.neutral.bg },
+  hint: { fontSize: 13, color: C.inkMuted, lineHeight: 19, marginBottom: 8 },
   input: {
-    borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 10, padding: 10,
-    minHeight: 70, textAlignVertical: "top", fontSize: 14, color: "#111",
-    backgroundColor: "#FCFCFD",
+    borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 10, padding: 10,
+    minHeight: 70, textAlignVertical: "top", fontSize: 14, color: C.ink0,
+    backgroundColor: C.surfaceAlt6,
   },
   btnRow: { flexDirection: "row", marginTop: 12, flexWrap: "wrap" },
   btn: { borderRadius: 10, paddingVertical: 11, paddingHorizontal: 16, alignItems: "center", marginRight: 8, marginBottom: 8 },
-  btnPrimary: { backgroundColor: GREEN },
-  btnGhost: { backgroundColor: "#FFF1F0", borderWidth: 1, borderColor: "#FECDCA" },
+  btnPrimary: { backgroundColor: C.status.success.fg },
+  btnGhost: { backgroundColor: C.dangerTint, borderWidth: 1, borderColor: C.status.danger.border },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 16 },
-  btnBack: { backgroundColor: RED, borderRadius: 12, padding: 14, paddingHorizontal: 30 },
-  btnBackText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  btnText: { color: C.onPrimary, fontWeight: "800", fontSize: 14 },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: C.ink3, marginBottom: 16 },
+  btnBack: { backgroundColor: C.primary, borderRadius: 12, padding: 14, paddingHorizontal: 30 },
+  btnBackText: { color: C.onPrimary, fontWeight: "800", fontSize: 15 },
 });

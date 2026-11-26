@@ -6,11 +6,11 @@ import { api } from "../../convex/_generated/api";
 import { toFriendlyError } from "../lib/msg";
 import { TOP_PAD } from "../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GREEN = "#067647";
-
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
 export default function GantiPassword() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const changePwd = useAction(api.users.changeMyPassword);
   const [pw, setPw] = useState("");
@@ -26,7 +26,7 @@ export default function GantiPassword() {
   // Kekuatan sederhana: panjang + campuran huruf & angka
   const strength = pw.length === 0 ? 0 : pw.length < 6 ? 1 : /[A-Za-z]/.test(pw) && /\d/.test(pw) ? (pw.length >= 10 ? 3 : 2) : 1;
   const strengthLabel = ["", "Lemah", "Cukup", "Kuat"][strength];
-  const strengthColor = ["#D0D5DD", RED, "#B54708", GREEN][strength];
+  const strengthColor = [C.status.neutral.border, C.primary, C.status.warning.fg, C.status.success.fg][strength];
 
   const onSave = async () => {
     setErr("");
@@ -62,7 +62,7 @@ export default function GantiPassword() {
               value={pw}
               onChangeText={(t) => { setPw(t); setErr(""); }}
               placeholder="Minimal 6 karakter"
-              placeholderTextColor="#98A2B3"
+              placeholderTextColor={C.inkFaint}
               secureTextEntry={!show1}
               autoCapitalize="none"
             />
@@ -76,7 +76,7 @@ export default function GantiPassword() {
               {[1, 2, 3].map((i) => (
                 <View
                   key={i}
-                  style={[styles.meterBar, { backgroundColor: i <= strength ? strengthColor : "#EAECF0" }]}
+                  style={[styles.meterBar, { backgroundColor: i <= strength ? strengthColor : C.border2 }]}
                 />
               ))}
               <Text style={[styles.meterText, { color: strengthColor }]}>{strengthLabel}</Text>
@@ -90,7 +90,7 @@ export default function GantiPassword() {
               value={pw2}
               onChangeText={(t) => { setPw2(t); setErr(""); }}
               placeholder="Ketik ulang password"
-              placeholderTextColor="#98A2B3"
+              placeholderTextColor={C.inkFaint}
               secureTextEntry={!show2}
               autoCapitalize="none"
             />
@@ -121,10 +121,10 @@ export default function GantiPassword() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -137,23 +137,23 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#EEF0F3" },
-  label: { fontSize: 12, fontWeight: "800", color: GRAY, marginTop: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
-  inputRow: { flexDirection: "row", alignItems: "center", backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 12 },
-  inputRowBad: { borderColor: "#FECDCA", backgroundColor: "#FFF5F4" },
-  inputFlex: { flex: 1, padding: 13, fontSize: 15, color: "#111" },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  card: { backgroundColor: C.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.divider },
+  label: { fontSize: 12, fontWeight: "800", color: C.inkMuted, marginTop: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
+  inputRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.surfaceAlt2, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 12 },
+  inputRowBad: { borderColor: C.status.danger.border, backgroundColor: C.dangerTint3 },
+  inputFlex: { flex: 1, padding: 13, fontSize: 15, color: C.ink0 },
   eyeBtn: { paddingHorizontal: 12, paddingVertical: 10 },
   eyeText: { fontSize: 16 },
   meterRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
   meterBar: { flex: 1, height: 4, borderRadius: 2, marginRight: 4 },
   meterText: { fontSize: 11, fontWeight: "800", marginLeft: 6, minWidth: 44, textAlign: "right" },
-  warn: { fontSize: 12, color: "#B42318", fontWeight: "700", marginTop: 6 },
-  ok: { fontSize: 12, color: GREEN, fontWeight: "700", marginTop: 6 },
-  err: { fontSize: 12, color: "#B42318", fontWeight: "700", marginTop: 10, backgroundColor: "#FEF3F2", borderWidth: 1, borderColor: "#FECDCA", borderRadius: 10, padding: 10 },
-  note: { fontSize: 12, color: GRAY, marginTop: 10, lineHeight: 17 },
-  btnPrimary: { backgroundColor: RED, borderRadius: 14, padding: 17, alignItems: "center", marginTop: 20 },
-  btnOff: { backgroundColor: "#F2A9A3" },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  warn: { fontSize: 12, color: C.status.danger.fg, fontWeight: "700", marginTop: 6 },
+  ok: { fontSize: 12, color: C.status.success.fg, fontWeight: "700", marginTop: 6 },
+  err: { fontSize: 12, color: C.status.danger.fg, fontWeight: "700", marginTop: 10, backgroundColor: C.status.danger.bg, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: 10, padding: 10 },
+  note: { fontSize: 12, color: C.inkMuted, marginTop: 10, lineHeight: 17 },
+  btnPrimary: { backgroundColor: C.primary, borderRadius: 14, padding: 17, alignItems: "center", marginTop: 20 },
+  btnOff: { backgroundColor: C.dangerBorder2 },
+  btnText: { color: C.onPrimary, fontSize: 16, fontWeight: "800" },
 });

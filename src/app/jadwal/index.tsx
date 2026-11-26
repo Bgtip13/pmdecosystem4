@@ -11,13 +11,9 @@ import { toFriendlyError } from "../../lib/msg";
 import { TOP_PAD } from "../../lib/layout";
 import { isOwnerLike } from "../../lib/roles";
 
-const { colors: C, radius: R } = theme;
-const RED = C.primary;
-const GRAY = C.inkMuted;
-const GREEN = "#067647";
-const BLUE = "#175CD3";
-const ORANGE = "#B54708";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
+const { radius: R } = theme;
 const AREAS = ["SOLO", "DIY", "SEMARANG"] as const;
 const AREA_ALL = "ALL";
 
@@ -26,13 +22,14 @@ const HARI_SHORT = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const BULAN_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
-const STATUS_META: any = {
-  PLANNED: { label: "Belum", bg: "#F2F4F7", fg: "#475467", bar: "#98A2B3" },
-  ONGOING: { label: "Berjalan", bg: "#FEF0C7", fg: "#B54708", bar: "#F79009" },
-  DONE: { label: "Selesai", bg: "#DCFAE6", fg: "#067647", bar: "#12B76A" },
-  CANCELLED: { label: "Dibatalkan", bg: "#FEE4E2", fg: "#B42318", bar: "#F04438" },
-};
-
+const makeSTATUS_META = (C: Colors): any => (
+  {
+  PLANNED: { label: "Belum", bg: C.status.neutral.bg, fg: C.ink2, bar: C.inkFaint },
+  ONGOING: { label: "Berjalan", bg: C.chip.warning.bg, fg: C.status.warning.fg, bar: C.amber },
+  DONE: { label: "Selesai", bg: C.chip.success.bg, fg: C.status.success.fg, bar: C.greenAccent },
+  CANCELLED: { label: "Dibatalkan", bg: C.chip.danger.bg, fg: C.status.danger.fg, bar: C.redAccent },
+}
+);
 type Filter = "ALL" | "PLANNED" | "ONGOING" | "DONE";
 
 const FILTERS: { key: Filter; label: string }[] = [
@@ -70,6 +67,8 @@ const fmtTime = (ms?: number | null) =>
 
 // ===== Chip filter =====
 function Chip({ label, on, onPress }: any) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   return (
     <TouchableOpacity style={[styles.chip, on && styles.chipOn]} onPress={onPress} activeOpacity={0.8}>
       <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
@@ -79,6 +78,8 @@ function Chip({ label, on, onPress }: any) {
 
 // ===== Kotak angka ringkas =====
 function Stat({ label, value, color }: any) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   return (
     <View style={styles.stat}>
       <Text style={[styles.statValue, color ? { color } : null]}>{value}</Text>
@@ -89,6 +90,8 @@ function Stat({ label, value, color }: any) {
 
 // ===== Kalender bulanan (tanpa library tambahan) =====
 function Kalender({ visible, value, onClose, onPick }: any) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const [ym, setYm] = useState(String(value || todayKeyWIB()).slice(0, 7));
   const [y, m] = ym.split("-").map(Number);
   const today = todayKeyWIB();
@@ -138,8 +141,8 @@ function Kalender({ visible, value, onClose, onPick }: any) {
                       style={[
                         styles.calDayText,
                         on && styles.calDayTextOn,
-                        !on && isToday && { color: RED },
-                        !on && lewat && { color: "#98A2B3" },
+                        !on && isToday && { color: C.primary },
+                        !on && lewat && { color: C.inkFaint },
                       ]}
                     >
                       {d}
@@ -165,6 +168,9 @@ function Kalender({ visible, value, onClose, onPick }: any) {
 }
 
 export default function JadwalList() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
+  const STATUS_META = makeSTATUS_META(C);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const [dk, setDk] = useState(todayKeyWIB());
@@ -294,7 +300,7 @@ export default function JadwalList() {
   };
 
   if (!viewer || data === undefined) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
 
   if (!isField && !isSuper && !isOwner && !isOwnerLike(role)) {
@@ -352,23 +358,23 @@ export default function JadwalList() {
           {item.isAdHoc || item.edited || item.storeMissing || req ? (
             <View style={styles.badgeRow}>
               {item.isAdHoc ? (
-                <View style={[styles.badge, { backgroundColor: "#FEF0C7" }]}>
-                  <Text style={[styles.badgeText, { color: ORANGE }]}>Luar jadwal</Text>
+                <View style={[styles.badge, { backgroundColor: C.chip.warning.bg }]}>
+                  <Text style={[styles.badgeText, { color: C.status.warning.fg }]}>Luar jadwal</Text>
                 </View>
               ) : null}
               {item.edited ? (
-                <View style={[styles.badge, { backgroundColor: "#EFF8FF" }]}>
-                  <Text style={[styles.badgeText, { color: BLUE }]}>Diubah</Text>
+                <View style={[styles.badge, { backgroundColor: C.status.info.bg }]}>
+                  <Text style={[styles.badgeText, { color: C.status.info.fg }]}>Diubah</Text>
                 </View>
               ) : null}
               {item.storeMissing ? (
-                <View style={[styles.badge, { backgroundColor: "#FEE4E2" }]}>
-                  <Text style={[styles.badgeText, { color: "#B42318" }]}>Belum terhubung</Text>
+                <View style={[styles.badge, { backgroundColor: C.chip.danger.bg }]}>
+                  <Text style={[styles.badgeText, { color: C.status.danger.fg }]}>Belum terhubung</Text>
                 </View>
               ) : null}
               {req ? (
-                <View style={[styles.badge, { backgroundColor: "#F4EBFF" }]}>
-                  <Text style={[styles.badgeText, { color: "#6941C6" }]}>
+                <View style={[styles.badge, { backgroundColor: C.purpleSoft }]}>
+                  <Text style={[styles.badgeText, { color: C.role.supervisor }]}>
                     {isField ? "Menunggu persetujuan" : `Pengajuan ${req.kind === "move" ? "geser" : "hapus"}`}
                   </Text>
                 </View>
@@ -434,14 +440,14 @@ export default function JadwalList() {
           {isSuper ? (
             <>
               <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/jadwal/laporan" as any)}>
-                <AppIcon name="download" size={17} color={RED} />
+                <AppIcon name="download" size={17} color={C.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.iconBtn, syncing && { opacity: 0.5 }]}
                 onPress={onSync}
                 disabled={syncing}
               >
-                <AppIcon name="refresh" size={17} color={RED} />
+                <AppIcon name="refresh" size={17} color={C.primary} />
               </TouchableOpacity>
             </>
           ) : null}
@@ -454,7 +460,7 @@ export default function JadwalList() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.dateBtn} onPress={() => setCalOpen(true)} activeOpacity={0.85}>
-            <AppIcon name="calendar" size={16} color={RED} style={{ marginRight: 8 }} />
+            <AppIcon name="calendar" size={16} color={C.primary} style={{ marginRight: 8 }} />
             <View style={{ flex: 1 }}>
               <Text style={styles.dateBtnText}>{fmtShort(dk)}</Text>
               <Text style={styles.dateBtnSub}>
@@ -472,7 +478,7 @@ export default function JadwalList() {
         {/* ===== Aksi utama: tambah toko di luar jadwal ===== */}
         {canAdd ? (
           <TouchableOpacity style={styles.addBtn} onPress={() => router.push("/jadwal/luar" as any)} activeOpacity={0.85}>
-            <AppIcon name="plus" size={16} color={RED} style={{ marginRight: 6 }} />
+            <AppIcon name="plus" size={16} color={C.primary} style={{ marginRight: 6 }} />
             <Text style={styles.addBtnText}>Tambah toko di luar jadwal</Text>
           </TouchableOpacity>
         ) : null}
@@ -480,16 +486,16 @@ export default function JadwalList() {
 
       <View style={styles.statRow}>
         <Stat label="TOTAL" value={total} />
-        <Stat label="SELESAI" value={done} color={GREEN} />
-        <Stat label="BERJALAN" value={ongoing} color={ORANGE} />
-        <Stat label="BELUM" value={planned} color={BLUE} />
+        <Stat label="SELESAI" value={done} color={C.status.success.fg} />
+        <Stat label="BERJALAN" value={ongoing} color={C.status.warning.fg} />
+        <Stat label="BELUM" value={planned} color={C.status.info.fg} />
       </View>
 
       <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: (`${persen}%`) as any }]} />
         </View>
-        <Text style={[styles.minHint, kurang > 0 && total > 0 ? null : { color: GRAY }]}>
+        <Text style={[styles.minHint, kurang > 0 && total > 0 ? null : { color: C.inkMuted }]}>
           {total === 0
             ? `Belum ada toko terjadwal. Minimal ${minHari} toko/hari.`
             : kurang > 0
@@ -506,13 +512,13 @@ export default function JadwalList() {
           onPress={() => (canLink ? router.push("/spv-approval?tab=jadwal" as any) : undefined)}
           disabled={!canLink}
         >
-          <AppIcon name="clock" size={15} color="#6941C6" style={{ marginRight: 8 }} />
+          <AppIcon name="clock" size={15} color={C.role.supervisor} style={{ marginRight: 8 }} />
           <Text style={styles.pendingText}>
             {canLink
               ? `${pendingCount} pengajuan perubahan jadwal menunggu persetujuan. Ketuk untuk meninjau.`
               : `${pendingCount} pengajuanmu masih menunggu persetujuan supervisor.`}
           </Text>
-          {canLink ? <AppIcon name="chevron" size={15} color="#6941C6" /> : null}
+          {canLink ? <AppIcon name="chevron" size={15} color={C.role.supervisor} /> : null}
         </TouchableOpacity>
       ) : null}
 
@@ -553,7 +559,7 @@ export default function JadwalList() {
             onPress={onAutoLink}
             disabled={syncingAll}
           >
-            <AppIcon name="sync" size={15} color={GREEN} style={{ marginRight: 6 }} />
+            <AppIcon name="sync" size={15} color={C.status.success.fg} style={{ marginRight: 6 }} />
             <Text style={styles.autoBtnText}>
               {syncingAll ? "Menyambungkan..." : `Hubungkan otomatis (${missingCount})`}
             </Text>
@@ -612,7 +618,7 @@ export default function JadwalList() {
             <TextInput
               style={styles.linkSearch}
               placeholder="Cari nama toko di Kelola Toko..."
-              placeholderTextColor="#98A2B3"
+              placeholderTextColor={C.inkFaint}
               value={storeQ}
               onChangeText={setStoreQ}
               autoCapitalize="none"
@@ -621,7 +627,7 @@ export default function JadwalList() {
 
             <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
               {candidatesLoading ? (
-                <IOSSpinner size="small" color={RED} style={{ marginVertical: 16 }} />
+                <IOSSpinner size="small" color={C.primary} style={{ marginVertical: 16 }} />
               ) : candidates.length === 0 ? (
                 <Text style={styles.linkEmpty}>
                   {q.length >= 2
@@ -667,11 +673,11 @@ export default function JadwalList() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 14,
@@ -684,52 +690,52 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   titleRow: { flexDirection: "row", alignItems: "center" },
-  brand: { fontSize: 11, fontWeight: "800", color: "#D92D20", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 12.5, color: "#667085", marginTop: 3, lineHeight: 18 },
-  iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", marginLeft: 8 },
+  brand: { fontSize: 11, fontWeight: "800", color: C.primary, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 12.5, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
+  iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.card, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", marginLeft: 8 },
 
   // ===== pemilih tanggal =====
   dateRow: { flexDirection: "row", alignItems: "center", marginTop: 12 },
-  arrowBtn: { width: 38, height: 44, borderRadius: R.md, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
-  arrowBtnText: { fontSize: 22, fontWeight: "800", color: RED, lineHeight: 24 },
-  dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", height: 44, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, marginHorizontal: 8 },
+  arrowBtn: { width: 38, height: 44, borderRadius: R.md, backgroundColor: C.card, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  arrowBtnText: { fontSize: 22, fontWeight: "800", color: C.primary, lineHeight: 24 },
+  dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", height: 44, backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, marginHorizontal: 8 },
   dateBtnText: { fontSize: 14, fontWeight: "800", color: C.ink },
-  dateBtnSub: { fontSize: 11, color: GRAY, marginTop: 1 },
-  dateBtnHint: { fontSize: 10, fontWeight: "800", color: RED, backgroundColor: "#FDE8E6", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  dateBtnSub: { fontSize: 11, color: C.inkMuted, marginTop: 1 },
+  dateBtnHint: { fontSize: 10, fontWeight: "800", color: C.primary, backgroundColor: C.primaryTint, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
 
-  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: "#FECDCA", borderRadius: R.md, paddingVertical: 10, marginTop: 10 },
-  addBtnText: { fontSize: 12.5, fontWeight: "800", color: "#B42318" },
-  linkBtn: { marginTop: 16, backgroundColor: RED, borderRadius: R.md, paddingHorizontal: 24, paddingVertical: 12 },
-  linkBtnText: { color: "#fff", fontWeight: "800" },
+  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.card, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: R.md, paddingVertical: 10, marginTop: 10 },
+  addBtnText: { fontSize: 12.5, fontWeight: "800", color: C.status.danger.fg },
+  linkBtn: { marginTop: 16, backgroundColor: C.primary, borderRadius: R.md, paddingHorizontal: 24, paddingVertical: 12 },
+  linkBtnText: { color: C.onPrimary, fontWeight: "800" },
 
   // ===== ringkasan =====
   statRow: { flexDirection: "row", paddingHorizontal: 16, paddingTop: 12, gap: 8 },
   stat: { flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingVertical: 9, alignItems: "center" },
   statValue: { fontSize: 19, fontWeight: "900", color: C.ink },
-  statLabel: { fontSize: 8.5, fontWeight: "800", color: GRAY, letterSpacing: 0.4, marginTop: 1 },
+  statLabel: { fontSize: 8.5, fontWeight: "800", color: C.inkMuted, letterSpacing: 0.4, marginTop: 1 },
 
-  progressTrack: { height: 6, borderRadius: 999, backgroundColor: "#F2E3E0", overflow: "hidden" },
-  progressFill: { height: 6, borderRadius: 999, backgroundColor: GREEN },
-  minHint: { fontSize: 11.5, fontWeight: "700", color: "#B54708", marginTop: 6, lineHeight: 16 },
+  progressTrack: { height: 6, borderRadius: 999, backgroundColor: C.borderTint3, overflow: "hidden" },
+  progressFill: { height: 6, borderRadius: 999, backgroundColor: C.status.success.fg },
+  minHint: { fontSize: 11.5, fontWeight: "700", color: C.status.warning.fg, marginTop: 6, lineHeight: 16 },
 
   // ===== pengajuan =====
-  pendingBanner: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginTop: 10, backgroundColor: "#F4EBFF", borderWidth: 1, borderColor: "#D9D6FE", borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10 },
-  pendingText: { flex: 1, fontSize: 11.5, fontWeight: "700", color: "#6941C6", lineHeight: 16 },
-  reqHint: { fontSize: 11, color: "#6941C6", fontWeight: "700", marginTop: 5, lineHeight: 16 },
+  pendingBanner: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginTop: 10, backgroundColor: C.purpleSoft, borderWidth: 1, borderColor: C.purpleBorder2, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10 },
+  pendingText: { flex: 1, fontSize: 11.5, fontWeight: "700", color: C.role.supervisor, lineHeight: 16 },
+  reqHint: { fontSize: 11, color: C.role.supervisor, fontWeight: "700", marginTop: 5, lineHeight: 16 },
 
   // ===== filter =====
   filterWrap: { paddingHorizontal: 16, paddingTop: 10 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", marginBottom: 2 },
-  chip: { borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, marginRight: 7, marginBottom: 7 },
-  chipOn: { backgroundColor: RED, borderColor: RED },
-  chipText: { fontSize: 11.5, fontWeight: "800", color: GRAY },
-  chipTextOn: { color: "#fff" },
+  chip: { borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, paddingHorizontal: 12, paddingVertical: 6, marginRight: 7, marginBottom: 7 },
+  chipOn: { backgroundColor: C.primary, borderColor: C.primary },
+  chipText: { fontSize: 11.5, fontWeight: "800", color: C.inkMuted },
+  chipTextOn: { color: C.onPrimary },
 
   // ===== sambungkan otomatis =====
   autoRow: { paddingHorizontal: 16, paddingTop: 6 },
-  autoBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#ECFDF3", borderWidth: 1, borderColor: "#ABEFC6", borderRadius: R.md, paddingVertical: 10 },
-  autoBtnText: { fontSize: 12.5, fontWeight: "800", color: GREEN },
+  autoBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.status.success.bg, borderWidth: 1, borderColor: C.status.success.border, borderRadius: R.md, paddingVertical: 10 },
+  autoBtnText: { fontSize: 12.5, fontWeight: "800", color: C.status.success.fg },
 
   // ===== kartu =====
   card: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: R.lg, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: C.border, borderLeftWidth: 4 },
@@ -742,46 +748,46 @@ const styles = StyleSheet.create({
 
   miniRow: { flexDirection: "row", marginTop: 8 },
   miniBox: { flex: 1, backgroundColor: C.surfaceAlt, borderRadius: R.md, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8 },
-  miniLabel: { fontSize: 9.5, fontWeight: "800", color: GRAY, letterSpacing: 0.3 },
+  miniLabel: { fontSize: 9.5, fontWeight: "800", color: C.inkMuted, letterSpacing: 0.3 },
   miniValue: { fontSize: 12.5, fontWeight: "800", color: C.ink, marginTop: 1 },
 
-  subTime: { fontSize: 11, color: GRAY, marginTop: 7 },
-  linkHint: { fontSize: 11, color: "#B42318", fontWeight: "700", marginTop: 6, lineHeight: 16 },
-  arrow: { fontSize: 22, color: "#98A2B3", fontWeight: "800", marginLeft: 6 },
+  subTime: { fontSize: 11, color: C.inkMuted, marginTop: 7 },
+  linkHint: { fontSize: 11, color: C.status.danger.fg, fontWeight: "700", marginTop: 6, lineHeight: 16 },
+  arrow: { fontSize: 22, color: C.inkFaint, fontWeight: "800", marginLeft: 6 },
 
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink, textAlign: "center" },
-  emptySub: { fontSize: 13, color: GRAY, lineHeight: 19, textAlign: "center", marginTop: 8 },
+  emptySub: { fontSize: 13, color: C.inkMuted, lineHeight: 19, textAlign: "center", marginTop: 8 },
 
   // ===== kalender =====
   calBg: { flex: 1, backgroundColor: "rgba(16,24,40,0.45)", justifyContent: "center", padding: 22 },
-  calCard: { backgroundColor: "#fff", borderRadius: R.lg, padding: 14 },
+  calCard: { backgroundColor: C.card, borderRadius: R.lg, padding: 14 },
   calHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   calArrow: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.surfaceAlt, alignItems: "center", justifyContent: "center" },
-  calArrowText: { fontSize: 20, fontWeight: "800", color: RED, lineHeight: 22 },
+  calArrowText: { fontSize: 20, fontWeight: "800", color: C.primary, lineHeight: 22 },
   calHeadText: { fontSize: 15, fontWeight: "800", color: C.ink },
   calWeekRow: { flexDirection: "row" },
-  calWeek: { width: "14.2857%", textAlign: "center", fontSize: 10.5, fontWeight: "800", color: GRAY, paddingVertical: 4 },
+  calWeek: { width: "14.2857%", textAlign: "center", fontSize: 10.5, fontWeight: "800", color: C.inkMuted, paddingVertical: 4 },
   calGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: 2 },
   calCell: { width: "14.2857%", height: 42, alignItems: "center", justifyContent: "center" },
   calDay: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  calDayOn: { backgroundColor: RED },
-  calDayToday: { borderWidth: 1.5, borderColor: RED },
+  calDayOn: { backgroundColor: C.primary },
+  calDayToday: { borderWidth: 1.5, borderColor: C.primary },
   calDayText: { fontSize: 13, fontWeight: "700", color: C.ink },
-  calDayTextOn: { color: "#fff", fontWeight: "800" },
+  calDayTextOn: { color: C.onPrimary, fontWeight: "800" },
   calFoot: { flexDirection: "row", marginTop: 12 },
   calGhost: { flex: 1, borderRadius: R.md, borderWidth: 1, borderColor: C.border, paddingVertical: 12, alignItems: "center", marginRight: 8 },
   calGhostText: { fontSize: 13, fontWeight: "800", color: C.inkSoft },
-  calBtn: { flex: 1, borderRadius: R.md, backgroundColor: RED, paddingVertical: 12, alignItems: "center" },
-  calBtnText: { fontSize: 13, fontWeight: "800", color: "#fff" },
+  calBtn: { flex: 1, borderRadius: R.md, backgroundColor: C.primary, paddingVertical: 12, alignItems: "center" },
+  calBtnText: { fontSize: 13, fontWeight: "800", color: C.onPrimary },
 
   // ===== modal hubungkan toko =====
-  linkCard: { backgroundColor: "#fff", borderRadius: R.lg, padding: 14 },
+  linkCard: { backgroundColor: C.card, borderRadius: R.lg, padding: 14 },
   linkTitle: { fontSize: 16, fontWeight: "800", color: C.ink },
-  linkSub: { fontSize: 12, color: GRAY, marginTop: 3, lineHeight: 17 },
+  linkSub: { fontSize: 12, color: C.inkMuted, marginTop: 3, lineHeight: 17 },
   linkSearch: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: C.ink, marginTop: 10, marginBottom: 8 },
-  linkEmpty: { fontSize: 12, color: GRAY, lineHeight: 18, textAlign: "center", paddingVertical: 14 },
+  linkEmpty: { fontSize: 12, color: C.inkMuted, lineHeight: 18, textAlign: "center", paddingVertical: 14 },
   linkItem: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
   linkItemName: { fontSize: 13.5, fontWeight: "800", color: C.ink },
-  linkItemAddr: { fontSize: 11, color: GRAY, marginTop: 1 },
-  linkItemPick: { fontSize: 12, fontWeight: "800", color: RED, marginLeft: 8 },
+  linkItemAddr: { fontSize: 11, color: C.inkMuted, marginTop: 1 },
+  linkItemPick: { fontSize: 12, fontWeight: "800", color: C.primary, marginLeft: 8 },
 });

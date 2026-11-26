@@ -7,12 +7,8 @@ import { api } from "../../convex/_generated/api";
 import { toFriendlyError } from "../lib/msg";
 import { TOP_PAD } from "../lib/layout";
 
-const RED = "#D92D20";
-const GREEN = "#067647";
-const GRAY = "#667085";
-const PURPLE = "#6941C6";
-const ORANGE = "#B54708";
-
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
 const BULAN_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
@@ -34,6 +30,8 @@ const fmtDate = (ms: number) =>
 // Semua keputusan tercatat di audit dan dikirim sebagai notifikasi ke pengaju.
 // ==========================================================================
 export default function SpvApproval() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
   const viewer = useQuery(api.users.viewer) as any;
@@ -48,7 +46,7 @@ export default function SpvApproval() {
   const [rejectTarget, setRejectTarget] = useState<any>(null);
   const [rejectNote, setRejectNote] = useState("");
 
-  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
 
   if (viewer.role !== "supervisor" && viewer.role !== "owner") {
     return (
@@ -146,10 +144,10 @@ export default function SpvApproval() {
     const isMove = item.kind === "move";
     const stale = item.scheduleStatus && item.scheduleStatus !== "PLANNED";
     return (
-      <View style={[styles.card, { borderLeftWidth: 4, borderLeftColor: isMove ? "#175CD3" : ORANGE }]}>
+      <View style={[styles.card, { borderLeftWidth: 4, borderLeftColor: isMove ? C.status.info.fg : C.status.warning.fg }]}>
         <View style={styles.cardTop}>
-          <View style={[styles.kindBadge, { backgroundColor: isMove ? "#EFF8FF" : "#FEF0C7" }]}>
-            <Text style={[styles.kindText, { color: isMove ? "#175CD3" : ORANGE }]}>
+          <View style={[styles.kindBadge, { backgroundColor: isMove ? C.status.info.bg : C.chip.warning.bg }]}>
+            <Text style={[styles.kindText, { color: isMove ? C.status.info.fg : C.status.warning.fg }]}>
               {isMove ? "GESER TANGGAL" : "HAPUS DARI JADWAL"}
             </Text>
           </View>
@@ -267,7 +265,7 @@ export default function SpvApproval() {
 
       {tab === "jadwal" ? (
         jadwalReq === undefined ? (
-          <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+          <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
         ) : jadwalList.length === 0 ? (
           <View style={styles.center}>
             <Text style={styles.emptyTitle}>Tidak ada pengajuan jadwal</Text>
@@ -284,7 +282,7 @@ export default function SpvApproval() {
           />
         )
       ) : items === undefined ? (
-        <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+        <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
       ) : lokasiList.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyTitle}>Tidak ada permintaan</Text>
@@ -313,7 +311,7 @@ export default function SpvApproval() {
             <TextInput
               style={styles.input}
               placeholder="Contoh: toko tetap harus dikunjungi minggu ini"
-              placeholderTextColor="#98A2B3"
+              placeholderTextColor={C.inkFaint}
               value={rejectNote}
               onChangeText={setRejectNote}
               multiline
@@ -337,11 +335,11 @@ export default function SpvApproval() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 12,
@@ -354,60 +352,60 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: RED, fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 12.5, color: GRAY, marginTop: 3, lineHeight: 18 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 12.5, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
 
-  tabs: { flexDirection: "row", backgroundColor: "#fff", borderWidth: 1, borderColor: "#E4E7EC", borderRadius: 999, padding: 4, marginTop: 12 },
+  tabs: { flexDirection: "row", backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 999, padding: 4, marginTop: 12 },
   tab: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 999 },
-  tabOn: { backgroundColor: RED },
-  tabText: { fontSize: 11.5, fontWeight: "800", color: GRAY },
-  tabTextOn: { color: "#fff" },
+  tabOn: { backgroundColor: C.primary },
+  tabText: { fontSize: 11.5, fontWeight: "800", color: C.inkMuted },
+  tabTextOn: { color: C.onPrimary },
 
-  emptyTitle: { fontSize: 16, fontWeight: "800", color: "#333", textAlign: "center" },
-  emptyMeta: { fontSize: 12.5, color: GRAY, marginTop: 6, textAlign: "center", lineHeight: 18 },
-  card: { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#EEF0F3" },
+  emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink3, textAlign: "center" },
+  emptyMeta: { fontSize: 12.5, color: C.inkMuted, marginTop: 6, textAlign: "center", lineHeight: 18 },
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.divider },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   kindBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   kindText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.4 },
-  time: { fontSize: 10.5, color: GRAY },
-  storeName: { fontSize: 15.5, fontWeight: "800", color: "#111" },
-  line: { fontSize: 12, color: "#475467", marginTop: 3, fontWeight: "600", lineHeight: 17 },
-  noteBox: { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 10, marginTop: 10 },
-  noteLabel: { fontSize: 9, fontWeight: "800", color: GRAY, letterSpacing: 0.5 },
-  noteValue: { fontSize: 12.5, color: "#344054", marginTop: 3, fontWeight: "700", lineHeight: 17 },
-  noteSub: { fontSize: 11.5, color: GRAY, marginTop: 3, lineHeight: 16 },
-  stale: { fontSize: 11, color: ORANGE, fontWeight: "700", marginTop: 8, lineHeight: 16 },
+  time: { fontSize: 10.5, color: C.inkMuted },
+  storeName: { fontSize: 15.5, fontWeight: "800", color: C.ink0 },
+  line: { fontSize: 12, color: C.ink2, marginTop: 3, fontWeight: "600", lineHeight: 17 },
+  noteBox: { backgroundColor: C.surfaceAlt2, borderRadius: 10, padding: 10, marginTop: 10 },
+  noteLabel: { fontSize: 9, fontWeight: "800", color: C.inkMuted, letterSpacing: 0.5 },
+  noteValue: { fontSize: 12.5, color: C.inkSoft, marginTop: 3, fontWeight: "700", lineHeight: 17 },
+  noteSub: { fontSize: 11.5, color: C.inkMuted, marginTop: 3, lineHeight: 16 },
+  stale: { fontSize: 11, color: C.status.warning.fg, fontWeight: "700", marginTop: 8, lineHeight: 16 },
 
   btnRow: { flexDirection: "row", marginTop: 12 },
-  btnApprove: { flex: 1, backgroundColor: GREEN, borderRadius: 10, padding: 12, alignItems: "center", marginRight: 8 },
-  btnApproveText: { color: "#fff", fontWeight: "800", fontSize: 13.5 },
-  btnReject: { flex: 1, backgroundColor: "#FFF1F0", borderWidth: 1, borderColor: "#FECDCA", borderRadius: 10, padding: 12, alignItems: "center" },
-  btnRejectText: { color: RED, fontWeight: "800", fontSize: 13.5 },
+  btnApprove: { flex: 1, backgroundColor: C.status.success.fg, borderRadius: 10, padding: 12, alignItems: "center", marginRight: 8 },
+  btnApproveText: { color: C.onPrimary, fontWeight: "800", fontSize: 13.5 },
+  btnReject: { flex: 1, backgroundColor: C.dangerTint, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: 10, padding: 12, alignItems: "center" },
+  btnRejectText: { color: C.primary, fontWeight: "800", fontSize: 13.5 },
 
-  salesLine: { fontSize: 13, color: GRAY, marginTop: 4, fontWeight: "600" },
-  timeLine: { fontSize: 12, color: GRAY, marginTop: 2 },
-  coordBox: { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 12, marginTop: 10 },
-  coordLabel: { fontSize: 12, color: GRAY, fontWeight: "700", marginTop: 4 },
-  coordValue: { fontSize: 13, color: "#344054" },
-  coordValueNew: { fontSize: 13, color: GREEN, fontWeight: "700" },
+  salesLine: { fontSize: 13, color: C.inkMuted, marginTop: 4, fontWeight: "600" },
+  timeLine: { fontSize: 12, color: C.inkMuted, marginTop: 2 },
+  coordBox: { backgroundColor: C.surfaceAlt2, borderRadius: 10, padding: 12, marginTop: 10 },
+  coordLabel: { fontSize: 12, color: C.inkMuted, fontWeight: "700", marginTop: 4 },
+  coordValue: { fontSize: 13, color: C.inkSoft },
+  coordValueNew: { fontSize: 13, color: C.status.success.fg, fontWeight: "700" },
 
-  btnOutline: { borderWidth: 1, borderColor: RED, borderRadius: 12, padding: 14, paddingHorizontal: 30, marginTop: 14 },
-  btnOutlineText: { color: RED, fontWeight: "800", fontSize: 15 },
+  btnOutline: { borderWidth: 1, borderColor: C.primary, borderRadius: 12, padding: 14, paddingHorizontal: 30, marginTop: 14 },
+  btnOutlineText: { color: C.primary, fontWeight: "800", fontSize: 15 },
 
   modalBg: { flex: 1, backgroundColor: "rgba(16,24,40,0.45)", justifyContent: "center", padding: 20 },
-  modalCard: { backgroundColor: "#fff", borderRadius: 16, padding: 16 },
-  modalTitle: { fontSize: 17, fontWeight: "800", color: "#101828" },
-  modalSub: { fontSize: 12.5, color: GRAY, marginTop: 3 },
-  modalHint: { fontSize: 12, color: GRAY, marginTop: 8, lineHeight: 17 },
+  modalCard: { backgroundColor: C.card, borderRadius: 16, padding: 16 },
+  modalTitle: { fontSize: 17, fontWeight: "800", color: C.ink },
+  modalSub: { fontSize: 12.5, color: C.inkMuted, marginTop: 3 },
+  modalHint: { fontSize: 12, color: C.inkMuted, marginTop: 8, lineHeight: 17 },
   input: {
-    backgroundColor: "#F8F9FB", borderWidth: 1, borderColor: "#E4E7EC", borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: "#101828",
+    backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: C.ink,
     marginTop: 10, minHeight: 70, textAlignVertical: "top",
   },
   modalFoot: { flexDirection: "row", marginTop: 14 },
-  modalGhost: { flex: 1, borderWidth: 1, borderColor: "#E4E7EC", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginRight: 8 },
-  modalGhostText: { fontSize: 13, fontWeight: "800", color: "#344054" },
-  modalDanger: { flex: 1, backgroundColor: RED, borderRadius: 10, paddingVertical: 12, alignItems: "center" },
-  modalDangerText: { fontSize: 13, fontWeight: "800", color: "#fff" },
+  modalGhost: { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingVertical: 12, alignItems: "center", marginRight: 8 },
+  modalGhostText: { fontSize: 13, fontWeight: "800", color: C.inkSoft },
+  modalDanger: { flex: 1, backgroundColor: C.primary, borderRadius: 10, paddingVertical: 12, alignItems: "center" },
+  modalDangerText: { fontSize: 13, fontWeight: "800", color: C.onPrimary },
 });

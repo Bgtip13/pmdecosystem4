@@ -9,7 +9,8 @@ import { isOwnerLike } from "./lib/roles";
 // PENILAIAN BULANAN SALES (supervisor & owner)
 //
 // Dua kategori terpisah:
-//   1. Sales Field     → kunjungan harian, toko tembus order, keterangan lengkap,
+//   1. Sales Field     → kunjungan harian (target mengikuti event supervisor),
+//                        absensi, toko tembus order, kelengkapan keterangan,
 //                        omset bulanan & mingguan.
 //   2. Telemarketing   → FU Toko, SPK penagihan (muncul lagi = belum tertagih),
 //                        SPK orderan, omset bulanan & mingguan.
@@ -19,8 +20,8 @@ import { isOwnerLike } from "./lib/roles";
 // ditarik, komponen omset dilewati (bobot dinormalisasi ulang), bukan dianggap 0.
 // ============================================================================
 
-const MIN_KUNJUNGAN = 7;        // target minimal toko / hari
-const MIN_KUNJUNGAN_SABTU = 3;  // khusus hari Sabtu
+const MIN_KUNJUNGAN = 7;        // target bawaan toko / hari (Senin–Sabtu); Minggu libur
+// Target hari tertentu bisa diganti supervisor lewat event (tabel visit_events).
 const ON_TRACK_MIN = 70;        // skor minimal untuk "ON TRACK"
 
 const PCP_BULANAN_URL =
@@ -56,6 +57,21 @@ function monthDayKeys(monthKey: string, upto: string) {
     out.push(key);
   }
   return out;
+}
+
+// Target kunjungan satu sales pada satu hari. Event yang berlaku (area kosong = semua
+// area, atau sama dengan area sales) mengganti target bawaan; bila ada beberapa event,
+// dipakai target terkecil. Tanpa event: 7 toko, Minggu 0.
+function targetHari(day: string, area: string, events: any[] | undefined) {
+  const berlaku = (events ?? []).filter((e) => !e.area || e.area === area);
+  if (berlaku.length > 0) {
+    return {
+      target: Math.min(...berlaku.map((e) => Number(e.target ?? 0))),
+      event: true,
+      judul: berlaku.map((e) => String(e.title ?? "")).join(", "),
+    };
+  }
+  return { target: weekdayOf(day) === 0 ? 0 : MIN_KUNJUNGAN, event: false, judul: "" };
 }
 
 const normName = (s: any) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -157,14 +173,6 @@ function findSdm(rows: any[] | null, name: string) {
   );
 }
 
-// Sebulan dibagi 9 kali kiriman. Porsi mingguan memakai rata-rata kiriman
-// per minggu (9 kiriman / 4 minggu = 2,25), jadi bobot target mingguan =
-// 2,25/9 = 25% dari target bulanan. Semua angka ditampilkan di rapor supaya
-// supervisor bisa menjelaskan asal targetnya.
-const KIRIMAN_PER_BULAN = 9;
-const MINGGU_PER_BULAN = 4;
-const KIRIMAN_PER_MINGGU = KIRIMAN_PER_BULAN / MINGGU_PER_BULAN;
-
 function rupiahShort(n: number | null) {
   if (n == null) return "-";
   if (Math.abs(n) >= 1_000_000_000) return `Rp${(n / 1_000_000_000).toFixed(1).replace(".", ",")} M`;
@@ -188,12 +196,8 @@ function omsetOf(name: string, area: string, bulanan: any[] | null, mingguan: an
     ? Math.round(weeks.reduce((a, w) => a + Number(w.act ?? 0), 0) / weeks.length)
     : null;
 
-  // Target per kiriman → porsi mingguan 9 kiriman/bulan.
-  const targetPerKiriman = b?.tgt != null ? Math.round(b.tgt / KIRIMAN_PER_BULAN) : null;
-  const targetMinggu =
-    targetPerKiriman != null
-      ? Math.round(targetPerKiriman * KIRIMAN_PER_MINGGU)
-      : m?.tgtMgg ?? null;
+  // Target mingguan = kolom E (TGT/MGG) pada tab PCP Mingguan, sesuai nama sales.
+  const targetMinggu: number | null = m?.tgtMgg ?? null;
 
   let mingguPct: number | null = null;
   if (mingguAct != null && targetMinggu) {
@@ -215,9 +219,6 @@ function omsetOf(name: string, area: string, bulanan: any[] | null, mingguan: an
       act: w.act ?? null,
       pct: w.pct ?? null,
     })),
-    omsetTargetPerKiriman: targetPerKiriman,
-    omsetKirimanPerBulan: KIRIMAN_PER_BULAN,
-    omsetKirimanPerMinggu: KIRIMAN_PER_MINGGU,
     omsetRingkas: `${rupiahShort(mingguAct)} / minggu`,
   };
 }
@@ -247,6 +248,17 @@ export const raw = internalQuery({
     const today = dayKeyWIB();
     const days = monthDayKeys(monthKey, today);
 
+    // Event target kunjungan bulan ini (dibuat supervisor).
+    const evRows: any[] = await ctx.db
+      .query("visit_events")
+      .withIndex("by_day", (q) => q.gte("day", `${monthKey}-01`).lte("day", `${monthKey}-31`))
+      .collect();
+    const eventsByDay = new Map<string, any[]>();
+    for (const e of evRows) {
+      if (!eventsByDay.has(e.day)) eventsByDay.set(e.day, []);
+      eventsByDay.get(e.day)!.push(e);
+    }
+
     const allUsers: any[] = await ctx.db.query("users").collect();
     const fieldUsers = allUsers.filter((u) => u.role === "field");
     const teleUsers = allUsers.filter((u) => u.role === "telemarketing");
@@ -274,24 +286,30 @@ export const raw = internalQuery({
         perDay.set(k, (perDay.get(k) ?? 0) + 1);
       }
 
+      // Hari hadir = ada check-in kunjungan pada hari itu (status apa pun).
+      const hadirSet = new Set(visits.map((x) => dayKeyWIB(x.checkinAt ?? 0)));
+
       let hariWajib = 0;
       let hariMemenuhi = 0;
+      let hariHadir = 0;
       let hariLibur = 0;
+      const eventHari: { day: string; target: number; judul: string; kunjungan: number }[] = [];
       for (const d of days) {
-        if (leaveSet.has(d)) { hariLibur++; continue; } // izin/cuti tidak dihitung
-        const dow = weekdayOf(d);
-        if (dow === 0) continue; // Minggu libur
+        if (leaveSet.has(d)) { hariLibur++; continue; } // izin/cuti = tidak kunjungan, tidak dihitung
+        const t = targetHari(d, String(u.area ?? ""), eventsByDay.get(d));
+        if (t.event) eventHari.push({ day: d, target: t.target, judul: t.judul, kunjungan: perDay.get(d) ?? 0 });
+        if (t.target <= 0) continue; // Minggu bawaan / event target 0: tidak ada kewajiban
         hariWajib++;
-        const target = dow === 6 ? MIN_KUNJUNGAN_SABTU : MIN_KUNJUNGAN;
-        if ((perDay.get(d) ?? 0) >= target) hariMemenuhi++;
+        if ((perDay.get(d) ?? 0) >= t.target) hariMemenuhi++;
+        if (hadirSet.has(d)) hariHadir++;
       }
 
       const orderCount = done.filter((x) => x.ordered === true).length;
-      const lengkap = done.filter(
-        (x) =>
-          (x.notes || "").trim().length > 0 &&
-          ((x.productTrend || "").trim().length > 0 || (x.productSearched || "").trim().length > 0)
-      ).length;
+      const filled = (x: any) => String(x ?? "").trim().length > 0;
+      const ketCatatan = done.filter((x) => filled(x.notes)).length;
+      const ketTren = done.filter((x) => filled(x.productTrend)).length;
+      const ketCari = done.filter((x) => filled(x.productSearched)).length;
+      const ketLengkap = done.filter((x) => filled(x.notes) && filled(x.productTrend) && filled(x.productSearched)).length;
 
       field.push({
         id: u._id,
@@ -300,14 +318,22 @@ export const raw = internalQuery({
         kunjungan: done.length,
         hariWajib,
         hariMemenuhi,
+        hariHadir,
         hariLibur,
+        hariEvent: eventHari.length,
+        eventHari,
         targetHarian: MIN_KUNJUNGAN,
-        targetSabtu: MIN_KUNJUNGAN_SABTU,
-        kunjunganPct: hariWajib > 0 ? Math.round((hariMemenuhi / hariWajib) * 100) : 0,
+        // Tidak ada hari wajib (mis. sebulan penuh izin) → komponen dilewati, bukan 0%.
+        kunjunganPct: hariWajib > 0 ? Math.round((hariMemenuhi / hariWajib) * 100) : null,
+        absensiPct: hariWajib > 0 ? Math.round((hariHadir / hariWajib) * 100) : null,
         orderCount,
         orderPct: done.length > 0 ? Math.round((orderCount / done.length) * 100) : 0,
-        keteranganLengkap: lengkap,
-        ketPct: done.length > 0 ? Math.round((lengkap / done.length) * 100) : 0,
+        ketCatatan,
+        ketTren,
+        ketCari,
+        keteranganLengkap: ketLengkap,
+        // Tiga kolom (catatan, tren produk, barang dicari) masing-masing sepertiga nilai tiap kunjungan.
+        ketPct: done.length > 0 ? Math.round(((ketCatatan + ketTren + ketCari) / (3 * done.length)) * 100) : 0,
       });
     }
 
@@ -384,17 +410,17 @@ export const raw = internalQuery({
         .withIndex("by_month_area", (q) => q.eq("monthKey", monthKey).eq("area", area as any))
         .collect();
       const fuHasil = fuRows.filter((r) => r.result != null);
-      const fuManualOrder = fuHasil.filter((r) => r.result === "order_masuk").length;
-      // Toko yang ACT-nya sudah ada di SPK Jadwal dianggap order tanpa diisi manual.
-      const fuAutoRows = fuRows.filter((r) => orderInfoOf(jadwalAct, r.area, r.storeName).sudahOrder);
-      const fuAutoOrder = fuAutoRows.filter((r) => r.result == null).length;
-      const fuHandled = fuRows.filter(
-        (r) => r.result != null || orderInfoOf(jadwalAct, r.area, r.storeName).sudahOrder
-      );
+      // Toko yang ACT-nya sudah ada di SPK Jadwal (atau punya penjualan di data Produk)
+      // dihitung BERHASIL ORDER setelah di-FU, apa pun hasil manual yang tertulis.
+      const isAuto = (r: any) => orderInfoOf(jadwalAct, r.area, r.storeName).sudahOrder;
+      const fuAutoRows = fuRows.filter(isAuto);
+      const fuAutoOrder = fuAutoRows.length;
+      const fuManualOrder = fuHasil.filter((r) => r.result === "order_masuk" && !isAuto(r)).length;
+      const fuHandled = fuRows.filter((r) => r.result != null || isAuto(r));
       const fuOrder = fuManualOrder + fuAutoOrder;
-      const fuPlan = fuHasil.filter((r) => r.result === "plan_order").length;
-      const fuNoRespon = fuHasil.filter((r) => r.result === "no_respon").length;
-      const fuTidakOrder = fuHasil.length - fuManualOrder - fuPlan - fuNoRespon;
+      const fuPlan = fuHasil.filter((r) => r.result === "plan_order" && !isAuto(r)).length;
+      const fuNoRespon = fuHasil.filter((r) => r.result === "no_respon" && !isAuto(r)).length;
+      const fuTidakOrder = fuHandled.length - fuOrder - fuPlan - fuNoRespon;
 
       // ===== SPK penagihan (riwayat piutang_tasks bulan ini) =====
       const pTasks = Array.from(piutangByArea.get(area)?.values() ?? []);
@@ -523,32 +549,48 @@ async function computeMonthly(ctx: any, monthKey: string) {
         target: omset.omsetMingguTarget != null ? rupiahShort(omset.omsetMingguTarget) : "-",
         sumber: "Sheet PCP mingguan",
         penjelasan:
-          `Rata-rata ${omset.omsetMingguCount ?? 0} minggu yang sudah ada ACT. ` +
-          `Target mingguan = target per kiriman × ${KIRIMAN_PER_MINGGU} kiriman/minggu ` +
-          `(porsi ${KIRIMAN_PER_BULAN} kiriman dalam sebulan).`,
+          `Rata-rata ${omset.omsetMingguCount ?? 0} minggu yang sudah ada ACT dibanding ` +
+          `target mingguan (kolom E “TGT/MGG” pada tab PCP Mingguan, sesuai nama sales).`,
       },
     ];
 
     const field = (raw.field ?? []).map((f: any) => {
       const omset = omsetOf(f.name, f.area, bulanan, mingguan);
+      const eventTeks = (f.eventHari ?? []).length
+        ? ` Hari dengan target event: ${(f.eventHari as any[])
+            .map((e) => `${e.day.slice(8)}/${e.day.slice(5, 7)} ${e.judul} (target ${e.target}, tercapai ${e.kunjungan})`)
+            .join("; ")}.`
+        : "";
       const hasil = susun([
         {
           key: "kunjungan",
           label: "Kunjungan sesuai target",
-          bobot: 30,
+          bobot: 25,
           pct: f.kunjunganPct,
           nilai: `${f.hariMemenuhi}/${f.hariWajib} hari`,
-          target: `${f.targetHarian} toko/hari (Sabtu ${f.targetSabtu})`,
-          sumber: "Check-in kunjungan sales",
+          target: `${f.targetHarian} toko/hari (atau sesuai event)`,
+          sumber: "Check-in kunjungan sales + event supervisor",
           penjelasan:
-            `Dihitung dari jumlah hari yang mencapai target kunjungan (${f.targetHarian} toko, ` +
-            `Sabtu ${f.targetSabtu}). Hari Minggu dan izin/cuti tidak dihitung. ` +
-            `Total kunjungan bulan ini: ${f.kunjungan} toko.`,
+            `Hari yang mencapai target kunjungan dibagi hari wajib. Target bawaan ${f.targetHarian} toko ` +
+            `(Senin–Sabtu); tanggal yang punya event memakai target dari event. Minggu, hari izin/cuti, ` +
+            `dan hari ber-target 0 tidak dihitung. Total kunjungan selesai: ${f.kunjungan} toko.` + eventTeks,
+        },
+        {
+          key: "absensi",
+          label: "Absensi",
+          bobot: 10,
+          pct: f.absensiPct,
+          nilai: `${f.hariHadir}/${f.hariWajib} hari`,
+          target: "Ada kunjungan di hari wajib",
+          sumber: "Check-in kunjungan sales + izin",
+          penjelasan:
+            `Hari dianggap hadir bila sales punya kunjungan (check-in) pada hari itu. Hari izin/cuti berarti ` +
+            `sales tidak berkunjung dan tidak dihitung sebagai absen (${f.hariLibur} hari izin bulan ini).`,
         },
         {
           key: "order",
           label: "Toko tembus order",
-          bobot: 25,
+          bobot: 20,
           pct: f.orderPct,
           nilai: `${f.orderCount}/${f.kunjungan} toko`,
           target: "Semakin tinggi semakin baik",
@@ -562,12 +604,13 @@ async function computeMonthly(ctx: any, monthKey: string) {
           label: "Kelengkapan keterangan",
           bobot: 15,
           pct: f.ketPct,
-          nilai: `${f.keteranganLengkap}/${f.kunjungan} kunjungan`,
-          target: "Catatan + tren/produk dicari",
+          nilai: `${f.ketPct}% terisi (${f.keteranganLengkap}/${f.kunjungan} kunjungan lengkap)`,
+          target: "Catatan + tren produk + barang dicari",
           sumber: "Form kunjungan",
           penjelasan:
-            "Kunjungan dianggap lengkap bila catatan terisi dan tren/produk yang dicari juga diisi. " +
-            "Data lengkap memudahkan telemarketing menindaklanjuti.",
+            `Tiap kunjungan dinilai dari tiga kolom: catatan, tren produk, dan barang yang dicari ` +
+            `(masing-masing sepertiga). Terisi bulan ini: catatan ${f.ketCatatan}/${f.kunjungan}, ` +
+            `tren produk ${f.ketTren}/${f.kunjungan}, barang dicari ${f.ketCari}/${f.kunjungan}.`,
         },
         ...komponenOmset(omset, 20, 10),
       ]);
@@ -586,10 +629,10 @@ async function computeMonthly(ctx: any, monthKey: string) {
           target: "Order & rencana order dihargai",
           sumber: "Sheet Toko Aktif + tarikan SPK Jadwal (ACT)",
           penjelasan:
-            `Hasil FU bulan ini: ${t.fuOrder} order (${t.fuAutoOrder} otomatis dari ACT), ` +
+            `Hasil FU bulan ini: ${t.fuOrder} berhasil order (${t.fuAutoOrder} otomatis dari ACT/Produk), ` +
             `${t.fuPlan} rencana order, ${t.fuNoRespon} no respon, ${t.fuTidakOrder} tidak order. ` +
-            `Toko yang nama+areanya terhubung dengan SPK Jadwal dan ACT-nya > 0 otomatis ` +
-            `dihitung order, jadi tidak perlu diisi manual. Rencana order dihargai separuh.`,
+            `Toko yang nama+areanya terhubung dengan SPK Jadwal (ACT > 0) atau punya penjualan di data Produk ` +
+            `otomatis dihitung berhasil order setelah di-FU, apa pun hasil manualnya. Rencana order dihargai separuh.`,
         },
         {
           key: "spk_penagihan",
@@ -633,15 +676,8 @@ async function computeMonthly(ctx: any, monthKey: string) {
       fetchedAt: Date.now(),
       batasOnTrack: ON_TRACK_MIN,
       omsetTersedia: bulanan != null || mingguan != null,
-      porsiOmset: {
-        kirimanPerBulan: KIRIMAN_PER_BULAN,
-        mingguPerBulan: MINGGU_PER_BULAN,
-        kirimanPerMinggu: KIRIMAN_PER_MINGGU,
-        catatan:
-          `Omset mingguan memakai rata-rata minggu berjalan. Target per kiriman = ` +
-          `target bulanan ÷ ${KIRIMAN_PER_BULAN}; target mingguan = target per kiriman × ` +
-          `${KIRIMAN_PER_MINGGU} kiriman/minggu.`,
-      },
+      catatanOmset:
+        "Omset mingguan memakai rata-rata minggu berjalan. Target mingguan diambil dari kolom E (TGT/MGG) tab PCP Mingguan.",
       field,
       tele,
       summary: {

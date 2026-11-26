@@ -7,14 +7,17 @@ import { api } from "../../../convex/_generated/api";
 import { toFriendlyError } from "../../lib/msg";
 import { TOP_PAD } from "../../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const GREEN = "#067647";
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
 const AREAS = ["SOLO", "DIY", "SEMARANG"];
 const VIEW_ROLES = ["supervisor", "owner", "hr", "akunting", "field", "telemarketing"];
 
-const AREA_BG: any = { SOLO: "#FEE4E2", DIY: "#E0F2FE", SEMARANG: "#DCFAE6" };
-const AREA_TX: any = { SOLO: "#B42318", DIY: "#026AA2", SEMARANG: "#067647" };
+const makeAREA_BG = (C: Colors): any => (
+  { SOLO: C.chip.danger.bg, DIY: C.chip.info.bg, SEMARANG: C.chip.success.bg }
+);
+const makeAREA_TX = (C: Colors): any => (
+  { SOLO: C.status.danger.fg, DIY: C.chip.info.fg, SEMARANG: C.status.success.fg }
+);
 const SRC_LABEL: any = {
   sales_registered: "Dari sales",
   supervisor: "Diisi supervisor",
@@ -45,6 +48,10 @@ function confirmAsync(title: string, message: string, yesLabel: string): Promise
 }
 
 export default function EditToko() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
+  const AREA_BG = makeAREA_BG(C);
+  const AREA_TX = makeAREA_TX(C);
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const viewer = useQuery(api.users.viewer) as any;
@@ -96,7 +103,7 @@ export default function EditToko() {
   );
   const dirty = snapshot !== "" && current !== snapshot;
 
-  if (!store || !viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+  if (!store || !viewer) return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   if (!allowed) {
     return (
       <View style={styles.center}>
@@ -197,16 +204,16 @@ export default function EditToko() {
         <Text style={styles.title}>{canEdit ? "Edit Toko" : "Detail Toko"}</Text>
         <Text style={styles.storeName} numberOfLines={2}>{store.name}</Text>
         <View style={styles.headChips}>
-          <View style={[styles.chipTag, { backgroundColor: AREA_BG[store.area] ?? "#F2F4F7" }]}>
-            <Text style={[styles.chipTagText, { color: AREA_TX[store.area] ?? GRAY }]}>{store.area}</Text>
+          <View style={[styles.chipTag, { backgroundColor: AREA_BG[store.area] ?? C.status.neutral.bg }]}>
+            <Text style={[styles.chipTagText, { color: AREA_TX[store.area] ?? C.inkMuted }]}>{store.area}</Text>
           </View>
-          <View style={[styles.chipTag, { backgroundColor: store.status === "active" ? "#DCFAE6" : "#F2F4F7" }]}>
-            <Text style={[styles.chipTagText, { color: store.status === "active" ? GREEN : GRAY }]}>
+          <View style={[styles.chipTag, { backgroundColor: store.status === "active" ? C.chip.success.bg : C.status.neutral.bg }]}>
+            <Text style={[styles.chipTagText, { color: store.status === "active" ? C.status.success.fg : C.inkMuted }]}>
               {store.status === "active" ? "Aktif" : "Nonaktif"}
             </Text>
           </View>
-          <View style={[styles.chipTag, { backgroundColor: store.lat != null ? "#EFF8FF" : "#FFF7ED" }]}>
-            <Text style={[styles.chipTagText, { color: store.lat != null ? "#175CD3" : "#B54708" }]}>
+          <View style={[styles.chipTag, { backgroundColor: store.lat != null ? C.status.info.bg : C.warnTint }]}>
+            <Text style={[styles.chipTagText, { color: store.lat != null ? C.status.info.fg : C.status.warning.fg }]}>
               {store.lat != null ? "Ada koordinat" : "Tanpa koordinat"}
             </Text>
           </View>
@@ -226,9 +233,9 @@ export default function EditToko() {
 
         {notice ? (
           <View style={[styles.notice, notice.tone === "ok" ? styles.noticeOk : styles.noticeErr]}>
-            <Text style={[styles.noticeText, { color: notice.tone === "ok" ? GREEN : RED }]}>{notice.text}</Text>
+            <Text style={[styles.noticeText, { color: notice.tone === "ok" ? C.status.success.fg : C.primary }]}>{notice.text}</Text>
             <TouchableOpacity onPress={() => setNotice(null)} hitSlop={8}>
-              <Text style={[styles.noticeClose, { color: notice.tone === "ok" ? GREEN : RED }]}>✕</Text>
+              <Text style={[styles.noticeClose, { color: notice.tone === "ok" ? C.status.success.fg : C.primary }]}>✕</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -347,8 +354,8 @@ export default function EditToko() {
               )}
             </>
           ) : (
-            <View style={[styles.readChip, { backgroundColor: status === "active" ? "#DCFAE6" : "#F2F4F7", alignSelf: "flex-start" }]}>
-              <Text style={[styles.readChipText, { color: status === "active" ? GREEN : GRAY }]}>
+            <View style={[styles.readChip, { backgroundColor: status === "active" ? C.chip.success.bg : C.status.neutral.bg, alignSelf: "flex-start" }]}>
+              <Text style={[styles.readChipText, { color: status === "active" ? C.status.success.fg : C.inkMuted }]}>
                 {status === "active" ? "✓ Aktif" : "Nonaktif"}
               </Text>
             </View>
@@ -358,7 +365,7 @@ export default function EditToko() {
 
       {canEdit ? (
         <View style={styles.footer}>
-          <Text style={[styles.footerHint, { color: dirty ? "#B54708" : GRAY }]}>
+          <Text style={[styles.footerHint, { color: dirty ? C.status.warning.fg : C.inkMuted }]}>
             {dirty ? "Ada perubahan belum disimpan" : "Belum ada perubahan"}
           </Text>
           <View style={styles.footerRow}>
@@ -383,11 +390,11 @@ export default function EditToko() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -400,79 +407,79 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 12, fontWeight: "800", color: RED, letterSpacing: 1, textTransform: "uppercase", marginTop: 6 },
-  storeName: { fontSize: 20, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 12, fontWeight: "800", color: C.primary, letterSpacing: 1, textTransform: "uppercase", marginTop: 6 },
+  storeName: { fontSize: 20, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
   headChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
   chipTag: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
   chipTagText: { fontSize: 10.5, fontWeight: "800" },
 
   card: {
-    backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#EEF0F3",
+    backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.divider,
     padding: 16, marginBottom: 12,
   },
-  cardTitle: { fontSize: 13, fontWeight: "800", color: "#111", letterSpacing: 0.2 },
+  cardTitle: { fontSize: 13, fontWeight: "800", color: C.ink0, letterSpacing: 0.2 },
 
-  label: { fontSize: 11.5, fontWeight: "800", color: GRAY, marginTop: 16, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
-  input: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 12, padding: 13, fontSize: 15, color: "#111" },
-  inputReadonly: { backgroundColor: "#F9FAFB", color: "#475467" },
+  label: { fontSize: 11.5, fontWeight: "800", color: C.inkMuted, marginTop: 16, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
+  input: { backgroundColor: C.card, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 12, padding: 13, fontSize: 15, color: C.ink0 },
+  inputReadonly: { backgroundColor: C.surfaceAlt2, color: C.ink2 },
   inputMultiline: { minHeight: 70, textAlignVertical: "top" },
   twoCol: { flexDirection: "row", gap: 10 },
   coordRow: { flexDirection: "row", gap: 8 },
 
   chipRow: { flexDirection: "row", flexWrap: "wrap" },
-  chip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 8, marginRight: 8, marginBottom: 6, backgroundColor: "#fff" },
-  chipActive: { backgroundColor: RED, borderColor: RED },
-  chipDisable: { backgroundColor: "#475467", borderColor: "#475467" },
-  chipText: { fontSize: 13, color: "#344054", fontWeight: "700" },
-  chipTextActive: { color: "#fff" },
+  chip: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 8, marginRight: 8, marginBottom: 6, backgroundColor: C.card },
+  chipActive: { backgroundColor: C.primary, borderColor: C.primary },
+  chipDisable: { backgroundColor: C.ink2, borderColor: C.ink2 },
+  chipText: { fontSize: 13, color: C.inkSoft, fontWeight: "700" },
+  chipTextActive: { color: C.onPrimary },
 
-  readValue: { fontSize: 15, color: "#111", fontWeight: "600", paddingVertical: 4 },
-  readEmpty: { fontSize: 13, color: GRAY, paddingVertical: 4, fontStyle: "italic" },
+  readValue: { fontSize: 15, color: C.ink0, fontWeight: "600", paddingVertical: 4 },
+  readEmpty: { fontSize: 13, color: C.inkMuted, paddingVertical: 4, fontStyle: "italic" },
   readChip: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   readChipText: { fontSize: 12, fontWeight: "800" },
 
   metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, gap: 10 },
-  metaText: { fontSize: 11.5, color: GRAY, fontWeight: "700", flexShrink: 1 },
-  mapBtn: { backgroundColor: "#EFF8FF", borderWidth: 1, borderColor: "#B2DDFF", borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
-  mapBtnText: { color: "#175CD3", fontSize: 12, fontWeight: "800" },
-  hint: { fontSize: 11.5, color: GRAY, marginTop: 10, lineHeight: 17 },
+  metaText: { fontSize: 11.5, color: C.inkMuted, fontWeight: "700", flexShrink: 1 },
+  mapBtn: { backgroundColor: C.status.info.bg, borderWidth: 1, borderColor: C.status.info.border, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
+  mapBtnText: { color: C.status.info.fg, fontSize: 12, fontWeight: "800" },
+  hint: { fontSize: 11.5, color: C.inkMuted, marginTop: 10, lineHeight: 17 },
 
-  divider: { height: 1, backgroundColor: "#EEF0F3", marginTop: 14, marginBottom: 12 },
+  divider: { height: 1, backgroundColor: C.divider, marginTop: 14, marginBottom: 12 },
   metaGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: 4 },
-  metaLabel: { fontSize: 11.5, color: GRAY, width: 90 },
-  metaValue: { fontSize: 11.5, color: "#344054", fontWeight: "700", flex: 1 },
+  metaLabel: { fontSize: 11.5, color: C.inkMuted, width: 90 },
+  metaValue: { fontSize: 11.5, color: C.inkSoft, fontWeight: "700", flex: 1 },
 
-  note: { fontSize: 12, color: GRAY, marginTop: 10, lineHeight: 17 },
-  viewBanner: { backgroundColor: "#E0F2FE", borderRadius: 10, borderWidth: 1, borderColor: "#BAE6FD", padding: 12, marginBottom: 12 },
-  viewBannerText: { color: "#026AA2", fontSize: 13, fontWeight: "700" },
-  offBanner: { backgroundColor: "#FFF1F0", borderRadius: 10, borderWidth: 1, borderColor: "#FECDCA", padding: 12, marginBottom: 12 },
-  offBannerText: { color: "#B42318", fontSize: 13, fontWeight: "700" },
+  note: { fontSize: 12, color: C.inkMuted, marginTop: 10, lineHeight: 17 },
+  viewBanner: { backgroundColor: C.chip.info.bg, borderRadius: 10, borderWidth: 1, borderColor: C.infoBorder2, padding: 12, marginBottom: 12 },
+  viewBannerText: { color: C.chip.info.fg, fontSize: 13, fontWeight: "700" },
+  offBanner: { backgroundColor: C.dangerTint, borderRadius: 10, borderWidth: 1, borderColor: C.status.danger.border, padding: 12, marginBottom: 12 },
+  offBannerText: { color: C.status.danger.fg, fontSize: 13, fontWeight: "700" },
 
   notice: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12, marginBottom: 12 },
-  noticeOk: { backgroundColor: "#F0FDF4", borderColor: "#ABEFC6" },
-  noticeErr: { backgroundColor: "#FDF2F2", borderColor: "#F3D6D6" },
+  noticeOk: { backgroundColor: C.successTint2, borderColor: C.status.success.border },
+  noticeErr: { backgroundColor: C.dangerTint2, borderColor: C.borderTint4 },
   noticeText: { flex: 1, fontSize: 12, fontWeight: "700", lineHeight: 17 },
   noticeClose: { fontSize: 14, fontWeight: "900" },
 
-  btnDanger: { backgroundColor: "#FFF1F0", borderWidth: 1, borderColor: "#FECDCA", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 18 },
-  btnDangerText: { color: "#B42318", fontWeight: "800", fontSize: 14 },
-  btnRestore: { backgroundColor: "#DCFAE6", borderWidth: 1, borderColor: "#ABEFC6", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 18 },
-  btnRestoreText: { color: GREEN, fontWeight: "800", fontSize: 14 },
+  btnDanger: { backgroundColor: C.dangerTint, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: 12, padding: 14, alignItems: "center", marginTop: 18 },
+  btnDangerText: { color: C.status.danger.fg, fontWeight: "800", fontSize: 14 },
+  btnRestore: { backgroundColor: C.chip.success.bg, borderWidth: 1, borderColor: C.status.success.border, borderRadius: 12, padding: 14, alignItems: "center", marginTop: 18 },
+  btnRestoreText: { color: C.status.success.fg, fontWeight: "800", fontSize: 14 },
 
   footer: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16,
-    backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0F0F0",
+    backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.hairline,
   },
   footerHint: { fontSize: 11.5, fontWeight: "700", marginBottom: 8, textAlign: "center" },
   footerRow: { flexDirection: "row", gap: 10 },
-  btnGhost: { flex: 1, borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 14, padding: 16, alignItems: "center", backgroundColor: "#fff" },
-  btnGhostText: { color: "#344054", fontSize: 15, fontWeight: "800" },
-  btnPrimary: { flex: 2, backgroundColor: RED, borderRadius: 14, padding: 16, alignItems: "center" },
-  btnText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  btnGhost: { flex: 1, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 14, padding: 16, alignItems: "center", backgroundColor: C.card },
+  btnGhostText: { color: C.inkSoft, fontSize: 15, fontWeight: "800" },
+  btnPrimary: { flex: 2, backgroundColor: C.primary, borderRadius: 14, padding: 16, alignItems: "center" },
+  btnText: { color: C.onPrimary, fontSize: 15, fontWeight: "800" },
 
-  btnOutline: { borderWidth: 1, borderColor: RED, borderRadius: 12, padding: 14, paddingHorizontal: 30, marginTop: 14 },
-  btnOutlineText: { color: RED, fontWeight: "800", fontSize: 15 },
-  emptyTitle: { fontSize: 15, fontWeight: "700", color: "#333", textAlign: "center" },
+  btnOutline: { borderWidth: 1, borderColor: C.primary, borderRadius: 12, padding: 14, paddingHorizontal: 30, marginTop: 14 },
+  btnOutlineText: { color: C.primary, fontWeight: "800", fontSize: 15 },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: C.ink3, textAlign: "center" },
 });

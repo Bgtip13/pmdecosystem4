@@ -12,10 +12,9 @@ import { exportCsv } from "../../lib/csvExport";
 import { TOP_PAD } from "../../lib/layout";
 import { isOwnerLike } from "../../lib/roles";
 
-const { colors: C, radius: R } = theme;
-const RED = C.primary;
-const GRAY = C.inkMuted;
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
+const { radius: R } = theme;
 const RESULT_LABEL: any = {
   order_masuk: "Order masuk",
   plan_order: "Plan order",
@@ -32,9 +31,12 @@ const RESULT_LABEL: any = {
   stok_cukup: "Stok masih cukup",
   ganti_nama: "Toko ganti nama",
 };
-const AREA_BG: any = { SOLO: "#FEE4E2", DIY: "#E0F2FE", SEMARANG: "#DCFAE6" };
-const AREA_TX: any = { SOLO: "#B42318", DIY: "#026AA2", SEMARANG: "#067647" };
-
+const makeAREA_BG = (C: Colors): any => (
+  { SOLO: C.chip.danger.bg, DIY: C.chip.info.bg, SEMARANG: C.chip.success.bg }
+);
+const makeAREA_TX = (C: Colors): any => (
+  { SOLO: C.status.danger.fg, DIY: C.chip.info.fg, SEMARANG: C.status.success.fg }
+);
 const rupiah = (n: any) => (n == null || isNaN(n) ? "-" : "Rp" + Number(n).toLocaleString("id-ID"));
 const monthLabel = (mk?: string) => {
   if (!mk) return "-";
@@ -44,6 +46,10 @@ const monthLabel = (mk?: string) => {
 };
 
 export default function TokoAktifList() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
+  const AREA_BG = makeAREA_BG(C);
+  const AREA_TX = makeAREA_TX(C);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
 
@@ -83,7 +89,7 @@ export default function TokoAktifList() {
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/spk"); };
 
   if (!viewer) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
   if (!bolehLihat) {
     return (
@@ -96,7 +102,13 @@ export default function TokoAktifList() {
 
   const items = list?.items ?? [];
   const total = counts?.total ?? { open: 0, inpg: 0, closed: 0, all: 0, sudahOrder: 0 };
-  const inpgIds = (items as any[]).filter((t: any) => t.workflowStatus === "INPG").map((t: any) => t._id);
+  // Bisa ditutup supervisor: INPG (menunggu review) atau OPEN yang tokonya sudah order (bypass langsung CLSD).
+  const bisaTutup = (t: any) => {
+    const w = t.workflowStatus ?? "OPEN";
+    return w === "INPG" || (w === "OPEN" && !!t.sudahOrder);
+  };
+  const tutupIds = (items as any[]).filter(bisaTutup).map((t: any) => t._id);
+  const inpgCount = (items as any[]).filter((t: any) => t.workflowStatus === "INPG").length;
 
   const autoCount = counts?.total?.sudahOrder ?? (items as any[]).filter((t: any) => t.sudahOrder).length;
   const shownItems = (items as any[]).filter((t: any) =>
@@ -128,7 +140,13 @@ export default function TokoAktifList() {
   };
 
   const onClose = (t: any) => {
-    Alert.alert("Setujui tugas ini? (CLSD)", `FU Toko "${t.storeName}" akan dikunci dan pindah ke Riwayat.`, [
+    const bypass = (t.workflowStatus ?? "OPEN") === "OPEN";
+    Alert.alert(
+      bypass ? "Tutup langsung? (OPEN → CLSD)" : "Setujui tugas ini? (CLSD)",
+      bypass
+        ? `"${t.storeName}" sudah order, jadi tidak perlu di-follow-up. Tugas akan dikunci dan dihitung berhasil order setelah FU.`
+        : `FU Toko "${t.storeName}" akan dikunci dan pindah ke Riwayat.`,
+      [
       { text: "Batal", style: "cancel" },
       {
         text: "Ya, CLSD",
@@ -205,7 +223,7 @@ export default function TokoAktifList() {
   const renderCard = ({ item: t }: any) => {
     const wfs = (t.workflowStatus ?? "OPEN") as string;
     const sudahCall = !!t.calledAt;
-    const bisaPilih = bulk.pilih && wfs === "INPG";          // ← BARU: hanya INPG yang bisa dicentang
+    const bisaPilih = bulk.pilih && bisaTutup(t);          // INPG, atau OPEN yang sudah order
     const dibuka = () => router.push(`/toko-aktif/${t._id}` as any);
 
     return (
@@ -218,8 +236,8 @@ export default function TokoAktifList() {
             {bulk.pilih ? <SelectBox checked={bulk.terpilih.has(t._id) && bisaPilih} /> : null}
             <Text style={[styles.name, { flex: 1 }]} numberOfLines={2}>{t.storeName}</Text>
             {(isSuper || isOwner) && t.area ? (
-              <View style={[styles.areaChip, { backgroundColor: AREA_BG[t.area] ?? "#F2F4F7" }]}>
-                <Text style={[styles.areaChipText, { color: AREA_TX[t.area] ?? GRAY }]}>{t.area}</Text>
+              <View style={[styles.areaChip, { backgroundColor: AREA_BG[t.area] ?? C.status.neutral.bg }]}>
+                <Text style={[styles.areaChipText, { color: AREA_TX[t.area] ?? C.inkMuted }]}>{t.area}</Text>
               </View>
             ) : null}
           </View>
@@ -228,7 +246,7 @@ export default function TokoAktifList() {
             <SpkStatusBadge status={wfs} />
             {t.sudahOrder ? (
               <View style={[styles.srcChip, styles.orderChip]}>
-                <Text style={[styles.srcText, { color: "#067647" }]}>
+                <Text style={[styles.srcText, { color: C.status.success.fg }]}>
                   {t.sumberOrder === "produk" ? "Sudah order (Produk)" : "Sudah order (ACT)"}
                 </Text>
               </View>
@@ -275,15 +293,15 @@ export default function TokoAktifList() {
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity style={[styles.actBtn, styles.actBtnPrimary]} onPress={dibuka}>
-              <Text style={[styles.actBtnText, { color: "#fff" }]}>{t.sudahOrder ? "Buka detail" : "Isi Hasil"}</Text>
+              <Text style={[styles.actBtnText, { color: C.onPrimary }]}>{t.sudahOrder ? "Buka detail" : "Isi Hasil"}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
 
-        {isSuper && wfs === "INPG" && !bulk.pilih ? (
+        {isSuper && bisaTutup(t) && !bulk.pilih ? (
           <View style={styles.actRow}>
             <TouchableOpacity style={[styles.actBtn, styles.actBtnGreen]} onPress={() => onClose(t)}>
-              <Text style={[styles.actBtnText, { color: "#067647" }]}>Setujui (CLSD)</Text>
+              <Text style={[styles.actBtnText, { color: C.status.success.fg }]}>{wfs === "OPEN" ? "Tutup (sudah order)" : "Setujui (CLSD)"}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -371,7 +389,7 @@ export default function TokoAktifList() {
             <TextInput
               style={styles.search}
               placeholder="Cari nama pelanggan..."
-              placeholderTextColor="#98A2B3"
+              placeholderTextColor={C.inkFaint}
               value={q}
               onChangeText={setQ}
               editable={!bulk.pilih}
@@ -386,11 +404,11 @@ export default function TokoAktifList() {
             )}
 
             {/* ← BARU: tombol Pilih (supervisor saja) */}
-            {isSuper && list !== undefined && inpgIds.length > 0 && !bulk.pilih ? (
+            {isSuper && list !== undefined && tutupIds.length > 0 && !bulk.pilih ? (
               <View style={{ marginBottom: 10 }}>
                 <BulkToggle onPress={bulk.buka} />
                 <Text style={styles.cronNote}>
-                  {inpgIds.length} toko menunggu review. Bisa disetujui sekaligus.
+                  {inpgCount} toko menunggu review{tutupIds.length - inpgCount > 0 ? ` • ${tutupIds.length - inpgCount} toko sudah order dan bisa langsung ditutup` : ""}. Bisa diproses sekaligus.
                 </Text>
               </View>
             ) : null}
@@ -404,7 +422,7 @@ export default function TokoAktifList() {
         }
         ListEmptyComponent={
           list === undefined ? (
-            <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+            <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
           ) : (
             <View style={styles.center}>
               <Text style={styles.emptyTitle}>Belum ada data FU Toko</Text>
@@ -423,7 +441,7 @@ export default function TokoAktifList() {
         <BulkBar
           label="Setujui"
           count={bulk.terpilih.size}
-          onAll={() => bulk.pilihSemua(inpgIds)}
+          onAll={() => bulk.pilihSemua(tutupIds)}
           onCancel={bulk.reset}
           onClose={onCloseMany}
         />
@@ -432,11 +450,11 @@ export default function TokoAktifList() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -448,21 +466,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  meta: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  meta: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
 
   syncBtn: { backgroundColor: C.status.success.fg, borderRadius: R.md, padding: 13, alignItems: "center" },
-  syncBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  cronNote: { fontSize: 11, color: GRAY, marginTop: 6 },
+  syncBtnText: { color: C.onPrimary, fontWeight: "800", fontSize: 14 },
+  cronNote: { fontSize: 11, color: C.inkMuted, marginTop: 6 },
 
   filterRow: { flexDirection: "row", flexWrap: "wrap", marginBottom: 4 },
   chip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 6, backgroundColor: C.surface },
   chipOn: { backgroundColor: C.primary, borderColor: C.primary },
   chipText: { fontSize: 12, color: C.inkSoft, fontWeight: "700" },
-  chipTextOn: { color: "#fff" },
+  chipTextOn: { color: C.onPrimary },
   search: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: R.md, padding: 11, fontSize: 15, color: C.ink, marginTop: 6 },
-  listMeta: { fontSize: 12, fontWeight: "700", color: GRAY, marginTop: 10, marginBottom: 2 },
+  listMeta: { fontSize: 12, fontWeight: "700", color: C.inkMuted, marginTop: 10, marginBottom: 2 },
   exportBtn: { backgroundColor: C.status.neutral.bg, borderWidth: 1, borderColor: C.border, borderRadius: R.md, paddingVertical: 11, alignItems: "center", marginTop: 10 },
   exportBtnText: { fontSize: 13, fontWeight: "800", color: C.inkSoft },
 
@@ -472,22 +490,22 @@ const styles = StyleSheet.create({
   areaChip: { borderRadius: R.xs, paddingHorizontal: 7, paddingVertical: 2 },
   areaChipText: { fontSize: 10, fontWeight: "800" },
   chipRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", marginTop: 8 },
-  srcChip: { backgroundColor: "#F2F4F7", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 6, marginBottom: 3 },
-  srcText: { fontSize: 10, fontWeight: "800", color: "#475467" },
+  srcChip: { backgroundColor: C.status.neutral.bg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 6, marginBottom: 3 },
+  srcText: { fontSize: 10, fontWeight: "800", color: C.ink2 },
   sub: { fontSize: 12, color: C.inkSoft, fontWeight: "700", marginTop: 8 },
-  sub2: { fontSize: 12, color: GRAY, marginTop: 4 },
-  warnText: { fontSize: 12, color: "#B54708", fontWeight: "700", marginTop: 4 },
-  orderChip: { backgroundColor: "#ECFDF3" },
-  orderText: { fontSize: 12, color: "#067647", fontWeight: "800", marginTop: 6, lineHeight: 17 },
-  note: { fontSize: 12, color: "#5B21B6", marginTop: 6 },
+  sub2: { fontSize: 12, color: C.inkMuted, marginTop: 4 },
+  warnText: { fontSize: 12, color: C.status.warning.fg, fontWeight: "700", marginTop: 4 },
+  orderChip: { backgroundColor: C.status.success.bg },
+  orderText: { fontSize: 12, color: C.status.success.fg, fontWeight: "800", marginTop: 6, lineHeight: 17 },
+  note: { fontSize: 12, color: C.chip.purple.fg, marginTop: 6 },
 
   actRow: { flexDirection: "row", marginTop: 10 },
   actBtn: { backgroundColor: C.status.neutral.bg, borderRadius: R.xs, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8 },
   actBtnPrimary: { backgroundColor: C.primary },
-  actBtnGreen: { backgroundColor: "#DCFAE6" },
+  actBtnGreen: { backgroundColor: C.chip.success.bg },
   actBtnText: { fontSize: 12, fontWeight: "800", color: C.inkSoft },
 
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink, marginBottom: 6 },
-  btnBack: { backgroundColor: RED, borderRadius: R.md, paddingHorizontal: 26, paddingVertical: 12, marginTop: 10 },
-  btnBackText: { color: "#fff", fontWeight: "800" },
+  btnBack: { backgroundColor: C.primary, borderRadius: R.md, paddingHorizontal: 26, paddingVertical: 12, marginTop: 10 },
+  btnBackText: { color: C.onPrimary, fontWeight: "800" },
 });

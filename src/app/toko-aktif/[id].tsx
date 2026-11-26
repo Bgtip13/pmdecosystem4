@@ -13,11 +13,9 @@ import { toFriendlyError } from "../../lib/msg";
 import { TOP_PAD } from "../../lib/layout";
 import { isOwnerLike } from "../../lib/roles";
 
-const { colors: C, radius: R } = theme;
-const RED = C.primary;
-const GRAY = C.inkMuted;
-const GREEN = "#067647";
-
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
+const { radius: R } = theme;
 const RESULTS: { key: string; label: string }[] = [
   { key: "order_masuk", label: "Order masuk" },
   { key: "plan_order", label: "Plan order" },
@@ -44,6 +42,8 @@ const fmtDateTime = (ms?: number | null) =>
   ms ? new Date(ms).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "-";
 
 export default function TokoAktifDetail() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const { id } = useLocalSearchParams();
 
@@ -81,7 +81,7 @@ export default function TokoAktifDetail() {
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/toko-aktif" as any); };
 
   if (data === undefined || viewer === undefined) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
   if (!data) {
     return (
@@ -387,7 +387,7 @@ export default function TokoAktifDetail() {
             <View style={styles.actRow}>
               {wf !== "CLSD" ? (
                 <TouchableOpacity style={[styles.actBtn, styles.actBtnGreen]} onPress={onClose}>
-                  <Text style={[styles.actBtnText, { color: GREEN }]}>Setujui (CLSD)</Text>
+                  <Text style={[styles.actBtnText, { color: C.status.success.fg }]}>Setujui (CLSD)</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity style={styles.actBtn} onPress={onReopen}>
@@ -402,7 +402,7 @@ export default function TokoAktifDetail() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Riwayat Aksi</Text>
           {trail === undefined ? (
-            <IOSSpinner size="small" color={RED} style={{ marginVertical: 6 }} />
+            <IOSSpinner size="small" color={C.primary} style={{ marginVertical: 6 }} />
           ) : (trail ?? []).length === 0 ? (
             <Text style={styles.hint}>Belum ada aktivitas tercatat.</Text>
           ) : (
@@ -426,6 +426,8 @@ export default function TokoAktifDetail() {
 }
 
 function Row({ label, value }: { label: string; value: string }) {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -434,11 +436,11 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -450,48 +452,48 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
 
   storeName: { fontSize: 21, fontWeight: "800", color: C.ink },
   chipRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", marginTop: 8 },
-  srcChip: { backgroundColor: "#F2F4F7", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 6, marginBottom: 3 },
-  srcText: { fontSize: 10, fontWeight: "800", color: "#475467" },
+  srcChip: { backgroundColor: C.status.neutral.bg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 6, marginBottom: 3 },
+  srcText: { fontSize: 10, fontWeight: "800", color: C.ink2 },
 
   card: { backgroundColor: C.surface, borderRadius: R.lg, padding: 14, marginTop: 12, borderWidth: 1, borderColor: C.border },
   cardTitle: { fontSize: 14, fontWeight: "800", color: C.ink, marginBottom: 6 },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.divider },
-  rowLabel: { fontSize: 13, color: GRAY, flex: 1 },
+  rowLabel: { fontSize: 13, color: C.inkMuted, flex: 1 },
   rowValue: { fontSize: 13, color: C.ink, fontWeight: "700", flexShrink: 1, textAlign: "right", marginLeft: 12 },
   para: { fontSize: 14, color: C.inkSoft, lineHeight: 20 },
-  orderBox: { backgroundColor: "#ECFDF3", borderWidth: 1, borderColor: "#ABEFC6", borderRadius: R.lg, padding: 14, marginTop: 12 },
-  orderTitle: { fontSize: 14, fontWeight: "800", color: "#067647", marginBottom: 4 },
-  orderText: { fontSize: 12, color: "#067647", lineHeight: 18 },
-  hint: { fontSize: 12, color: GRAY, lineHeight: 17, marginTop: 2 },
+  orderBox: { backgroundColor: C.status.success.bg, borderWidth: 1, borderColor: C.status.success.border, borderRadius: R.lg, padding: 14, marginTop: 12 },
+  orderTitle: { fontSize: 14, fontWeight: "800", color: C.status.success.fg, marginBottom: 4 },
+  orderText: { fontSize: 12, color: C.status.success.fg, lineHeight: 18 },
+  hint: { fontSize: 12, color: C.inkMuted, lineHeight: 17, marginTop: 2 },
 
-  label: { fontSize: 12, fontWeight: "800", color: GRAY, marginTop: 14, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
+  label: { fontSize: 12, fontWeight: "800", color: C.inkMuted, marginTop: 14, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
   input: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: R.md, padding: 12, fontSize: 15, color: C.ink },
 
   chipWrap: { flexDirection: "row", flexWrap: "wrap" },
   chip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 7, marginRight: 6, marginBottom: 6, backgroundColor: C.surface },
   chipOn: { backgroundColor: C.primary, borderColor: C.primary },
   chipText: { fontSize: 12, color: C.inkSoft, fontWeight: "700" },
-  chipTextOn: { color: "#fff" },
+  chipTextOn: { color: C.onPrimary },
 
   callBtn: { backgroundColor: C.status.info.bg, borderWidth: 1, borderColor: C.status.info.border, borderRadius: R.md, padding: 13, alignItems: "center", marginTop: 10 },
   callBtnText: { color: C.status.info.fg, fontWeight: "800", fontSize: 14 },
   shotBtn: { backgroundColor: C.status.danger.bg, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: R.md, padding: 14, alignItems: "center" },
   shotBtnText: { color: C.primaryDark, fontWeight: "800", fontSize: 14 },
   thumb: { width: 84, height: 84, borderRadius: 12 },
-  removeText: { color: RED, fontWeight: "700", fontSize: 13 },
+  removeText: { color: C.primary, fontWeight: "700", fontSize: 13 },
   photo: { width: "100%", height: 300, borderRadius: 12, marginTop: 4, backgroundColor: C.surfaceAlt },
 
   saveBtn: { backgroundColor: C.primary, borderRadius: R.md, paddingVertical: 14, alignItems: "center", marginTop: 18 },
-  saveBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  saveBtnText: { color: C.onPrimary, fontWeight: "800", fontSize: 15 },
 
   actRow: { flexDirection: "row", marginTop: 12 },
   actBtn: { backgroundColor: C.status.neutral.bg, borderRadius: R.xs, paddingHorizontal: 12, paddingVertical: 9, marginRight: 8 },
-  actBtnGreen: { backgroundColor: "#DCFAE6" },
+  actBtnGreen: { backgroundColor: C.chip.success.bg },
   actBtnText: { fontSize: 12, fontWeight: "800", color: C.inkSoft },
 
   // ← BARU: timeline audit
@@ -500,9 +502,9 @@ const styles = StyleSheet.create({
   trailDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.primary, marginTop: 4 },
   trailLine: { flex: 1, width: 2, backgroundColor: C.divider, marginTop: 2 },
   trailText: { fontSize: 13, color: C.ink, fontWeight: "600", lineHeight: 18 },
-  trailMeta: { fontSize: 11, color: GRAY, marginTop: 2 },
+  trailMeta: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
 
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink, marginBottom: 6 },
-  btnBack: { backgroundColor: RED, borderRadius: R.md, paddingHorizontal: 26, paddingVertical: 12, marginTop: 10 },
-  btnBackText: { color: "#fff", fontWeight: "800" },
+  btnBack: { backgroundColor: C.primary, borderRadius: R.md, paddingHorizontal: 26, paddingVertical: 12, marginTop: 10 },
+  btnBackText: { color: C.onPrimary, fontWeight: "800" },
 });

@@ -6,10 +6,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { TOP_PAD } from "../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-const VIOLET = "#6D28D9";
-
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const TYPES: { key: string; label: string }[] = [
   { key: "sakit", label: "Sakit" },
@@ -26,6 +24,8 @@ const TYPE_LABEL: any = { sakit: "Sakit", izin: "Izin", cuti: "Cuti", dinas_luar
 const SCOPE_LABEL: any = { tidak_masuk: "Tidak masuk", tidak_keliling: "Tidak keliling" };
 
 export default function Izin() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
 
@@ -45,7 +45,16 @@ export default function Izin() {
   const setLeave = useMutation(api.leaves.setLeave);
   const clearLeave = useMutation(api.leaves.clearLeave);
 
-  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+  // ===== Event target kunjungan (khusus supervisor) =====
+  const isSpv = viewer?.role === "supervisor";
+  const events = useQuery(api.visitEvents.listByDay, (isSpv ? ({ day: dayKey } as any) : "skip") as any) as any;
+  const createEvent = useMutation(api.visitEvents.create);
+  const removeEvent = useMutation(api.visitEvents.remove);
+  const [evTitle, setEvTitle] = useState("");
+  const [evTarget, setEvTarget] = useState("");
+  const [evArea, setEvArea] = useState<string>("");   // "" = semua area
+
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
 
   if (!isSuper) {
     return (
@@ -121,6 +130,42 @@ export default function Izin() {
     ]);
   };
 
+  const onSaveEvent = async () => {
+    const t = parseInt(evTarget, 10);
+    if (!evTitle.trim()) return Alert.alert("Judul event", "Isi judul event, mis. Meeting dadakan.");
+    if (evTarget.trim() === "" || isNaN(t) || t < 0 || t > 50) return Alert.alert("Target kunjungan", "Isi target 0–50 toko untuk hari ini.");
+    setBusy("EVENT");
+    try {
+      await createEvent({ day: dayKey, title: evTitle.trim(), target: t, area: (evArea || undefined) as any });
+      Alert.alert("Tersimpan ✅", `Event “${evTitle.trim()}”: target kunjungan ${t} toko. Penilaian ikut menyesuaikan.`);
+      setEvTitle(""); setEvTarget(""); setEvArea("");
+    } catch (e: any) {
+      Alert.alert("Gagal", e?.message ?? "Coba lagi.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const doRemoveEvent = (id: string, title: string) => {
+    Alert.alert("Hapus event?", `“${title}” dihapus dan target hari itu kembali ke bawaan (7 toko).`, [
+      { text: "Tidak", style: "cancel" },
+      {
+        text: "Ya, Hapus",
+        style: "destructive",
+        onPress: async () => {
+          setBusy(id);
+          try {
+            await removeEvent({ eventId: id as any });
+          } catch (e: any) {
+            Alert.alert("Gagal", e?.message ?? "Coba lagi.");
+          } finally {
+            setBusy(null);
+          }
+        },
+      },
+    ]);
+  };
+
   const selectedSaved = salesId ? savedOf(salesId) : null;
   const formDisabled = busy === "FORM";
 
@@ -139,7 +184,7 @@ export default function Izin() {
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 }} keyboardShouldPersistTaps="handled">
         {salesList === undefined ? (
-          <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>
+          <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>
         ) : (
           <>
             {/* ===== FORM ===== */}
@@ -227,7 +272,7 @@ export default function Izin() {
             </Text>
 
             {leaves === undefined ? (
-              <IOSSpinner size="small" color={VIOLET} style={{ marginVertical: 8 }} />
+              <IOSSpinner size="small" color={C.violetDark} style={{ marginVertical: 8 }} />
             ) : (leaves ?? []).length === 0 ? (
               <View style={styles.card}>
                 <Text style={styles.meta}>Belum ada izin untuk tanggal ini.</Text>
@@ -254,6 +299,82 @@ export default function Izin() {
                 </View>
               ))
             )}
+
+            {/* ===== EVENT & TARGET KUNJUNGAN (supervisor) ===== */}
+            {isSpv ? (
+              <>
+                <Text style={styles.sectionTitle}>
+                  Event & Target Kunjungan {(events ?? []).length > 0 ? `(${events.length})` : ""}
+                </Text>
+                <View style={styles.card}>
+                  <Text style={styles.meta}>
+                    Untuk {label}. Target bawaan 7 toko (Minggu libur). Event mengganti target hari itu dan otomatis dipakai penilaian.
+                    Isi 0 bila hari itu tanpa kewajiban kunjungan.
+                  </Text>
+
+                  <Text style={styles.groupLabel}>JUDUL EVENT</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="contoh: Meeting dadakan"
+                    value={evTitle}
+                    onChangeText={setEvTitle}
+                    editable={busy !== "EVENT"}
+                  />
+
+                  <Text style={styles.groupLabel}>TARGET KUNJUNGAN HARI ITU (TOKO)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="contoh: 4"
+                    keyboardType="number-pad"
+                    value={evTarget}
+                    onChangeText={(x) => setEvTarget(x.replace(/[^0-9]/g, ""))}
+                    editable={busy !== "EVENT"}
+                  />
+
+                  <Text style={styles.groupLabel}>BERLAKU UNTUK</Text>
+                  <View style={styles.chipWrap}>
+                    {["", "SOLO", "DIY", "SEMARANG"].map((a) => {
+                      const on = evArea === a;
+                      return (
+                        <TouchableOpacity key={a || "ALL"} style={[styles.aChip, on && styles.aChipOn]} onPress={() => setEvArea(a)} disabled={busy === "EVENT"}>
+                          <Text style={[styles.aChipText, on && styles.aChipTextOn]}>{a || "Semua area"}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.saveBtn, busy === "EVENT" && { opacity: 0.6 }]}
+                    onPress={onSaveEvent}
+                    disabled={busy === "EVENT"}
+                  >
+                    <Text style={styles.saveBtnText}>{busy === "EVENT" ? "Menyimpan..." : "Simpan Event"}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {events === undefined ? (
+                  <IOSSpinner size="small" color={C.violetDark} style={{ marginVertical: 8 }} />
+                ) : (events ?? []).length === 0 ? (
+                  <View style={styles.card}>
+                    <Text style={styles.meta}>Belum ada event untuk tanggal ini — target kunjungan memakai bawaan.</Text>
+                  </View>
+                ) : (
+                  (events ?? []).map((e: any) => (
+                    <View key={String(e._id)} style={styles.rowCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.name} numberOfLines={1}>{e.title}</Text>
+                        <Text style={styles.rowSub}>
+                          Target {e.target} toko • {e.area ?? "Semua area"}{e.createdByName ? ` • oleh ${e.createdByName}` : ""}
+                        </Text>
+                      </View>
+                      <TouchableOpacity style={styles.cancelBtn} onPress={() => doRemoveEvent(String(e._id), e.title)} disabled={busy === String(e._id)}>
+                        <Text style={styles.cancelText}>{busy === String(e._id) ? "..." : "Hapus"}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </>
+            ) : null}
           </>
         )}
       </ScrollView>
@@ -261,11 +382,11 @@ export default function Izin() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -277,37 +398,37 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  dateNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#EEF0F3", paddingHorizontal: 4 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  dateNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.divider, paddingHorizontal: 4 },
   dateArrow: { paddingHorizontal: 18, paddingVertical: 6 },
-  dateArrowText: { fontSize: 22, color: VIOLET, fontWeight: "800" },
-  dateLabel: { fontSize: 14, fontWeight: "800", color: "#111" },
+  dateArrowText: { fontSize: 22, color: C.violetDark, fontWeight: "800" },
+  dateLabel: { fontSize: 14, fontWeight: "800", color: C.ink0 },
 
-  card: { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#EEF0F3" },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: "#111" },
-  sectionTitle: { fontSize: 13, fontWeight: "800", color: GRAY, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8, marginBottom: 8 },
-  meta: { fontSize: 12, color: GRAY, marginTop: 4 },
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.divider },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: C.ink0 },
+  sectionTitle: { fontSize: 13, fontWeight: "800", color: C.inkMuted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8, marginBottom: 8 },
+  meta: { fontSize: 12, color: C.inkMuted, marginTop: 4 },
 
-  groupLabel: { fontSize: 10, fontWeight: "800", color: GRAY, letterSpacing: 0.5, marginTop: 12, marginBottom: 6 },
+  groupLabel: { fontSize: 10, fontWeight: "800", color: C.inkMuted, letterSpacing: 0.5, marginTop: 12, marginBottom: 6 },
   chipWrap: { flexDirection: "row", flexWrap: "wrap" },
-  aChip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, marginRight: 6, marginBottom: 6, backgroundColor: "#fff" },
-  aChipOn: { backgroundColor: VIOLET, borderColor: VIOLET },
-  aChipText: { fontSize: 12, color: "#344054", fontWeight: "700" },
-  aChipTextOn: { color: "#fff" },
-  hint: { fontSize: 11, color: "#B54708", fontWeight: "700", marginTop: 2 },
+  aChip: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, marginRight: 6, marginBottom: 6, backgroundColor: C.card },
+  aChipOn: { backgroundColor: C.violetDark, borderColor: C.violetDark },
+  aChipText: { fontSize: 12, color: C.inkSoft, fontWeight: "700" },
+  aChipTextOn: { color: C.onPrimary },
+  hint: { fontSize: 11, color: C.status.warning.fg, fontWeight: "700", marginTop: 2 },
 
-  input: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 10, padding: 11, fontSize: 13 },
-  saveBtn: { backgroundColor: VIOLET, borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 },
-  saveBtnText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  input: { backgroundColor: C.card, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 10, padding: 11, fontSize: 13 },
+  saveBtn: { backgroundColor: C.violetDark, borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 },
+  saveBtnText: { color: C.onPrimary, fontWeight: "800", fontSize: 13 },
 
-  rowCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 12, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: "#EEF0F3" },
-  name: { fontSize: 14, fontWeight: "800", color: "#111" },
-  rowSub: { fontSize: 12, color: GRAY, marginTop: 3 },
-  cancelBtn: { backgroundColor: "#FEF3F2", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, marginLeft: 10 },
-  cancelText: { fontSize: 12, fontWeight: "800", color: "#B42318" },
+  rowCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 12, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: C.divider },
+  name: { fontSize: 14, fontWeight: "800", color: C.ink0 },
+  rowSub: { fontSize: 12, color: C.inkMuted, marginTop: 3 },
+  cancelBtn: { backgroundColor: C.status.danger.bg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, marginLeft: 10 },
+  cancelText: { fontSize: 12, fontWeight: "800", color: C.status.danger.fg },
 
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#333" },
-  btnOutline: { borderWidth: 1, borderColor: RED, borderRadius: 12, padding: 14, paddingHorizontal: 30, marginTop: 14 },
-  btnOutlineText: { color: RED, fontWeight: "800", fontSize: 15 },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: C.ink3 },
+  btnOutline: { borderWidth: 1, borderColor: C.primary, borderRadius: 12, padding: 14, paddingHorizontal: 30, marginTop: 14 },
+  btnOutlineText: { color: C.primary, fontWeight: "800", fontSize: 15 },
 });

@@ -7,10 +7,11 @@ import { api } from "../../convex/_generated/api";
 import { toFriendlyError } from "../lib/msg";
 import { TOP_PAD } from "../lib/layout";
 
-const RED = "#D92D20";
-const GRAY = "#667085";
-
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
 export default function KirimNotifikasi() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const users = useQuery(api.users.listUsersManage, {}) as any;
@@ -23,7 +24,7 @@ export default function KirimNotifikasi() {
   const [sel, setSel] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
-  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+  if (!viewer) return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   if (viewer.role !== "supervisor") {
     return (
       <View style={styles.center}>
@@ -87,7 +88,7 @@ export default function KirimNotifikasi() {
             <TextInput style={styles.search} placeholder="Cari nama / ID..."
               value={q} onChangeText={setQ} autoCapitalize="none" />
             {users === undefined ? (
-              <IOSSpinner size="small" color={RED} style={{ marginVertical: 10 }} />
+              <IOSSpinner size="small" color={C.primary} style={{ marginVertical: 10 }} />
             ) : (
               filtered.map((u: any) => {
                 const on = sel.includes(u._id);
@@ -124,11 +125,11 @@ export default function KirimNotifikasi() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FCFAFA" },
-  screen: { flex: 1, backgroundColor: "#FCFAFA" },
+const createStyles = (C: Colors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -141,26 +142,26 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  sub: { fontSize: 13, color: "#667085", marginTop: 3, lineHeight: 18 },
-  label: { fontSize: 12, fontWeight: "800", color: GRAY, marginTop: 18, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  sub: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 18 },
+  label: { fontSize: 12, fontWeight: "800", color: C.inkMuted, marginTop: 18, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
   chipRow: { flexDirection: "row", flexWrap: "wrap" },
-  chip: { borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 9, marginRight: 8, marginBottom: 6, backgroundColor: "#fff" },
-  chipOn: { backgroundColor: RED, borderColor: RED },
-  chipText: { fontSize: 13, color: "#344054", fontWeight: "700" },
-  chipTextOn: { color: "#fff" },
-  search: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 12, padding: 12, fontSize: 14, marginBottom: 10 },
-  userRow: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: "#EEF0F3" },
-  check: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: "#D0D5DD", marginRight: 12, alignItems: "center", justifyContent: "center" },
-  checkOn: { backgroundColor: RED, borderColor: RED },
-  checkText: { color: "#fff", fontWeight: "900", fontSize: 13 },
-  userName: { fontSize: 14, fontWeight: "800", color: "#111" },
-  userMeta: { fontSize: 11, color: GRAY, marginTop: 2 },
-  input: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 12, padding: 13, fontSize: 15 },
+  chip: { borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 9, marginRight: 8, marginBottom: 6, backgroundColor: C.card },
+  chipOn: { backgroundColor: C.primary, borderColor: C.primary },
+  chipText: { fontSize: 13, color: C.inkSoft, fontWeight: "700" },
+  chipTextOn: { color: C.onPrimary },
+  search: { backgroundColor: C.card, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 12, padding: 12, fontSize: 14, marginBottom: 10 },
+  userRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 12, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: C.divider },
+  check: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: C.status.neutral.border, marginRight: 12, alignItems: "center", justifyContent: "center" },
+  checkOn: { backgroundColor: C.primary, borderColor: C.primary },
+  checkText: { color: C.onPrimary, fontWeight: "900", fontSize: 13 },
+  userName: { fontSize: 14, fontWeight: "800", color: C.ink0 },
+  userMeta: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
+  input: { backgroundColor: C.card, borderWidth: 1, borderColor: C.status.neutral.border, borderRadius: 12, padding: 13, fontSize: 15 },
   multiline: { minHeight: 100, textAlignVertical: "top" },
-  empty: { fontSize: 15, fontWeight: "700", color: "#333" },
-  footer: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0F0F0" },
-  btnPrimary: { backgroundColor: RED, borderRadius: 14, padding: 17, alignItems: "center" },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  empty: { fontSize: 15, fontWeight: "700", color: C.ink3 },
+  footer: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.hairline },
+  btnPrimary: { backgroundColor: C.primary, borderRadius: 14, padding: 17, alignItems: "center" },
+  btnText: { color: C.onPrimary, fontSize: 16, fontWeight: "800" },
 });

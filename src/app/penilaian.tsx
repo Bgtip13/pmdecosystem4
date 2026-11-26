@@ -10,11 +10,9 @@ import { theme } from "../lib/theme";
 import { TOP_PAD } from "../lib/layout";
 import { isOwnerLike } from "../lib/roles";
 
-const { colors: C, radius: R } = theme;
-const RED = C.primary;
-const GRAY = C.inkMuted;
-const GREEN = "#067647";
-const ORANGE = "#B54708";
+import { useColors, useStyles } from "../lib/themeContext";
+import type { Colors } from "../lib/colors";
+const { radius: R } = theme;
 const ON_TRACK_MIN = 70;
 
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
@@ -40,9 +38,11 @@ const shortRp = (n: any) => {
   if (Math.abs(v) >= 1_000_000) return `Rp${(v / 1_000_000).toFixed(1).replace(".", ",")} jt`;
   return rupiah(v);
 };
-const warna = (p: any) => (p == null ? C.inkFaint : p >= ON_TRACK_MIN ? GREEN : p >= 40 ? ORANGE : RED);
+const warna = (C: Colors, p: any) => (p == null ? C.inkFaint : p >= ON_TRACK_MIN ? C.status.success.fg : p >= 40 ? C.status.warning.fg : C.primary);
 
 function Bar({ pct, color }: { pct: any; color: string }) {
+  const C = useColors();
+  const s = useStyles(createS);
   return (
     <View style={s.barBg}>
       <View style={[s.barFill, { width: `${Math.min(100, Math.max(0, pct ?? 0))}%` as any, backgroundColor: color }]} />
@@ -51,6 +51,8 @@ function Bar({ pct, color }: { pct: any; color: string }) {
 }
 
 function Line({ label, value }: { label: string; value: string }) {
+  const C = useColors();
+  const s = useStyles(createS);
   return (
     <View style={s.line}>
       <Text style={s.lineLabel}>{label}</Text>
@@ -66,6 +68,8 @@ function Line({ label, value }: { label: string; value: string }) {
 // owner memakai halaman Rapor Bulanan untuk melihat semua.
 // ==========================================================================
 export default function PenilaianSaya() {
+  const C = useColors();
+  const s = useStyles(createS);
   const router = useRouter();
   const viewer = useQuery(api.users.viewer) as any;
   const run = useAction(api.penilaian.monthly);
@@ -92,7 +96,7 @@ export default function PenilaianSaya() {
     return () => { alive = false; };
   }, [bolehSendiri, mk]);
 
-  if (!viewer) return <View style={s.center}><IOSSpinner size="large" color={RED} /></View>;
+  if (!viewer) return <View style={s.center}><IOSSpinner size="large" color={C.primary} /></View>;
 
   if (!boleh) {
     return (
@@ -147,7 +151,7 @@ export default function PenilaianSaya() {
               Halaman ini menampilkan rapor pribadi. Untuk melihat rapor semua sales, buka menu Rapor Bulanan.
             </Text>
             <TouchableOpacity style={s.outlineBtn} onPress={() => router.push("/spv-penilaian" as any)}>
-              <AppIcon name="chart" size={14} color={RED} style={{ marginRight: 6 }} />
+              <AppIcon name="chart" size={14} color={C.primary} style={{ marginRight: 6 }} />
               <Text style={s.outlineBtnText}>Buka Rapor Bulanan</Text>
             </TouchableOpacity>
           </View>
@@ -155,7 +159,7 @@ export default function PenilaianSaya() {
           <Text style={s.err}>{err}</Text>
         ) : !data ? (
           <View style={[s.card, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
-            <IOSSpinner size="small" color={RED} />
+            <IOSSpinner size="small" color={C.primary} />
             <Text style={s.sub}>{loading ? "Menghitung rapor & menarik omset…" : "Memuat rapor…"}</Text>
           </View>
         ) : data.selfMissing || !person ? (
@@ -171,12 +175,12 @@ export default function PenilaianSaya() {
             {/* ===== Skor ===== */}
             <View style={s.hero}>
               <View style={{ alignItems: "center" }}>
-                <Text style={[s.heroScore, { color: person.skor >= ON_TRACK_MIN ? GREEN : ORANGE }]}>{person.skor}</Text>
+                <Text style={[s.heroScore, { color: person.skor >= ON_TRACK_MIN ? C.status.success.fg : C.status.warning.fg }]}>{person.skor}</Text>
                 <Text style={s.heroUnit}>dari 100</Text>
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={[s.badge, { backgroundColor: person.skor >= ON_TRACK_MIN ? "#ECFDF3" : "#FFFAEB", borderColor: person.skor >= ON_TRACK_MIN ? "#ABEFC6" : "#FEDF89" }]}>
-                  <Text style={[s.badgeText, { color: person.skor >= ON_TRACK_MIN ? GREEN : ORANGE }]}>
+                <View style={[s.badge, { backgroundColor: person.skor >= ON_TRACK_MIN ? C.status.success.bg : C.status.warning.bg, borderColor: person.skor >= ON_TRACK_MIN ? C.status.success.border : C.status.warning.border }]}>
+                  <Text style={[s.badgeText, { color: person.skor >= ON_TRACK_MIN ? C.status.success.fg : C.status.warning.fg }]}>
                     {person.skor >= ON_TRACK_MIN ? "ON TRACK" : "PERLU PERHATIAN"}
                   </Text>
                 </View>
@@ -199,8 +203,9 @@ export default function PenilaianSaya() {
                 <>
                   <Line label="Kunjungan selesai" value={`${person.kunjungan} toko`} />
                   <Line label="Hari sesuai target" value={`${person.hariMemenuhi}/${person.hariWajib} hari`} />
+                  <Line label="Hari hadir (ada kunjungan)" value={`${person.hariHadir ?? 0}/${person.hariWajib} hari`} />
                   <Line label="Toko tembus order" value={`${person.orderCount} (${pctText(person.orderPct)})`} />
-                  <Line label="Keterangan lengkap" value={`${person.keteranganLengkap}/${person.kunjungan}`} />
+                  <Line label="Keterangan lengkap (3 kolom)" value={`${person.keteranganLengkap}/${person.kunjungan}`} />
                 </>
               ) : (
                 <>
@@ -220,9 +225,9 @@ export default function PenilaianSaya() {
               <View key={k.key} style={s.comp}>
                 <View style={s.compHead}>
                   <Text style={s.compLabel}>{k.label}</Text>
-                  <Text style={[s.compPct, { color: warna(k.pct) }]}>{pctText(k.pct)}</Text>
+                  <Text style={[s.compPct, { color: warna(C, k.pct) }]}>{pctText(k.pct)}</Text>
                 </View>
-                <Bar pct={k.pct ?? 0} color={warna(k.pct)} />
+                <Bar pct={k.pct ?? 0} color={warna(C, k.pct)} />
                 <View style={s.compMeta}>
                   <Text style={s.compNilai}>{k.nilai}</Text>
                   <Text style={s.compWeight}>bobot {k.bobot}%</Text>
@@ -237,12 +242,12 @@ export default function PenilaianSaya() {
             <Text style={s.section}>Omset & porsi kiriman</Text>
             <View style={s.card}>
               <Line label="Omset bulanan" value={`${rupiah(person.omsetBulan)} / ${rupiah(person.omsetBulanTarget)}`} />
-              <Bar pct={person.omsetBulanPct ?? 0} color={warna(person.omsetBulanPct)} />
+              <Bar pct={person.omsetBulanPct ?? 0} color={warna(C, person.omsetBulanPct)} />
               <Text style={s.sub}>Target bulanan dicapai {pctText(person.omsetBulanPct)}</Text>
 
               <View style={{ height: 10 }} />
               <Line label="Rata-rata per minggu" value={`${rupiah(person.omsetMingguAct)} / ${rupiah(person.omsetMingguTarget)}`} />
-              <Bar pct={person.omsetMingguPct ?? 0} color={warna(person.omsetMingguPct)} />
+              <Bar pct={person.omsetMingguPct ?? 0} color={warna(C, person.omsetMingguPct)} />
               <Text style={s.sub}>
                 Dari {person.omsetMingguCount ?? 0} minggu berjalan • target mingguan {pctText(person.omsetMingguPct)} tercapai
               </Text>
@@ -253,16 +258,14 @@ export default function PenilaianSaya() {
                     <View key={w.label} style={s.week}>
                       <Text style={s.weekLabel}>{w.label}</Text>
                       <Text style={s.weekValue}>{shortRp(w.act)}</Text>
-                      <Text style={[s.weekPct, { color: warna(w.pct) }]}>{pctText(w.pct)}</Text>
+                      <Text style={[s.weekPct, { color: warna(C, w.pct) }]}>{pctText(w.pct)}</Text>
                     </View>
                   ))}
                 </View>
               ) : null}
             </View>
             <Text style={s.note}>
-              Sebulan dihitung {person.omsetKirimanPerBulan ?? 9} kali kiriman. Target per kiriman ={" "}
-              {rupiah(person.omsetTargetPerKiriman)}; target mingguan = target per kiriman ×{" "}
-              {person.omsetKirimanPerMinggu ?? 2.25} kiriman/minggu.
+              Target mingguan {rupiah(person.omsetMingguTarget)} diambil dari sheet PCP Mingguan kolom E (TGT/MGG) sesuai nama sales.
             </Text>
 
             {/* ===== Riwayat SPK Admin (telemarketing) ===== */}
@@ -306,18 +309,18 @@ export default function PenilaianSaya() {
   );
 }
 
-const s = StyleSheet.create({
+const createS = (C: Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5", paddingTop: TOP_PAD, paddingHorizontal: 16, paddingBottom: 12,
+    backgroundColor: C.surfaceTint, paddingTop: TOP_PAD, paddingHorizontal: 16, paddingBottom: 12,
     borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
   },
-  back: { color: RED, fontWeight: "700" },
+  back: { color: C.primary, fontWeight: "700" },
   title: { fontSize: 20, fontWeight: "800", color: C.ink, marginTop: 2 },
   meta: { fontSize: 11.5, color: C.inkMuted, marginTop: 2 },
-  err: { fontSize: 12, color: RED, marginBottom: 8, fontWeight: "700" },
-  warn: { fontSize: 11, color: ORANGE, marginTop: 8, marginBottom: 4 },
+  err: { fontSize: 12, color: C.primary, marginBottom: 8, fontWeight: "700" },
+  warn: { fontSize: 11, color: C.status.warning.fg, marginTop: 8, marginBottom: 4 },
 
   monthBar: { flexDirection: "row", alignItems: "center", marginTop: 10, gap: 10 },
   monthBtn: {
@@ -366,11 +369,11 @@ const s = StyleSheet.create({
   compNote: { fontSize: 10.5, color: C.inkMuted, lineHeight: 16, marginTop: 5 },
   compSource: { fontSize: 9.5, color: C.inkFaint, marginTop: 4, fontStyle: "italic" },
 
-  barBg: { height: 5, borderRadius: 3, backgroundColor: "#F0ECEC", overflow: "hidden", marginTop: 7 },
+  barBg: { height: 5, borderRadius: 3, backgroundColor: C.hairline2, overflow: "hidden", marginTop: 7 },
   barFill: { height: 5, borderRadius: 3 },
 
   weeks: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
-  week: { flexBasis: 96, flexGrow: 1, backgroundColor: "#FAF7F5", borderRadius: 8, padding: 8 },
+  week: { flexBasis: 96, flexGrow: 1, backgroundColor: C.surfaceWarm, borderRadius: 8, padding: 8 },
   weekLabel: { fontSize: 9, fontWeight: "800", color: C.inkMuted, letterSpacing: 0.4 },
   weekValue: { fontSize: 11, fontWeight: "700", color: C.ink, marginTop: 2 },
   weekPct: { fontSize: 10, fontWeight: "700", marginTop: 1 },
@@ -379,13 +382,13 @@ const s = StyleSheet.create({
 
   privacy: {
     fontSize: 10.5, color: C.inkMuted, lineHeight: 15, marginTop: 14,
-    backgroundColor: "#F2F4F7", borderRadius: 10, padding: 10,
+    backgroundColor: C.status.neutral.bg, borderRadius: 10, padding: 10,
   },
 
   emptyTitle: { fontSize: 16, fontWeight: "800", color: C.ink, textAlign: "center" },
-  emptySub: { fontSize: 12.5, color: GRAY, textAlign: "center", marginTop: 6, lineHeight: 18 },
-  primaryBtn: { backgroundColor: RED, borderRadius: R.md, paddingHorizontal: 24, paddingVertical: 12, marginTop: 16 },
-  primaryBtnText: { color: "#fff", fontWeight: "800" },
-  outlineBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", borderWidth: 1, borderColor: "#FECDCA", backgroundColor: "#fff", borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 9, marginTop: 12 },
-  outlineBtnText: { fontSize: 12, fontWeight: "800", color: "#B42318" },
+  emptySub: { fontSize: 12.5, color: C.inkMuted, textAlign: "center", marginTop: 6, lineHeight: 18 },
+  primaryBtn: { backgroundColor: C.primary, borderRadius: R.md, paddingHorizontal: 24, paddingVertical: 12, marginTop: 16 },
+  primaryBtnText: { color: C.onPrimary, fontWeight: "800" },
+  outlineBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", borderWidth: 1, borderColor: C.status.danger.border, backgroundColor: C.card, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 9, marginTop: 12 },
+  outlineBtnText: { fontSize: 12, fontWeight: "800", color: C.status.danger.fg },
 });

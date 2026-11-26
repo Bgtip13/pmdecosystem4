@@ -9,7 +9,9 @@ import AppIcon from "../../components/AppIcon";
 import { theme } from "../../lib/theme";
 import { TOP_PAD } from "../../lib/layout";
 
-const { colors: C, radius: R } = theme;
+import { useColors, useStyles } from "../../lib/themeContext";
+import type { Colors } from "../../lib/colors";
+const { radius: R } = theme;
 
 const SHADOW = {
   shadowColor: "#101828",
@@ -19,9 +21,6 @@ const SHADOW = {
   elevation: 2,
 };
 
-const RED = C.primary;
-const GRAY = C.inkMuted;
-const GREEN = C.status.success.fg;
 const AREAS = ["SOLO", "DIY", "SEMARANG"];
 const ROLES = [
   ["owner", "Owner"],
@@ -35,6 +34,8 @@ const ROLES = [
 const NO_AREA_ROLES = ["supervisor", "owner", "hr", "akunting"];
 
 export default function EditAkun() {
+  const C = useColors();
+  const styles = useStyles(createStyles);
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const viewer = useQuery(api.users.viewer) as any;
@@ -58,7 +59,7 @@ export default function EditAkun() {
   }, [target]);
 
   if (!target) {
-    return <View style={styles.center}><IOSSpinner size="large" color={RED} /></View>;
+    return <View style={styles.center}><IOSSpinner size="large" color={C.primary} /></View>;
   }
 
   const isSelf = viewer?._id === id;
@@ -129,7 +130,7 @@ export default function EditAkun() {
     <View style={styles.screen}>
       <View style={styles.topbar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <AppIcon name="back" size={16} color={RED} style={{ marginRight: 4 }} />
+          <AppIcon name="back" size={16} color={C.primary} style={{ marginRight: 4 }} />
           <Text style={styles.backText}>Kembali</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Edit Akun</Text>
@@ -145,7 +146,7 @@ export default function EditAkun() {
             <Text style={styles.email}>{target.email?.replace("@pmd.local", "") ?? "-"}</Text>
             {target.mustChangePassword ? (
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-                <AppIcon name="warn" size={12} color="#B54708" style={{ marginRight: 4 }} />
+                <AppIcon name="warn" size={12} color={C.status.warning.fg} style={{ marginRight: 4 }} />
                 <Text style={styles.mustText}>Sedang wajib ganti password</Text>
               </View>
             ) : null}
@@ -201,7 +202,7 @@ export default function EditAkun() {
               Kembalikan password ke <Text style={{ fontWeight: "800" }}>pmd123</Text> & wajibkan ganti saat login berikutnya.
             </Text>
             <TouchableOpacity style={[styles.btnReset, resetting && { opacity: 0.6 }]} onPress={onReset} disabled={resetting}>
-              <AppIcon name="key" size={15} color="#912018" style={{ marginRight: 6 }} />
+              <AppIcon name="key" size={15} color={C.dangerDeep} style={{ marginRight: 6 }} />
               <Text style={styles.btnResetText}>{resetting ? "Mereset..." : "Reset Password"}</Text>
             </TouchableOpacity>
           </View>
@@ -216,7 +217,7 @@ export default function EditAkun() {
               </Text>
               <TouchableOpacity style={[styles.btnDelete, deleting && { opacity: 0.6 }]}
                 onPress={onDeleteAccount} disabled={deleting}>
-                <AppIcon name="trash" size={15} color="#fff" style={{ marginRight: 6 }} />
+                <AppIcon name="trash" size={15} color={C.onPrimary} style={{ marginRight: 6 }} />
                 <Text style={styles.btnDeleteText}>{deleting ? "Menghapus..." : "Hapus Akun Permanen"}</Text>
               </TouchableOpacity>
             </View>
@@ -233,11 +234,11 @@ export default function EditAkun() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: C.bg },
   screen: { flex: 1, backgroundColor: C.bg },
   topbar: {
-    backgroundColor: "#FFF7F5",
+    backgroundColor: C.surfaceTint,
     paddingTop: TOP_PAD,
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -250,32 +251,32 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start" },
-  backText: { color: "#D92D20", fontSize: 15, fontWeight: "700" },
-  title: { fontSize: 21, fontWeight: "800", color: "#101828", letterSpacing: -0.2, marginTop: 2 },
-  label: { fontSize: 12, fontWeight: "800", color: GRAY, marginTop: 20, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
+  backText: { color: C.primary, fontSize: 15, fontWeight: "700" },
+  title: { fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.2, marginTop: 2 },
+  label: { fontSize: 12, fontWeight: "800", color: C.inkMuted, marginTop: 20, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
   profileCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: R.lg, padding: 16, borderWidth: 1, borderColor: C.border, ...SHADOW },
   avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: C.primarySoft, justifyContent: "center", alignItems: "center" },
-  avatarText: { fontSize: 20, fontWeight: "800", color: RED },
+  avatarText: { fontSize: 20, fontWeight: "800", color: C.primary },
   name: { fontSize: 16, fontWeight: "800", color: C.ink },
-  email: { fontSize: 13, color: GRAY, marginTop: 2 },
+  email: { fontSize: 13, color: C.inkMuted, marginTop: 2 },
   mustText: { fontSize: 12, fontWeight: "700", color: C.status.warning.fg },
   chipRow: { flexDirection: "row", flexWrap: "wrap" },
   chip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 9, marginRight: 8, marginBottom: 6, backgroundColor: C.surface },
-  chipActive: { backgroundColor: RED, borderColor: RED },
+  chipActive: { backgroundColor: C.primary, borderColor: C.primary },
   chipDisabled: { opacity: 0.45 },
   chipText: { fontSize: 13, color: C.inkSoft, fontWeight: "700" },
-  chipTextActive: { color: "#fff" },
-  chipTextDisabled: { color: GRAY },
-  note: { fontSize: 12, color: GRAY, marginTop: 8, lineHeight: 17 },
+  chipTextActive: { color: C.onPrimary },
+  chipTextDisabled: { color: C.inkMuted },
+  note: { fontSize: 12, color: C.inkMuted, marginTop: 8, lineHeight: 17 },
   resetCard: { backgroundColor: C.status.warning.bg, borderWidth: 1, borderColor: C.status.warning.border, borderRadius: R.md, padding: 14 },
   resetDesc: { fontSize: 13, color: C.status.warning.fg, lineHeight: 18 },
   btnReset: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.chip.danger.bg, borderRadius: R.md, padding: 14, marginTop: 12 },
-  btnResetText: { color: "#912018", fontWeight: "800", fontSize: 14 },
+  btnResetText: { color: C.dangerDeep, fontWeight: "800", fontSize: 14 },
   deleteCard: { backgroundColor: C.status.danger.bg, borderWidth: 1, borderColor: C.status.danger.border, borderRadius: R.md, padding: 14 },
-  btnDelete: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: RED, borderRadius: R.md, padding: 14, marginTop: 12 },
-  btnDeleteText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  btnDelete: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.primary, borderRadius: R.md, padding: 14, marginTop: 12 },
+  btnDeleteText: { color: C.onPrimary, fontWeight: "800", fontSize: 14 },
   footer: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.divider },
-  btnPrimary: { backgroundColor: RED, borderRadius: R.md, padding: 17, alignItems: "center", ...SHADOW },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  btnPrimary: { backgroundColor: C.primary, borderRadius: R.md, padding: 17, alignItems: "center", ...SHADOW },
+  btnText: { color: C.onPrimary, fontSize: 16, fontWeight: "800" },
 });
 
